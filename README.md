@@ -36,8 +36,8 @@ scenarios by providing a set of tools and utilities.
 
 To clone the repository, run
 ```bash
-git clone https://github.com/omarfoq/llms-to-coreml
-cd llms-to-coreml
+git clone https://gitlab.inria.fr/omarfoq/fedkit-learn.git
+cd fedkit-learn
 ```
 Install using `setup.py`
 ```bash
