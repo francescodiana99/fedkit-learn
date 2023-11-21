@@ -26,6 +26,9 @@ class FederatedToyDataset:
     - noise_level (float): Optional noise level to add to labels.
     - cache_dir (str): Directory to store generated datasets.
     - force_generation (bool): If True, forces regeneration of datasets even if cached ones exist.
+    - allow_generation (bool): If False, the dataset is not generated.
+        If the data is not previously cached and allow_generation is False,
+        the class initialization will throw a runtime error.
     - rng (numpy.random.Generator): Random number generator for reproducibility.
 
     Methods:
@@ -43,64 +46,78 @@ class FederatedToyDataset:
 
     Raises:
     - ValueError: If an invalid problem type or sensitive feature type is specified.
+    - RuntimeError: If allow_generation is False and no cached data is found.
     """
     def __init__(
-            self, n_tasks, n_train_samples, n_test_samples, problem_type, n_numerical_features, n_binary_features,
-            sensitive_feature_type, sensitive_feature_weight, noise_level=None, cache_dir="./", force_generation=False,
+            self, cache_dir="./", n_tasks=None, n_train_samples=None, n_test_samples=None, problem_type=None,
+            n_numerical_features=None, n_binary_features=None, sensitive_feature_type=None,
+            sensitive_feature_weight=None, noise_level=None, force_generation=False, allow_generation=True,
             rng=None
 
     ):
-        assert problem_type in ['classification', 'regression'], \
-            "Invalid problem type. Use 'classification' or 'regression'."
 
-        assert sensitive_feature_type in ['numerical', 'binary'], \
-            "Invalid sensitive feature type. Use 'numerical' or 'binary'."
+        if any(param is None for param in [n_tasks, n_train_samples, n_test_samples, problem_type,
+                                           n_numerical_features, n_binary_features, sensitive_feature_type,
+                                           sensitive_feature_weight, noise_level]):
+            allow_generation = False
+            logging.warning(f"force_generation is automatically set to False.")
 
-        if sensitive_feature_type == 'binary':
-            assert n_binary_features > 0, \
-                "If the sensitive feature is binary, the number of binary features should be greater than 0."
-
-        if sensitive_feature_type == 'numerical':
-            assert n_numerical_features > 0, \
-                "If the sensitive feature is numerical, the number of numerical features should be greater than 0."
-
-        assert (n_numerical_features + n_binary_features) > 0, \
-            "The total number of features should be greater than 0."
-
-        self.n_tasks = n_tasks
-
-        self.n_train_samples = n_train_samples
-        self.n_test_samples = n_test_samples
-        self.n_samples = self.n_train_samples + self.n_test_samples
-
-        self.problem_type = problem_type
-
-        self.n_numerical_features = n_numerical_features
-        self.n_binary_features = n_binary_features
-        self.n_features = self.n_binary_features + self.n_numerical_features
-
-        self.sensitive_feature_type = sensitive_feature_type
-        self.sensitive_feature_weight = sensitive_feature_weight
-
-        self.noise_level = noise_level
+            self.rng = rng if rng is not None else np.random.default_rng()
 
         self.cache_dir = cache_dir
-
-        self.force_generation = force_generation
-
-        self.rng = rng if rng is not None else np.random.default_rng()
+        self.allow_generation = allow_generation
+        self.force_generation = force_generation if self.allow_generation else False
 
         self.tasks_dir = os.path.join(self.cache_dir, 'tasks')
         self.metadata_path = os.path.join(self.cache_dir, 'metadata.json')
 
-        self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
+        if self.force_generation != force_generation:
+            logging.warning(f"force_generation is automatically set to {self.force_generation}")
+
+        if not self.allow_generation and not os.path.exists(self.metadata_path):
+            raise RuntimeError("Data generation is not allowed, and no cached data is found.")
 
         if os.path.exists(self.metadata_path) and not self.force_generation:
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
-
             self._load_metadata()
 
+            self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
+
         else:
+            assert problem_type in ['classification', 'regression'], \
+                "Invalid problem type. Use 'classification' or 'regression'."
+
+            assert sensitive_feature_type in ['numerical', 'binary'], \
+                "Invalid sensitive feature type. Use 'numerical' or 'binary'."
+
+            if sensitive_feature_type == 'binary':
+                assert n_binary_features > 0, \
+                    "If the sensitive feature is binary, the number of binary features should be greater than 0."
+
+            if sensitive_feature_type == 'numerical':
+                assert n_numerical_features > 0, \
+                    "If the sensitive feature is numerical, the number of numerical features should be greater than 0."
+
+            assert (n_numerical_features + n_binary_features) > 0, \
+                "The total number of features should be greater than 0."
+
+            self.n_tasks = n_tasks
+
+            self.n_train_samples = n_train_samples
+            self.n_test_samples = n_test_samples
+            self.n_samples = self.n_train_samples + self.n_test_samples
+
+            self.problem_type = problem_type
+
+            self.n_numerical_features = n_numerical_features
+            self.n_binary_features = n_binary_features
+            self.n_features = self.n_binary_features + self.n_numerical_features
+
+            self.sensitive_feature_type = sensitive_feature_type
+            self.sensitive_feature_weight = sensitive_feature_weight
+
+            self.noise_level = noise_level
+
             os.makedirs(self.tasks_dir, exist_ok=True)
 
             self.sensitive_feature_idx = self._get_sensitive_feature_idx()
@@ -156,10 +173,19 @@ class FederatedToyDataset:
 
     def _save_metadata(self):
         metadata = {
+            'n_tasks': self.n_tasks,
+            'n_train_samples': self.n_train_samples,
+            'n_test_samples': self.n_test_samples,
+            'problem_type': self.problem_type,
+            'n_numerical_features': self.n_numerical_features,
+            'n_binary_features': self.n_binary_features,
+            'n_features': self.n_features,
+            'sensitive_feature_type': self.sensitive_feature_type,
+            'sensitive_feature_weight': self.sensitive_feature_weight,
+            'noise_level': self.noise_level,
             'weights': self.weights.tolist(),
             'bias': float(self.bias),
             'sensitive_feature_idx': int(self.sensitive_feature_idx),
-            'sensitive_feature_type': self.sensitive_feature_type
         }
 
         with open(self.metadata_path, 'w') as f:
@@ -169,6 +195,16 @@ class FederatedToyDataset:
         with open(self.metadata_path, 'r') as json_file:
             metadata = json.load(json_file)
 
+        self.n_tasks = metadata['n_tasks']
+        self.n_train_samples = metadata['n_train_samples']
+        self.n_test_samples = metadata['n_test_samples']
+        self.problem_type = metadata['problem_type']
+        self.n_numerical_features = metadata['n_numerical_features']
+        self.n_binary_features = metadata['n_binary_features']
+        self.n_features = metadata['n_features']
+        self.sensitive_feature_type = metadata['sensitive_feature_type']
+        self.sensitive_feature_weight = metadata['sensitive_feature_weight']
+        self.noise_level = metadata['noise_level']
         self.weights = np.array(metadata['weights'])
         self.bias = np.array(metadata['bias'])
         self.sensitive_feature_idx = metadata['sensitive_feature_idx']

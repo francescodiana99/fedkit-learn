@@ -15,6 +15,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
+from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
 
 from fedklearn.attacks.aia import AttributeInferenceAttack
@@ -40,7 +41,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        help="Task name. Possible are 'adult'.",
+        choices=['adult', 'toy_regression', 'toy_classification'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification'.",
         required=True
     )
 
@@ -48,14 +50,12 @@ def parse_args(args_list=None):
         "--sensitive_attribute",
         type=str,
         help="name of the sensitive attribute",
-        required=True
     )
     parser.add_argument(
         "--sensitive_attribute_type",
         type=str,
         help="type of the sensitive attribute. Possible are 'binary', 'categorical', and 'continuous'",
         choices=['binary', 'categorical', 'continuous'],
-        required=True
     )
 
     parser.add_argument(
@@ -83,31 +83,6 @@ def parse_args(args_list=None):
         type=str,
         help="Metadata file path",
         required=True
-    )
-
-    parser.add_argument(
-        "--download_data",
-        help='If chosen the dataset is downloaded if not found.',
-        action='store_true'
-    )
-    parser.add_argument(
-        '--test_frac',
-        help='Fraction of the test samples; it should be a float between 0 and 1.'
-             'Treated as None if not specified',
-        type=none_or_float,
-        default=None
-    )
-    parser.add_argument(
-        '--use_nationality',
-        help='If chosen the nationality column will be kept; otherwise, it is dropped',
-        action='store_true'
-    )
-    parser.add_argument(
-        "--scaler_name",
-        type=str,
-        default="standard",
-        help="Name of the scaler used to scale numerical features."
-             "Default is 'standard'. It can be 'min_max' or 'standard'."
     )
     parser.add_argument(
         "--data_dir",
@@ -209,11 +184,13 @@ def initialize_dataset(args, rng):
     if args.task_name == "adult":
         return FederatedAdultDataset(
             cache_dir=args.data_dir,
-            test_frac=args.test_frac,
-            drop_nationality=not args.use_nationality,
-            scaler_name=args.scaler_name,
-            download=args.download_data,
+            download=False,
             rng=rng
+        )
+    elif args.task_name == "toy_regression" or args.task_name == "toy_classification":
+        return FederatedToyDataset(
+            cache_dir=args.data_dir,
+            allow_generation=False
         )
     else:
         raise NotImplementedError(
@@ -239,12 +216,23 @@ def main():
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
+        sensitive_attribute_type = args.sensitive_attribute_type
+    elif args.task_name == "toy_classification":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        is_binary_classification = True
+        sensitive_attribute_type = federated_dataset.sensitive_attribute_type
+    elif args.task_name == "toy_regression":
+        criterion = nn.MSELoss().to(args.device)
+        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        is_binary_classification = False
+        sensitive_attribute_type = federated_dataset.sensitive_attribute_type
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
 
-    success_metric = threshold_binary_accuracy if args.sensitive_attribute_type == "binary" else mean_squared_error
+    success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
     scores_list = []
     n_samples_list = []
@@ -259,6 +247,7 @@ def main():
         logger = SummaryWriter(os.path.join(args.logs_dir, f"{attacked_client_id}"))
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
+
         sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
 
         client_messages_metadata = {
@@ -270,7 +259,7 @@ def main():
             messages_metadata=client_messages_metadata,
             dataset=dataset,
             sensitive_attribute_id=sensitive_attribute_id,
-            sensitive_attribute_type=args.sensitive_attribute_type,
+            sensitive_attribute_type=sensitive_attribute_type,
             initialization=args.initialization,
             gumbel_temperature=args.temperature,
             gumbel_threshold=args.threshold,
