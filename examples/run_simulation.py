@@ -50,9 +50,6 @@ Options:
     --num_rounds: Number of simulation rounds.
     --seed: Random seed for reproducibility.
 """
-
-import os
-import json
 import argparse
 
 import numpy as np
@@ -66,6 +63,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
+from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 from fedklearn.federated.client import Client
@@ -91,9 +89,12 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        help="Task name. Possible are 'adult', 'faces', and 'cifar'",
+        choices=['adult', 'toy_regression', 'toy_classification'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification'.",
         required=True
     )
+
+    # Args for adult dataset
     parser.add_argument(
         '--test_frac',
         help='Fraction of the test samples; it should be a float between 0 and 1.'
@@ -113,13 +114,59 @@ def parse_args(args_list=None):
         help="Name of the scaler used to scale numerical features."
              "Default is 'standard'. It can be 'min_max' or 'standard'."
     )
+
+    # Args for toy dataset
     parser.add_argument(
-        "--data_dir",
+        "--n_tasks",
+        type=int,
+        default=2,
+        help="Number of tasks"
+    )
+    parser.add_argument(
+        "--n_train_samples",
+        type=int,
+        default=30,
+        help="Number of training samples"
+    )
+    parser.add_argument(
+        "--n_test_samples",
+        type=int,
+        default=1_000,
+        help="Number of test samples"
+    )
+    parser.add_argument(
+        "--n_numerical_features",
+        type=int,
+        default=1,
+        help="Number of numerical features"
+    )
+    parser.add_argument(
+        "--n_binary_features",
+        type=int,
+        default=1,
+        help="Number of binary features"
+    )
+    parser.add_argument(
+        "--sensitive_feature_type",
         type=str,
-        default="./",
-        help="Directory to cache data"
+        choices=["binary", "numerical"],
+        default="binary",
+        help="Type of sensitive feature"
+    )
+    parser.add_argument(
+        "--sensitive_feature_weight",
+        type=float,
+        default=0.5,
+        help="Weight of sensitive feature"
+    )
+    parser.add_argument(
+        "--noise_level",
+        type=float,
+        default=0.0,
+        help="Level of noise"
     )
 
+    # Federated learning args
     parser.add_argument(
         "--compute_local_models",
         action="store_true",
@@ -182,6 +229,13 @@ def parse_args(args_list=None):
         help="Device (cpu or cuda)"
     )
 
+    # Directories and logging args
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default="./",
+        help="Directory to cache data"
+    )
     parser.add_argument(
         "--local_models_dir",
         type=str,
@@ -264,6 +318,36 @@ def initialize_dataset(args, rng):
             scaler_name=args.scaler_name,
             rng=rng
         )
+    elif args.task_name == "toy_regression":
+        return FederatedToyDataset(
+            n_tasks=args.n_tasks,
+            n_train_samples=args.n_train_samples,
+            n_test_samples=args.n_test_samples,
+            problem_type="regression",
+            n_numerical_features=args.n_numerical_features,
+            n_binary_features=args.n_binary_features,
+            sensitive_feature_type=args.sensitive_feature_type,
+            sensitive_feature_weight=args.sensitive_feature_weight,
+            noise_level=args.noise_level,
+            force_generation=True,
+            cache_dir=args.data_dir,
+            rng=rng
+        )
+    elif args.task_name == "toy_classification":
+        return FederatedToyDataset(
+            n_tasks=args.n_tasks,
+            n_train_samples=args.n_train_samples,
+            n_test_samples=args.n_test_samples,
+            problem_type="classification",
+            n_numerical_features=args.n_numerical_features,
+            n_binary_features=args.n_binary_features,
+            sensitive_feature_type=args.sensitive_feature_type,
+            sensitive_feature_weight=args.sensitive_feature_weight,
+            noise_level=args.noise_level,
+            force_generation=True,
+            cache_dir=args.data_dir,
+            rng=rng
+        )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{args.task_name}' is not implemented."
@@ -286,6 +370,18 @@ def initialize_trainer(args):
         # TODO: infer the input_dimension
         model = LinearLayer(input_dimension=41, output_dimension=1).to(args.device)
         is_binary_classification = True
+    elif args.task_name == "toy_classification":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+        metric = binary_accuracy_with_sigmoid
+        dimension = args.n_numerical_features + args.n_binary_features
+        model = LinearLayer(input_dimension=dimension, output_dimension=1).to(args.device)
+        is_binary_classification = True
+    elif args.task_name == "toy_regression":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_squared_error
+        dimension = args.n_numerical_features + args.n_binary_features
+        model = LinearLayer(input_dimension=dimension, output_dimension=1).to(args.device)
+        is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Trainer initialization for task '{args.task_name}' is not implemented."
@@ -334,7 +430,7 @@ def initialize_clients(federated_dataset, args):
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-        logger = SummaryWriter(os.path.join(args.logs_dir, f"client_{task_id}"))
+        logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
 
         client = Client(
             trainer=trainer,

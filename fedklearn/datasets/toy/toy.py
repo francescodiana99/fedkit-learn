@@ -3,7 +3,6 @@ import json
 import logging
 
 import numpy as np
-from scipy.special import expit
 
 import torch
 from torch.utils.data import TensorDataset
@@ -22,8 +21,8 @@ class FederatedToyDataset:
     - problem_type (str): Type of the problem, either 'classification' or 'regression'.
     - n_numerical_features (int): Number of numerical features in the dataset.
     - n_binary_features (int): Number of binary features in the dataset.
-    - important_feature_type (str): Type of the important feature, either 'numerical' or 'binary'.
-    - important_feature_weight (float): Weight of the important feature.
+    - sensitive_feature_type (str): Type of the sensitive feature, either 'numerical' or 'binary'.
+    - sensitive_feature_weight (float): Weight of the sensitive feature.
     - noise_level (float): Optional noise level to add to labels.
     - cache_dir (str): Directory to store generated datasets.
     - force_generation (bool): If True, forces regeneration of datasets even if cached ones exist.
@@ -43,27 +42,27 @@ class FederatedToyDataset:
     - The class supports both classification and regression tasks based on the specified problem type.
 
     Raises:
-    - ValueError: If an invalid problem type or important feature type is specified.
+    - ValueError: If an invalid problem type or sensitive feature type is specified.
     """
     def __init__(
             self, n_tasks, n_train_samples, n_test_samples, problem_type, n_numerical_features, n_binary_features,
-            important_feature_type, important_feature_weight, noise_level=None, cache_dir="./", force_generation=False,
+            sensitive_feature_type, sensitive_feature_weight, noise_level=None, cache_dir="./", force_generation=False,
             rng=None
 
     ):
         assert problem_type in ['classification', 'regression'], \
             "Invalid problem type. Use 'classification' or 'regression'."
 
-        assert important_feature_type in ['numerical', 'binary'], \
-            "Invalid important feature type. Use 'numerical' or 'binary'."
+        assert sensitive_feature_type in ['numerical', 'binary'], \
+            "Invalid sensitive feature type. Use 'numerical' or 'binary'."
 
-        if important_feature_type == 'binary':
+        if sensitive_feature_type == 'binary':
             assert n_binary_features > 0, \
-                "If the important feature is binary, the number of binary features should be greater than 0."
+                "If the sensitive feature is binary, the number of binary features should be greater than 0."
 
-        if important_feature_type == 'numerical':
+        if sensitive_feature_type == 'numerical':
             assert n_numerical_features > 0, \
-                "If the important feature is numerical, the number of numerical features should be greater than 0."
+                "If the sensitive feature is numerical, the number of numerical features should be greater than 0."
 
         assert (n_numerical_features + n_binary_features) > 0, \
             "The total number of features should be greater than 0."
@@ -80,8 +79,8 @@ class FederatedToyDataset:
         self.n_binary_features = n_binary_features
         self.n_features = self.n_binary_features + self.n_numerical_features
 
-        self.important_feature_type = important_feature_type
-        self.important_feature_weight = important_feature_weight
+        self.sensitive_feature_type = sensitive_feature_type
+        self.sensitive_feature_weight = sensitive_feature_weight
 
         self.noise_level = noise_level
 
@@ -94,6 +93,8 @@ class FederatedToyDataset:
         self.tasks_dir = os.path.join(self.cache_dir, 'tasks')
         self.metadata_path = os.path.join(self.cache_dir, 'metadata.json')
 
+        self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
+
         if os.path.exists(self.metadata_path) and not self.force_generation:
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
 
@@ -102,7 +103,7 @@ class FederatedToyDataset:
         else:
             os.makedirs(self.tasks_dir, exist_ok=True)
 
-            self.important_feature_idx = self._get_important_feature_idx()
+            self.sensitive_feature_idx = self._get_sensitive_feature_idx()
 
             self.weights, self.bias = self._initialize_model_parameters()
 
@@ -112,7 +113,7 @@ class FederatedToyDataset:
 
                 task_dir = os.path.join(self.tasks_dir, f"{task_id}")
 
-                train_save_path = os.path.join(task_dir , "train.npz")
+                train_save_path = os.path.join(task_dir, "train.npz")
                 test_save_path = os.path.join(task_dir, "test.npz")
 
                 os.makedirs(task_dir, exist_ok=True)
@@ -121,17 +122,17 @@ class FederatedToyDataset:
 
             self._save_metadata()
 
-    def _get_important_feature_idx(self):
-        if self.important_feature_type == "numerical":
-            important_feature_idx = self.rng.integers(low=0, high=self.n_numerical_features)
-        elif self.important_feature_type == "binary":
-            important_feature_idx = self.rng.integers(low=self.n_numerical_features, high=self.n_features + 1)
+    def _get_sensitive_feature_idx(self):
+        if self.sensitive_feature_type == "numerical":
+            sensitive_feature_idx = self.rng.integers(low=0, high=self.n_numerical_features)
+        elif self.sensitive_feature_type == "binary":
+            sensitive_feature_idx = self.rng.integers(low=self.n_numerical_features, high=self.n_features + 1)
         else:
             raise ValueError(
-                f"Invalid important feature type `{self.important_feature_type}`. Use 'numerical' or 'binary'."
+                f"Invalid sensitive feature type `{self.sensitive_feature_type}`. Use 'numerical' or 'binary'."
             )
 
-        return important_feature_idx
+        return sensitive_feature_idx
 
     def _initialize_model_parameters(self):
         weights = self.rng.standard_normal(size=(self.n_numerical_features + self.n_binary_features, 1))
@@ -140,15 +141,15 @@ class FederatedToyDataset:
         modified_weights = weights.copy()
 
         # Modify the weights at the specified index
-        modified_weights[self.important_feature_idx] = (
-            np.sign(weights[self.important_feature_idx]) * np.sqrt(self.important_feature_weight)
+        modified_weights[self.sensitive_feature_idx] = (
+            np.sign(weights[self.sensitive_feature_idx]) * np.sqrt(self.sensitive_feature_weight)
         )
 
         # Normalize and modify the weights at the complement index
-        complement_idx = ~self.important_feature_idx
+        complement_idx = ~self.sensitive_feature_idx
         norm_factor = np.linalg.norm(weights[complement_idx])
         modified_weights[complement_idx] = (
-            (weights[complement_idx] / norm_factor) * np.sqrt(1 - self.important_feature_weight)
+            (weights[complement_idx] / norm_factor) * np.sqrt(1 - self.sensitive_feature_weight)
         )
 
         return modified_weights, bias
@@ -157,7 +158,8 @@ class FederatedToyDataset:
         metadata = {
             'weights': self.weights.tolist(),
             'bias': float(self.bias),
-            'important_feature_idx': int(self.important_feature_idx)
+            'sensitive_feature_idx': int(self.sensitive_feature_idx),
+            'sensitive_feature_type': self.sensitive_feature_type
         }
 
         with open(self.metadata_path, 'w') as f:
@@ -169,7 +171,7 @@ class FederatedToyDataset:
 
         self.weights = np.array(metadata['weights'])
         self.bias = np.array(metadata['bias'])
-        self.important_feature_idx = metadata['important_feature_idx']
+        self.sensitive_feature_idx = metadata['sensitive_feature_idx']
 
     def generate_task_data(self, task_id):
         """
@@ -209,8 +211,7 @@ class FederatedToyDataset:
         logits += self.noise_level * np.random.standard_normal(size=logits.shape)
 
         if self.problem_type == 'classification':
-            probs = expit(-logits)
-            labels = self.rng.binomial(1, probs).squeeze()
+            labels = (logits > 0).astype(np.int64).squeeze()
         elif self.problem_type == 'regression':
             labels = logits.squeeze()
         else:
@@ -241,4 +242,7 @@ class FederatedToyDataset:
         task_data = np.load(os.path.join(self.cache_dir, 'tasks', f"{task_id}", f'{mode}.npz'))
         features, labels = task_data["features"], task_data["labels"]
 
-        return TensorDataset(torch.tensor(features), torch.tensor(labels))
+        dataset = TensorDataset(torch.tensor(features), torch.tensor(labels))
+        dataset.name = f"{task_id}"
+
+        return dataset
