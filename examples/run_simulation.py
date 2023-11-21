@@ -147,17 +147,17 @@ def parse_args(args_list=None):
         help="Number of binary features"
     )
     parser.add_argument(
-        "--sensitive_feature_type",
+        "--sensitive_attribute_type",
         type=str,
         choices=["binary", "numerical"],
         default="binary",
-        help="Type of sensitive feature"
+        help="Type of sensitive attribute"
     )
     parser.add_argument(
-        "--sensitive_feature_weight",
+        "--sensitive_attribute_weight",
         type=float,
         default=0.5,
-        help="Weight of sensitive feature"
+        help="Weight of sensitive attribute"
     )
     parser.add_argument(
         "--noise_level",
@@ -326,10 +326,11 @@ def initialize_dataset(args, rng):
             problem_type="regression",
             n_numerical_features=args.n_numerical_features,
             n_binary_features=args.n_binary_features,
-            sensitive_feature_type=args.sensitive_feature_type,
-            sensitive_feature_weight=args.sensitive_feature_weight,
+            sensitive_attribute_type=args.sensitive_attribute_type,
+            sensitive_attribute_weight=args.sensitive_attribute_weight,
             noise_level=args.noise_level,
             force_generation=True,
+            allow_generation=True,
             cache_dir=args.data_dir,
             rng=rng
         )
@@ -341,10 +342,11 @@ def initialize_dataset(args, rng):
             problem_type="classification",
             n_numerical_features=args.n_numerical_features,
             n_binary_features=args.n_binary_features,
-            sensitive_feature_type=args.sensitive_feature_type,
-            sensitive_feature_weight=args.sensitive_feature_weight,
+            sensitive_attribute_type=args.sensitive_attribute_type,
+            sensitive_attribute_weight=args.sensitive_attribute_weight,
             noise_level=args.noise_level,
             force_generation=True,
+            allow_generation=True,
             cache_dir=args.data_dir,
             rng=rng
         )

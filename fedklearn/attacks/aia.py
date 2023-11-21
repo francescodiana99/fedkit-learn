@@ -195,7 +195,7 @@ class AttributeInferenceAttack:
         self.n_samples = len(self.dataset)
         self.true_features, self.true_labels = self._get_all_features()
 
-        self.true_features = self.true_features.to(self.device)
+        self.true_features = self.true_features.to(self.device).type(torch.float32)
         self.true_labels = self.true_labels.to(self.device)
 
         if self.is_binary_classification:

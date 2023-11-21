@@ -190,7 +190,8 @@ def initialize_dataset(args, rng):
     elif args.task_name == "toy_regression" or args.task_name == "toy_classification":
         return FederatedToyDataset(
             cache_dir=args.data_dir,
-            allow_generation=False
+            allow_generation=False,
+            force_generation=False
         )
     else:
         raise NotImplementedError(
@@ -219,12 +220,12 @@ def main():
         sensitive_attribute_type = args.sensitive_attribute_type
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = True
         sensitive_attribute_type = federated_dataset.sensitive_attribute_type
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
         sensitive_attribute_type = federated_dataset.sensitive_attribute_type
     else:
@@ -248,7 +249,14 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
+        if args.task_name == "adult":
+            sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
+        elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
+            sensitive_attribute_id = federated_dataset.sensitive_attribute_id
+        else:
+            raise NotImplementedError(
+                f"Dataset initialization for task '{args.task_name}' is not implemented."
+            )
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],

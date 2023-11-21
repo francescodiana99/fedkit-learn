@@ -21,8 +21,8 @@ class FederatedToyDataset:
     - problem_type (str): Type of the problem, either 'classification' or 'regression'.
     - n_numerical_features (int): Number of numerical features in the dataset.
     - n_binary_features (int): Number of binary features in the dataset.
-    - sensitive_feature_type (str): Type of the sensitive feature, either 'numerical' or 'binary'.
-    - sensitive_feature_weight (float): Weight of the sensitive feature.
+    - sensitive_attribute_type (str): Type of the sensitive feature, either 'numerical' or 'binary'.
+    - sensitive_attribute_weight (float): Weight of the sensitive feature.
     - noise_level (float): Optional noise level to add to labels.
     - cache_dir (str): Directory to store generated datasets.
     - force_generation (bool): If True, forces regeneration of datasets even if cached ones exist.
@@ -50,15 +50,15 @@ class FederatedToyDataset:
     """
     def __init__(
             self, cache_dir="./", n_tasks=None, n_train_samples=None, n_test_samples=None, problem_type=None,
-            n_numerical_features=None, n_binary_features=None, sensitive_feature_type=None,
-            sensitive_feature_weight=None, noise_level=None, force_generation=False, allow_generation=True,
+            n_numerical_features=None, n_binary_features=None, sensitive_attribute_type=None,
+            sensitive_attribute_weight=None, noise_level=None, force_generation=False, allow_generation=True,
             rng=None
 
     ):
 
         if any(param is None for param in [n_tasks, n_train_samples, n_test_samples, problem_type,
-                                           n_numerical_features, n_binary_features, sensitive_feature_type,
-                                           sensitive_feature_weight, noise_level]):
+                                           n_numerical_features, n_binary_features, sensitive_attribute_type,
+                                           sensitive_attribute_weight, noise_level]):
             allow_generation = False
             logging.warning(f"force_generation is automatically set to False.")
 
@@ -87,14 +87,14 @@ class FederatedToyDataset:
             assert problem_type in ['classification', 'regression'], \
                 "Invalid problem type. Use 'classification' or 'regression'."
 
-            assert sensitive_feature_type in ['numerical', 'binary'], \
+            assert sensitive_attribute_type in ['numerical', 'binary'], \
                 "Invalid sensitive feature type. Use 'numerical' or 'binary'."
 
-            if sensitive_feature_type == 'binary':
+            if sensitive_attribute_type == 'binary':
                 assert n_binary_features > 0, \
                     "If the sensitive feature is binary, the number of binary features should be greater than 0."
 
-            if sensitive_feature_type == 'numerical':
+            if sensitive_attribute_type == 'numerical':
                 assert n_numerical_features > 0, \
                     "If the sensitive feature is numerical, the number of numerical features should be greater than 0."
 
@@ -113,18 +113,22 @@ class FederatedToyDataset:
             self.n_binary_features = n_binary_features
             self.n_features = self.n_binary_features + self.n_numerical_features
 
-            self.sensitive_feature_type = sensitive_feature_type
-            self.sensitive_feature_weight = sensitive_feature_weight
+            self.sensitive_attribute_type = sensitive_attribute_type
+            self.sensitive_attribute_weight = sensitive_attribute_weight
 
             self.noise_level = noise_level
 
-            os.makedirs(self.tasks_dir, exist_ok=True)
+            self.rng = rng if rng is not None else np.random.default_rng()
 
-            self.sensitive_feature_idx = self._get_sensitive_feature_idx()
+            self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
+
+            self.sensitive_attribute_id = self._get_sensitive_attribute_id()
 
             self.weights, self.bias = self._initialize_model_parameters()
 
             logging.info("==> Generating data..")
+            os.makedirs(self.tasks_dir, exist_ok=True)
+
             for task_id in tqdm(range(self.n_tasks), leave=False):
                 train_features, train_labels, test_features, test_labels = self.generate_task_data(task_id=task_id)
 
@@ -138,18 +142,19 @@ class FederatedToyDataset:
                 np.savez_compressed(test_save_path, features=test_features, labels=test_labels)
 
             self._save_metadata()
+            logging.info("data and metadata generated and saved successfully.")
 
-    def _get_sensitive_feature_idx(self):
-        if self.sensitive_feature_type == "numerical":
-            sensitive_feature_idx = self.rng.integers(low=0, high=self.n_numerical_features)
-        elif self.sensitive_feature_type == "binary":
-            sensitive_feature_idx = self.rng.integers(low=self.n_numerical_features, high=self.n_features + 1)
+    def _get_sensitive_attribute_id(self):
+        if self.sensitive_attribute_type == "numerical":
+            sensitive_attribute_id = self.rng.integers(low=0, high=self.n_numerical_features)
+        elif self.sensitive_attribute_type == "binary":
+            sensitive_attribute_id = self.rng.integers(low=self.n_numerical_features, high=self.n_features + 1)
         else:
             raise ValueError(
-                f"Invalid sensitive feature type `{self.sensitive_feature_type}`. Use 'numerical' or 'binary'."
+                f"Invalid sensitive feature type `{self.sensitive_attribute_type}`. Use 'numerical' or 'binary'."
             )
 
-        return sensitive_feature_idx
+        return sensitive_attribute_id
 
     def _initialize_model_parameters(self):
         weights = self.rng.standard_normal(size=(self.n_numerical_features + self.n_binary_features, 1))
@@ -158,15 +163,15 @@ class FederatedToyDataset:
         modified_weights = weights.copy()
 
         # Modify the weights at the specified index
-        modified_weights[self.sensitive_feature_idx] = (
-            np.sign(weights[self.sensitive_feature_idx]) * np.sqrt(self.sensitive_feature_weight)
+        modified_weights[self.sensitive_attribute_id] = (
+            np.sign(weights[self.sensitive_attribute_id]) * np.sqrt(self.sensitive_attribute_weight)
         )
 
         # Normalize and modify the weights at the complement index
-        complement_idx = ~self.sensitive_feature_idx
+        complement_idx = ~self.sensitive_attribute_id
         norm_factor = np.linalg.norm(weights[complement_idx])
         modified_weights[complement_idx] = (
-            (weights[complement_idx] / norm_factor) * np.sqrt(1 - self.sensitive_feature_weight)
+            (weights[complement_idx] / norm_factor) * np.sqrt(1 - self.sensitive_attribute_weight)
         )
 
         return modified_weights, bias
@@ -180,12 +185,12 @@ class FederatedToyDataset:
             'n_numerical_features': self.n_numerical_features,
             'n_binary_features': self.n_binary_features,
             'n_features': self.n_features,
-            'sensitive_feature_type': self.sensitive_feature_type,
-            'sensitive_feature_weight': self.sensitive_feature_weight,
+            'sensitive_attribute_type': self.sensitive_attribute_type,
+            'sensitive_attribute_weight': self.sensitive_attribute_weight,
             'noise_level': self.noise_level,
             'weights': self.weights.tolist(),
             'bias': float(self.bias),
-            'sensitive_feature_idx': int(self.sensitive_feature_idx),
+            'sensitive_attribute_id': int(self.sensitive_attribute_id),
         }
 
         with open(self.metadata_path, 'w') as f:
@@ -202,12 +207,12 @@ class FederatedToyDataset:
         self.n_numerical_features = metadata['n_numerical_features']
         self.n_binary_features = metadata['n_binary_features']
         self.n_features = metadata['n_features']
-        self.sensitive_feature_type = metadata['sensitive_feature_type']
-        self.sensitive_feature_weight = metadata['sensitive_feature_weight']
+        self.sensitive_attribute_type = metadata['sensitive_attribute_type']
+        self.sensitive_attribute_weight = metadata['sensitive_attribute_weight']
         self.noise_level = metadata['noise_level']
         self.weights = np.array(metadata['weights'])
         self.bias = np.array(metadata['bias'])
-        self.sensitive_feature_idx = metadata['sensitive_feature_idx']
+        self.sensitive_attribute_id = metadata['sensitive_attribute_id']
 
     def generate_task_data(self, task_id):
         """
