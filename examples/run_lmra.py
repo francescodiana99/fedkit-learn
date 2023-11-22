@@ -14,7 +14,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 
@@ -47,37 +46,6 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--metadata_dir",
-        type=str,
-        help="Metadata directory",
-        required=True
-    )
-
-    parser.add_argument(
-        "--download_data",
-        help='If chosen the dataset is downloaded if not found.',
-        action='store_true'
-    )
-    parser.add_argument(
-        '--test_frac',
-        help='Fraction of the test samples; it should be a float between 0 and 1.'
-             'Treated as None if not specified',
-        type=none_or_float,
-        default=None
-    )
-    parser.add_argument(
-        '--use_nationality',
-        help='If chosen the nationality column will be kept; otherwise, it is dropped',
-        action='store_true'
-    )
-    parser.add_argument(
-        "--scaler_name",
-        type=str,
-        default="standard",
-        help="Name of the scaler used to scale numerical features."
-             "Default is 'standard'. It can be 'min_max' or 'standard'."
-    )
-    parser.add_argument(
         "--data_dir",
         type=str,
         default="./",
@@ -88,6 +56,13 @@ def parse_args(args_list=None):
         choices=['train', 'test'],
         default='train',
         help='Specify the split (train or test)'
+    )
+
+    parser.add_argument(
+        "--metadata_dir",
+        type=str,
+        help="Metadata directory",
+        required=True
     )
 
     parser.add_argument(
@@ -105,13 +80,13 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--momentum",
         type=float,
-        default=0.9,
+        default=0.0,
         help="momentum"
     )
     parser.add_argument(
         "--weight_decay",
         type=float,
-        default=5e-4,
+        default=0.,
         help="Weight decay"
     )
     parser.add_argument(
@@ -187,34 +162,16 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def initialize_dataset(args, rng):
-    """
-    Initialize the federated dataset based on the specified task.
-
-    Args:
-        args (argparse.Namespace): Parsed command-line arguments.
-        rng (numpy.random.Generator): Random number generator.
-
-    Returns:
-        FederatedDataset: Initialized federated dataset.
-    """
+def initialize_gradient_prediction_trainer(args, federated_dataset):
     if args.task_name == "adult":
-        return FederatedAdultDataset(
-            cache_dir=args.data_dir,
-            test_frac=args.test_frac,
-            drop_nationality=not args.use_nationality,
-            scaler_name=args.scaler_name,
-            rng=rng
-        )
-    else:
-        raise NotImplementedError(
-            f"Dataset initialization for task '{args.task_name}' is not implemented."
-        )
-
-
-def initialize_gradient_prediction_trainer(args):
-    if args.task_name == "adult":
-        gradient_prediction_model = LinearLayer(input_dimension=42, output_dimension=42).to(args.device)
+        n_features = 42 + 1  # +1 because of the bias term
+        gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
+    elif args.task_name == "toy_classification":
+        n_features = federated_dataset.n_features + 1  # +1 because of the bias term
+        gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
+    elif args.task_name == "toy_regression":
+        n_features = federated_dataset.n_features + 1  # +1 because of the bias term
+        gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -249,7 +206,7 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    federated_dataset = initialize_dataset(args, rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
     num_clients = len(federated_dataset.task_id_to_name)
 
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
@@ -261,6 +218,12 @@ def main():
     if args.task_name == "adult":
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         task_type = "binary_classification"
+    elif args.task_name == "toy_classification":
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        task_type = "binary_classification"
+    elif args.task_name == "toy_regression":
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        task_type = "regression"
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -288,7 +251,7 @@ def main():
             "local": all_messages_metadata[f"{attacked_client_id}"]
         }
 
-        gradient_prediction_trainer = initialize_gradient_prediction_trainer(args)
+        gradient_prediction_trainer = initialize_gradient_prediction_trainer(args, federated_dataset=federated_dataset)
 
         attack_simulator = LocalModelReconstructionAttack(
             messages_metadata=client_messages_metadata,

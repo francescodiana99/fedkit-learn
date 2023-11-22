@@ -2,6 +2,9 @@ import os
 import json
 import logging
 
+from fedklearn.datasets.adult.adult import FederatedAdultDataset
+from fedklearn.datasets.toy.toy import FederatedToyDataset
+
 
 def none_or_float(value):
     """
@@ -18,6 +21,40 @@ def configure_logging(args):
     Set up logging based on verbosity level
     """
     logging.basicConfig(level=logging.INFO - (args.verbose - args.quiet) * 10)
+
+
+def load_dataset(task_name, data_dir, rng):
+    """
+    Load a federated dataset based on the specified task name.
+
+    Args:
+        task_name (str): Name of the task for which the dataset is to be loaded.
+        data_dir (str): Directory where the dataset should be stored or loaded from.
+        rng (RandomState): NumPy random number generator for reproducibility.
+
+    Returns:
+        FederatedDataset: Initialized federated dataset.
+
+    Raises:
+        NotImplementedError: If the dataset initialization for the specified task is not implemented.
+    """
+    if task_name == "adult":
+        return FederatedAdultDataset(
+            cache_dir=data_dir,
+            download=False,
+            rng=rng
+        )
+    elif task_name == "toy_regression" or task_name == "toy_classification":
+        return FederatedToyDataset(
+            cache_dir=data_dir,
+            allow_generation=False,
+            force_generation=False,
+            rng=rng
+        )
+    else:
+        raise NotImplementedError(
+            f"Dataset initialization for task '{task_name}' is not implemented."
+        )
 
 
 def weighted_average(scores, n_samples):

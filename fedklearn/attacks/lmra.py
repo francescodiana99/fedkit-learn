@@ -451,6 +451,7 @@ class LocalModelReconstructionAttack:
 
         with torch.no_grad():
             for inputs, _ in dataloader:
+                inputs = inputs.to(self.device).type(torch.float32)
                 reference_outputs_list.append(reference_model(inputs))
                 outputs_list.append(model(inputs))
 
@@ -476,5 +477,6 @@ class LocalModelReconstructionAttack:
                 "Possible values: 'binary_classification', 'classification', 'regression'."
             )
 
-        score = jsd(reference_outputs, outputs, distribution_type=distribution_type, epsilon=epsilon)
+        score = jsd(reference_outputs, outputs, distribution_type=distribution_type, epsilon=epsilon).mean(axis=0)
+
         return float(score)

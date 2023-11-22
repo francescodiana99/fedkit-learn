@@ -170,35 +170,6 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def initialize_dataset(args, rng):
-    """
-    Initialize the federated dataset based on the specified task.
-
-    Args:
-        args (argparse.Namespace): Parsed command-line arguments.
-        rng (numpy.random.Generator): Random number generator.
-
-    Returns:
-        FederatedDataset: Initialized federated dataset.
-    """
-    if args.task_name == "adult":
-        return FederatedAdultDataset(
-            cache_dir=args.data_dir,
-            download=False,
-            rng=rng
-        )
-    elif args.task_name == "toy_regression" or args.task_name == "toy_classification":
-        return FederatedToyDataset(
-            cache_dir=args.data_dir,
-            allow_generation=False,
-            force_generation=False
-        )
-    else:
-        raise NotImplementedError(
-            f"Dataset initialization for task '{args.task_name}' is not implemented."
-        )
-
-
 def main():
     args = parse_args()
 
@@ -207,7 +178,7 @@ def main():
     rng = np.random.default_rng(seed=args.seed)
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
-    federated_dataset = initialize_dataset(args, rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
     num_clients = len(federated_dataset.task_id_to_name)
 
     with open(args.metadata_path, "r") as f:

@@ -12,7 +12,6 @@ import torch.nn as nn
 
 from torch.utils.data import DataLoader
 
-from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 from fedklearn.attacks.sia import SourceInferenceAttack
@@ -39,30 +38,6 @@ def parse_args(args_list=None):
         type=str,
         help="Task name. Possible are 'adult'.",
         required=True
-    )
-    parser.add_argument(
-        "--download_data",
-        help='If chosen the dataset is downloaded if not found.',
-        action='store_true'
-    )
-    parser.add_argument(
-        '--test_frac',
-        help='Fraction of the test samples; it should be a float between 0 and 1.'
-             'Treated as None if not specified',
-        type=none_or_float,
-        default=None
-    )
-    parser.add_argument(
-        '--use_nationality',
-        help='If chosen the nationality column will be kept; otherwise, it is dropped',
-        action='store_true'
-    )
-    parser.add_argument(
-        "--scaler_name",
-        type=str,
-        default="standard",
-        help="Name of the scaler used to scale numerical features."
-             "Default is 'standard'. It can be 'min_max' or 'standard'."
     )
     parser.add_argument(
         "--data_dir",
@@ -137,31 +112,6 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def initialize_dataset(args, rng):
-    """
-    Initialize the federated dataset based on the specified task.
-
-    Args:
-        args (argparse.Namespace): Parsed command-line arguments.
-        rng (numpy.random.Generator): Random number generator.
-
-    Returns:
-        FederatedDataset: Initialized federated dataset.
-    """
-    if args.task_name == "adult":
-        return FederatedAdultDataset(
-            cache_dir=args.data_dir,
-            test_frac=args.test_frac,
-            drop_nationality=not args.use_nationality,
-            scaler_name=args.scaler_name,
-            rng=rng
-        )
-    else:
-        raise NotImplementedError(
-            f"Dataset initialization for task '{args.task_name}' is not implemented."
-        )
-
-
 def load_models_dict(args):
     if args.use_oracle:
         with open(os.path.join(args.metadata_dir, "local.json"), "r") as f:
@@ -182,12 +132,22 @@ def load_models_dict(args):
     return models_dict
 
 
-def initialize_trainers(args, models_dict):
+def initialize_trainers_dict(args, models_dict, federated_dataset):
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
+    elif args.task_name == "toy_classification":
+        criterion = nn.BCEWithLogitsLoss(reduction="none").to(args.device)
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        is_binary_classification = True
+        metric = binary_accuracy_with_sigmoid
+    elif args.task_name == "toy_regression":
+        criterion = nn.MSELoss().to(args.device)
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        is_binary_classification = False
+        metric = mean_squared_error
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -220,12 +180,12 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    federated_dataset = initialize_dataset(args, rng=rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
     num_clients = len(federated_dataset.task_id_to_name)
 
     models_dict = load_models_dict(args)
 
-    trainers_dict = initialize_trainers(args, models_dict=models_dict)
+    trainers_dict = initialize_trainers_dict(args, models_dict=models_dict, federated_dataset=federated_dataset)
 
     scores_list = []
     n_samples_list = []
