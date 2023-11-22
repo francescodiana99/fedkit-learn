@@ -322,8 +322,6 @@ def get_most_probable_class(logits, threshold=None, dim=-1):
         >>> print("Most probable class (binary):", most_probable_class_binary_batch)
         >>> print("Most probable class (categorical):", most_probable_class_categorical_batch)
     """
-    logits = torch.tensor(logits)
-
     if logits.size(-1) == 1:
         if threshold is None:
             threshold = 0.0
