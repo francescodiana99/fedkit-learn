@@ -207,6 +207,60 @@ def jsd(p, q, distribution_type, epsilon=1e-10):
     return jsd_value
 
 
+def model_jsd(model_1, model_2, dataloader, task_type, device, epsilon=1e-10):
+    """
+    Calculate Jensen-Shannon Divergence (JSD) between the output distributions of
+    the constructed model and a reference model.
+
+    Parameters:
+    - model_1 (torch.nn.Module): model for comparison.
+    - model_2 (torch.nn.Module): model for comparison.
+    - dataloader (torch.utils.data.DataLoader): DataLoader providing input data for both models.
+    - task_type (str): Type of the task, one of "binary_classification", "classification", or "regression".
+    - epsilon (float): A small value added to the probabilities to avoid division by zero, default is 1e-10.
+
+    Returns:
+    - jsd_value (float): Jensen-Shannon Divergence between the output distributions of the two models.
+    """
+    model_1 = model_1.to(device)
+    model_2 = model_2.to(device)
+
+    outputs_list_1 = []
+    outputs_list_2 = []
+
+    with torch.no_grad():
+        for inputs, _ in dataloader:
+            inputs = inputs.to(device).type(torch.float32)
+            outputs_list_1.append(model_1(inputs))
+            outputs_list_2.append(model_2(inputs))
+
+    outputs_1 = torch.cat(outputs_list_1)
+    outputs_2 = torch.cat(outputs_list_2)
+
+    if task_type == "binary_classification":
+        outputs_1 = torch.sigmoid(outputs_1)
+        outputs_2 = torch.sigmoid(outputs_2)
+        distribution_type = 'bernoulli'
+
+    elif task_type == "classification":
+        outputs_1 = torch.softmax(outputs_1)
+        outputs_2 = torch.softmax(outputs_2)
+        distribution_type = 'multinomial'
+
+    elif task_type == "regression":
+        distribution_type = 'gaussian'
+
+    else:
+        raise NotImplementedError(
+            f"Task {task_type} is not supported."
+            "Possible are: 'binary_classification', 'classification', 'regression'."
+        )
+
+    score = jsd(outputs_1, outputs_2, distribution_type=distribution_type, epsilon=epsilon).mean(axis=0)
+
+    return float(score)
+
+
 def binary_entropy(p):
     """
     Calculate the binary entropy for a given probability.

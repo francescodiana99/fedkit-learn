@@ -311,3 +311,5 @@ def main():
     logging.info(f"Reconstructed models metadata is save to {reconstructed_models_metadata_path}")
 
 
+if __name__ == "__main__":
+    main()

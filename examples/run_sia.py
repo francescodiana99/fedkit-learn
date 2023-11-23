@@ -112,10 +112,10 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def load_models_dict(args):
+def load_models_metadata_dict(args):
     if args.use_oracle:
         with open(os.path.join(args.metadata_dir, "local.json"), "r") as f:
-            models_dict = json.load(f)
+            models_metadata_dict = json.load(f)
     else:
         with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
             all_messages_metadata = json.load(f)
@@ -124,53 +124,12 @@ def load_models_dict(args):
 
             all_messages_metadata.pop("global", None)
 
-            models_dict = dict()
+            models_metadata_dict = dict()
 
             for client_id in all_messages_metadata:
-                models_dict[client_id] = all_messages_metadata[client_id][f"{last_round_id}"]
+                models_metadata_dict[client_id] = all_messages_metadata[client_id][f"{last_round_id}"]
 
-    return models_dict
-
-
-def initialize_trainers_dict(args, models_dict, federated_dataset):
-    if args.task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss(reduction="none").to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
-        is_binary_classification = True
-        metric = binary_accuracy_with_sigmoid
-    elif args.task_name == "toy_classification":
-        criterion = nn.BCEWithLogitsLoss(reduction="none").to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
-        is_binary_classification = True
-        metric = binary_accuracy_with_sigmoid
-    elif args.task_name == "toy_regression":
-        criterion = nn.MSELoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
-        is_binary_classification = False
-        metric = mean_squared_error
-    else:
-        raise NotImplementedError(
-            f"Network initialization for task '{args.task_name}' is not implemented"
-        )
-
-    optimizer = None
-
-    trainers_dict = dict()
-    for client_id in models_dict:
-        model_chkpts = torch.load(models_dict[client_id])["model_state_dict"]
-        model = model_init_fn()
-        model.load_state_dict(model_chkpts)
-
-        trainers_dict[client_id] = Trainer(
-            model=model,
-            criterion=criterion,
-            metric=metric,
-            device=args.device,
-            optimizer=optimizer,
-            is_binary_classification=is_binary_classification
-        )
-
-    return trainers_dict
+    return models_metadata_dict
 
 
 def main():
@@ -183,9 +142,12 @@ def main():
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
     num_clients = len(federated_dataset.task_id_to_name)
 
-    models_dict = load_models_dict(args)
+    models_metadata_dict = load_models_metadata_dict(args)
 
-    trainers_dict = initialize_trainers_dict(args, models_dict=models_dict, federated_dataset=federated_dataset)
+    trainers_dict = initialize_trainers_dict(
+        models_metadata_dict=models_metadata_dict, federated_dataset=federated_dataset, task_name=args.task_name,
+        device=args.device
+    )
 
     scores_list = []
     n_samples_list = []

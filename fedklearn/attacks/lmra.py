@@ -360,9 +360,9 @@ class LocalModelReconstructionAttack:
             self.logger.add_scalar("Gradient Estimation Loss", loss_val, c_iteration)
 
             if c_iteration % self.log_freq == 0:
-                logging.info("+" * 50)
-                logging.info(f"Iteration {c_iteration}: Gradient Estimation Loss: {loss_val:4f}")
-                logging.info("+" * 50)
+                logging.debug("+" * 50)
+                logging.debug(f"Iteration {c_iteration}: Gradient Estimation Loss: {loss_val:4f}")
+                logging.debug("+" * 50)
 
     def reconstruct_local_model(self, num_iterations):
         """
@@ -392,9 +392,9 @@ class LocalModelReconstructionAttack:
             self.logger.add_scalar("Estimated Gradient Norm", loss_val, c_iteration)
 
             if c_iteration % self.log_freq == 0:
-                logging.info("+" * 50)
-                logging.info(f"Iteration {c_iteration}: Estimated Gradient Norm: {loss_val:4f}")
-                logging.info("+" * 50)
+                logging.debug("+" * 50)
+                logging.debug(f"Iteration {c_iteration}: Estimated Gradient Norm: {loss_val:4f}")
+                logging.debug("+" * 50)
 
         reconstructed_model = self.model_init_fn().to(self.device)
 
@@ -444,39 +444,7 @@ class LocalModelReconstructionAttack:
         Returns:
         - jsd_value (float): Jensen-Shannon Divergence between the output distributions of the two models.
         """
-        model = self.reconstructed_model
-
-        reference_outputs_list = []
-        outputs_list = []
-
-        with torch.no_grad():
-            for inputs, _ in dataloader:
-                inputs = inputs.to(self.device).type(torch.float32)
-                reference_outputs_list.append(reference_model(inputs))
-                outputs_list.append(model(inputs))
-
-        reference_outputs = torch.cat(reference_outputs_list)
-        outputs = torch.cat(outputs_list)
-
-        if task_type == "binary_classification":
-            reference_outputs = torch.sigmoid(reference_outputs)
-            outputs = torch.sigmoid(outputs)
-            distribution_type = 'bernoulli'
-
-        elif task_type == "classification":
-            reference_outputs = torch.softmax(reference_outputs)
-            outputs = torch.softmax(outputs)
-            distribution_type = 'multinomial'
-
-        elif task_type == "regression":
-            distribution_type = 'gaussian'
-
-        else:
-            raise NotImplementedError(
-                "Invalid distribution type."
-                "Possible values: 'binary_classification', 'classification', 'regression'."
-            )
-
-        score = jsd(reference_outputs, outputs, distribution_type=distribution_type, epsilon=epsilon).mean(axis=0)
-
-        return float(score)
+        return model_jsd(
+            self.reconstructed_model, reference_model, dataloader=dataloader, task_type=task_type,
+            device=self.device, epsilon=epsilon
+        )

@@ -2,6 +2,14 @@ import os
 import json
 import logging
 
+import torch
+import torch.nn as nn
+
+from fedklearn.metrics import *
+
+from fedklearn.models.linear import LinearLayer
+from fedklearn.trainer.trainer import Trainer
+
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 
@@ -55,6 +63,47 @@ def load_dataset(task_name, data_dir, rng):
         raise NotImplementedError(
             f"Dataset initialization for task '{task_name}' is not implemented."
         )
+
+
+def initialize_trainers_dict(models_metadata_dict, federated_dataset, task_name, device):
+    if task_name == "adult":
+        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
+        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        is_binary_classification = True
+        metric = binary_accuracy_with_sigmoid
+    elif task_name == "toy_classification":
+        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        is_binary_classification = True
+        metric = binary_accuracy_with_sigmoid
+    elif task_name == "toy_regression":
+        criterion = nn.MSELoss().to(device)
+        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        is_binary_classification = False
+        metric = mean_squared_error
+    else:
+        raise NotImplementedError(
+            f"Network initialization for task '{task_name}' is not implemented"
+        )
+
+    optimizer = None
+
+    trainers_dict = dict()
+    for client_id in models_metadata_dict:
+        model_chkpts = torch.load(models_metadata_dict[client_id])["model_state_dict"]
+        model = model_init_fn()
+        model.load_state_dict(model_chkpts)
+
+        trainers_dict[client_id] = Trainer(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=device,
+            optimizer=optimizer,
+            is_binary_classification=is_binary_classification
+        )
+
+    return trainers_dict
 
 
 def weighted_average(scores, n_samples):
