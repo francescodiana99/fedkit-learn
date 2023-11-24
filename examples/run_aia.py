@@ -14,14 +14,7 @@ import torch.nn as nn
 
 from torch.utils.tensorboard import SummaryWriter
 
-from fedklearn.datasets.adult.adult import FederatedAdultDataset
-from fedklearn.datasets.toy.toy import FederatedToyDataset
-from fedklearn.models.linear import LinearLayer
-
 from fedklearn.attacks.aia import AttributeInferenceAttack
-
-from fedklearn.metrics import *
-
 
 from utils import *
 
@@ -188,23 +181,18 @@ def main():
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
-        sensitive_attribute_type = args.sensitive_attribute_type
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = True
-        sensitive_attribute_type = federated_dataset.sensitive_attribute_type
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
-        sensitive_attribute_type = federated_dataset.sensitive_attribute_type
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
-
-    success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
     scores_list = []
     n_samples_list = []
@@ -222,12 +210,16 @@ def main():
 
         if args.task_name == "adult":
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
+            sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
             sensitive_attribute_id = federated_dataset.sensitive_attribute_id
+            sensitive_attribute_type = federated_dataset.sensitive_attribute_type
         else:
             raise NotImplementedError(
                 f"Dataset initialization for task '{args.task_name}' is not implemented."
             )
+
+        success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],

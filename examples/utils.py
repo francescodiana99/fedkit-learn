@@ -7,6 +7,8 @@ import torch.nn as nn
 
 from fedklearn.metrics import *
 
+from fedklearn.attacks.sia import SourceInferenceAttack
+
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 
@@ -29,6 +31,21 @@ def configure_logging(args):
     Set up logging based on verbosity level
     """
     logging.basicConfig(level=logging.INFO - (args.verbose - args.quiet) * 10)
+
+
+def get_task_type(task_name):
+    if task_name == "adult":
+        task_type = "binary_classification"
+    elif task_name == "toy_classification":
+        task_type = "binary_classification"
+    elif task_name == "toy_regression":
+        task_type = "regression"
+    else:
+        raise NotImplementedError(
+            f"Network initialization for task '{task_name}' is not implemented"
+        )
+
+    return task_type
 
 
 def load_dataset(task_name, data_dir, rng):
@@ -65,7 +82,7 @@ def load_dataset(task_name, data_dir, rng):
         )
 
 
-def initialize_trainers_dict(models_metadata_dict, federated_dataset, task_name, device):
+def get_trainer_parameters(task_name, federated_dataset, device):
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
@@ -86,6 +103,10 @@ def initialize_trainers_dict(models_metadata_dict, federated_dataset, task_name,
             f"Network initialization for task '{task_name}' is not implemented"
         )
 
+    return criterion, model_init_fn, is_binary_classification, metric
+
+
+def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_binary_classification, metric, device):
     optimizer = None
 
     trainers_dict = dict()
@@ -106,6 +127,20 @@ def initialize_trainers_dict(models_metadata_dict, federated_dataset, task_name,
     return trainers_dict
 
 
+def evaluate_sia(attacked_client_id, dataloader, trainers_dict):
+    attack_simulator = SourceInferenceAttack(
+        attacked_client_id=attacked_client_id,
+        dataloader=dataloader,
+        trainers_dict=trainers_dict
+    )
+
+    attack_simulator.execute_attack()
+
+    score = attack_simulator.evaluate_attack()
+
+    return score
+
+
 def weighted_average(scores, n_samples):
     if len(scores) != len(n_samples):
         raise ValueError("The lengths of 'scores' and 'n_samples' must be the same.")
@@ -121,10 +156,8 @@ def weighted_average(scores, n_samples):
 
 def save_scores(scores_list, n_samples_list, results_path):
     avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
-    logging.info("=" * 100)
     logging.info(f"Average Score={avg_score:.3f}")
 
-    logging.info("=" * 100)
     logging.info("Saving simulation results..")
     results = [{"score": score, "n_samples": n_samples} for score, n_samples in zip(scores_list, n_samples_list)]
     os.makedirs(os.path.dirname(results_path), exist_ok=True)

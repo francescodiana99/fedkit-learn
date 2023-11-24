@@ -14,13 +14,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from fedklearn.models.linear import LinearLayer
-from fedklearn.trainer.trainer import Trainer
-
 from fedklearn.attacks.lmra import LocalModelReconstructionAttack
-
-from fedklearn.metrics import *
-
 
 from utils import *
 from constants import *
@@ -217,17 +211,16 @@ def main():
 
     if args.task_name == "adult":
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
-        task_type = "binary_classification"
     elif args.task_name == "toy_classification":
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
-        task_type = "binary_classification"
     elif args.task_name == "toy_regression":
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
-        task_type = "regression"
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
+
+    task_type = get_task_type(args.task_name)
 
     logging.info("Simulate Attacks..")
 

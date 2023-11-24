@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+
 import logging
 
 import numpy as np
@@ -17,7 +19,159 @@ from ..utils import *
 EPSILON = 1e-5
 
 
-class AttributeInferenceAttack:
+class BaseAttributeInferenceAttack(ABC):
+    """
+    Class representing an attribute inference attack in federated learning.
+    This attack aims to infer sensitive attributes of clients from federated learning updates.
+
+    Args:
+        dataset (torch.utils.data.Dataset): The dataset of the attacked client.
+        sensitive_attribute_id (int): Index of the sensitive attribute in the dataset.
+        sensitive_attribute_type (str): Type of the sensitive attribute ("binary", "categorical", or "numerical").
+        initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
+        device (str or torch.Device): Device on which to perform computations.
+        criterion: Loss criterion for the attack.
+        is_binary_classification (bool): True if the federated learning task is binary classification.
+        learning_rate (float): Learning rate for the optimizer.
+        optimizer_name (str): Name of the optimizer to use (default is "sgd").
+        success_metric: Metric to evaluate the success of the attack.
+        rng: A random number generator, which can be used for any randomized behavior within the attack.
+            If None, a default random number generator will be created.
+
+    Attributes:
+        dataset (torch.utils.data.Dataset): The dataset of the attacked client.
+        sensitive_attribute_id (int): Index of the sensitive attribute in the dataset.
+        sensitive_attribute_type (str): Type of the sensitive attribute ("binary", "categorical", or "numerical").
+        initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
+        device (str or torch.Device): Device on which to perform computations.
+        criterion: Loss criterion for the attack.
+        is_binary_classification (bool): True if the federated learning task is binary classification.
+        learning_rate (float): Learning rate for the optimizer.
+        optimizer_name (str): Name of the optimizer to use (default is "sgd").
+        success_metric: Metric to evaluate the success of the attack.
+        rng: A random number generator, which can be used for any randomized behavior within the attack.
+            If None, a default random number generator will be created.
+
+        n_samples (int): Number of samples
+        true_features (torch.Tensor): true features tensor
+        predicted_features (torch.Tensor): predicted features tensor
+        true_labels (torch.Tensor): true labels tensor
+
+    Methods:
+        execute_attack(num_iterations):
+            Execute the federated learning attack on the provided dataset.
+
+        evaluate_attack():
+            Evaluate the success of the federated learning attack on the provided dataset.
+
+    """
+    def __init__(self, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device,
+                 criterion, is_binary_classification, learning_rate, optimizer_name, success_metric,
+                 rng=None, torch_rng=None):
+
+        self.dataset = dataset
+        self.device = device
+        self.rng = rng if rng is not None else np.random.default_rng()
+        self.torch_rng = torch_rng if torch is not None else torch.Generator()
+
+        self.sensitive_attribute_id = sensitive_attribute_id
+
+        self.sensitive_attribute_type = sensitive_attribute_type
+
+        if self.sensitive_attribute_type not in {"binary", "categorical", "numerical"}:
+            raise ValueError(
+                f'{self.sensitive_attribute_type} is not a supported type for the sensitive attribute.'
+                f'Possible are: "binary", "categorical", "numerical"'
+            )
+
+        if self.sensitive_attribute_type == "categorical":
+            raise NotImplementedError(
+                "Attribute Inference Attack is not yet implemented for categorical variables!"
+            )
+
+        self.success_metric = success_metric
+
+        self.initialization = initialization
+
+        self.criterion = criterion
+        self.is_binary_classification = is_binary_classification
+
+        self.learning_rate = learning_rate
+        self.optimizer_name = optimizer_name
+
+        self.n_samples = len(self.dataset)
+        self.true_features, self.true_labels = self._get_all_features()
+
+        self.true_features = self.true_features.to(self.device).type(torch.float32)
+        self.true_labels = self.true_labels.to(self.device)
+
+        if self.is_binary_classification:
+            self.true_labels = self.true_labels.type(torch.float32).unsqueeze(1)
+
+        self.num_classes = self._compute_num_sensitive_classes()
+
+        self.predicted_features = self.true_features.clone()
+
+    def _get_all_features(self):
+        """
+        Retrieve all features and labels from the federated learning dataset.
+
+        Returns:
+        - Tuple of torch.Tensors: A tuple containing tensors representing all features and labels in the dataset.
+        """
+        all_examples = [example for example in self.dataset]
+
+        return default_collate(all_examples)
+
+    def _compute_num_sensitive_classes(self):
+        if self.sensitive_attribute_type == "binary":
+            num_classes = 1  # num_classes is only used t initialize logits
+        elif self.sensitive_attribute_type == "categorical":
+            num_classes = torch.unique(self.true_features[:, self.sensitive_attribute_id]).numel()
+        elif self.sensitive_attribute_type == "numerical":
+            num_classes = 1
+        else:
+            raise NotImplementedError(
+                f'{self.sensitive_attribute_type} is not a supported type for the sensitive attribute.'
+                f'Possible are: "binary", "categorical", "numerical"'
+            )
+
+        return num_classes
+
+    def _init_optimizer(self, sensitive_attribute):
+        if self.optimizer_name == "sgd":
+            optimizer = optim.SGD(
+                [sensitive_attribute],
+                lr=self.learning_rate
+            )
+        else:
+            raise NotImplementedError(
+                f"Optimizer '{self.optimizer_name}' is not implemented."
+            )
+
+        return optimizer
+
+    @abstractmethod
+    def execute_attack(self, num_iterations):
+        """
+        Execute the federated learning attack on the provided dataset.
+
+        Parameters:
+        - num_iterations (int): The number of iterations to perform the attack.
+        """
+        pass
+
+    def evaluate_attack(self):
+        """
+        Evaluate the success of the federated learning attack on the provided dataset.
+
+        Returns:
+        - torch.Tensor: The success metric value.
+        """
+        pass
+
+
+class AttributeInferenceAttack(BaseAttributeInferenceAttack):
     """
     Class representing an attribute inference attack in federated learning.
     This attack aims to infer sensitive attributes of clients from federated learning updates.
@@ -40,23 +194,11 @@ class AttributeInferenceAttack:
                         ...
                     }
                 }
-        dataset (torch.utils.data.Dataset): The dataset of the attacked client.
-        sensitive_attribute_id (int): Index of the sensitive attribute in the dataset.
-        sensitive_attribute_type (str): Type of the sensitive attribute ("binary", "categorical", or "continuous").
-        initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
-        device (str or torch.Device): Device on which to perform computations.
         model_init_fn: Function to initialize the federated learning model.
-        criterion: Loss criterion for the attack.
-        is_binary_classification (bool): True if the federated learning task is binary classification.
-        learning_rate (float): Learning rate for the optimizer.
-        optimizer_name (str): Name of the optimizer to use (default is "sgd").
-        success_metric: Metric to evaluate the success of the attack.
         gumbel_temperature (float): non-negative scalar temperature used for Gumbel-Softmax distribution.
         gumbel_threshold (float): non-negative scalar, between 0 and 1, used as a threshold in the binary case.
         logger: The logger for recording simulation logs.
         log_freq (int): Frequency for logging simulation information.
-        rng: A random number generator, which can be used for any randomized behavior within the attack.
-            If None, a default random number generator will be created.
 
     Attributes:
         messages_metadata (dict): A dictionary containing the metadata of the messages exchanged between
@@ -75,41 +217,19 @@ class AttributeInferenceAttack:
                     }
                 }
         round_ids (list): List of round IDs extracted from the provided messages metadata.
-        dataset (torch.utils.data.Dataset): The dataset of the attacked client.
-        sensitive_attribute_id (int): Index of the sensitive attribute in the dataset.
-        sensitive_attribute_type (str): Type of the sensitive attribute ("binary", "categorical", or "continuous").
-        initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
-        device (str or torch.Device): Device on which to perform computations.
         model_init_fn: Function to initialize the federated learning model.
-        criterion: Loss criterion for the attack.
-        is_binary_classification (bool): True if the federated learning task is binary classification.
-        learning_rate (float): Learning rate for the optimizer.
-        optimizer_name (str): Name of the optimizer to use (default is "sgd").
         optimizer (torch.optim.Optimizer):
         n_samples (int): Number of samples
-        true_features (torch.Tensor): true features tensor
-        predicted_features (torch.Tensor): predicted features tensor
-        true_labels (torch.Tensor): true labels tensor
         sensitive_attribute_interval (tuple): lower and upper bounds for the sensitive attribute interval.
         sensitive_attribute_logits (torch.Tensor): logits of the sensitive attribute.
-        success_metric: Metric to evaluate the success of the attack.
         gumbel_temperature (float): non-negative scalar temperature used for Gumbel-Softmax distribution.
         gumbel_threshold (float): non-negative scalar, between 0 and 1, used as a threshold in the binary case.
         global_models_dict (dict): dictionary mapping round ids to global models.
         pseudo_gradients_dict (dict): dictionary mapping round ids to pseudo-gradients.
         logger: The logger for recording simulation logs.
         log_freq (int): Frequency for logging simulation information.
-        rng: A random number generator, which can be used for any randomized behavior within the attack.
-            If None, a default random number generator will be created.
-        torch_rng (torch.Generator): Random number generator for reproducibility.
 
     Methods:
-        execute_attack(num_iterations):
-            Execute the federated learning attack on the provided dataset.
-
-        evaluate_attack():
-            Evaluate the success of the federated learning attack on the provided dataset.
-
         _get_model_at_round(round_id, mode="global"):
             Retrieve the model at a specific communication round.
 
@@ -135,7 +255,7 @@ class AttributeInferenceAttack:
         - messages_metadata: Metadata containing information about communication rounds.
         - dataset: Federated learning dataset.
         - sensitive_attribute_id: Index of the sensitive attribute in the dataset.
-        - sensitive_attribute_type: Type of the sensitive attribute ("continuous" or "binary").
+        - sensitive_attribute_type: Type of the sensitive attribute ("numerical" or "binary").
         - initialization: Strategy used to initialize the sensitive attribute. Possible are "uniform" and "fixed".
         - device (str or torch.Device): Device on which to perform computations.
         - model_init_fn: Function to initialize the federated learning model.
@@ -151,57 +271,31 @@ class AttributeInferenceAttack:
         - rng: Random number generator for reproducibility.
         - torch_rng (torch.Generator): Random number generator for reproducibility.
         """
-
+        super(AttributeInferenceAttack, self).__init__(
+            dataset=dataset,
+            sensitive_attribute_id=sensitive_attribute_id,
+            sensitive_attribute_type=sensitive_attribute_type,
+            initialization=initialization,
+            device=device,
+            criterion=criterion,
+            is_binary_classification=is_binary_classification,
+            learning_rate=learning_rate,
+            optimizer_name=optimizer_name,
+            success_metric=success_metric,
+            rng=rng,
+            torch_rng=torch_rng
+        )
         self.messages_metadata = messages_metadata
-        self.dataset = dataset
-        self.logger = logger
-        self.device = device
-        self.log_freq = log_freq
-        self.rng = rng if rng is not None else np.random.default_rng()
-        self.torch_rng = torch_rng if torch is not None else torch.Generator()
 
         self.gumbel_temperature = gumbel_temperature
         self.gumbel_threshold = gumbel_threshold
 
+        self.logger = logger
+        self.log_freq = log_freq
+
         self.round_ids = self._get_round_ids()
 
-        self.sensitive_attribute_id = sensitive_attribute_id
-
-        self.sensitive_attribute_type = sensitive_attribute_type
-
-        if self.sensitive_attribute_type not in {"binary", "categorical", "continuous"}:
-            raise ValueError(
-                f'{self.sensitive_attribute_type} is not a supported type for the sensitive attribute.'
-                f'Possible are: "binary", "categorical", "continuous"'
-            )
-
-        if sensitive_attribute_type == "categorical":
-            raise NotImplementedError(
-                "Attribute Inference Attack is not yet implemented for categorical variables!"
-            )
-
-        self.success_metric = success_metric
-
-        self.initialization = initialization
-
         self.model_init_fn = model_init_fn
-
-        self.criterion = criterion
-        self.is_binary_classification = is_binary_classification
-
-        self.learning_rate = learning_rate
-        self.optimizer_name = optimizer_name
-
-        self.n_samples = len(self.dataset)
-        self.true_features, self.true_labels = self._get_all_features()
-
-        self.true_features = self.true_features.to(self.device).type(torch.float32)
-        self.true_labels = self.true_labels.to(self.device)
-
-        if self.is_binary_classification:
-            self.true_labels = self.true_labels.type(torch.float32).unsqueeze(1)
-
-        self.num_classes = self._compute_num_sensitive_classes()
 
         self.sensitive_attribute_interval = self._get_sensitive_attribute_interval()
 
@@ -209,9 +303,7 @@ class AttributeInferenceAttack:
 
         self.sensitive_attribute = self._sample_sensitive_attribute()
 
-        self.predicted_features = self.true_features.clone()
-
-        self.optimizer = self._init_optimizer()
+        self.optimizer = self._init_optimizer(self.predicted_features)
 
         self.global_models_dict = self._get_models_dict(mode="global")
 
@@ -229,32 +321,6 @@ class AttributeInferenceAttack:
             "Global and local round ids do not match!"
 
         return list(self.messages_metadata["global"].keys())
-
-    def _get_all_features(self):
-        """
-        Retrieve all features and labels from the federated learning dataset.
-
-        Returns:
-        - Tuple of torch.Tensors: A tuple containing tensors representing all features and labels in the dataset.
-        """
-        all_examples = [example for example in self.dataset]
-
-        return default_collate(all_examples)
-
-    def _compute_num_sensitive_classes(self):
-        if self.sensitive_attribute_type == "binary":
-            num_classes = 1  # num_classes is only used t initialize logits
-        elif self.sensitive_attribute_type == "categorical":
-            num_classes = torch.unique(self.true_features[:, self.sensitive_attribute_id]).numel()
-        elif self.sensitive_attribute_type == "continuous":
-            num_classes = 1
-        else:
-            raise NotImplementedError(
-                f'{self.sensitive_attribute_type} is not a supported type for the sensitive attribute.'
-                f'Possible are: "binary", "categorical", "continuous"'
-            )
-
-        return num_classes
 
     def _get_sensitive_attribute_interval(self):
         """
@@ -291,10 +357,10 @@ class AttributeInferenceAttack:
         Get the value of sensitive attributes based on the current value of the logits.
 
         This function samples the sensitive attributes according to their distribution, which is determined by the
-        type of sensitive attribute. The supported types include "binary", "categorical", and "continuous".
+        type of sensitive attribute. The supported types include "binary", "categorical", and "numerical".
 
         For "binary" or "categorical" sensitive attributes, the function uses the Gumbel Softmax relaxation to
-        obtain a differentiable approximation of the discrete sampling process. For "continuous" sensitive attributes,
+        obtain a differentiable approximation of the discrete sampling process. For "numerical" sensitive attributes,
         the logits are directly used as the sampled value.
 
          Parameters:
@@ -309,7 +375,7 @@ class AttributeInferenceAttack:
 
         Raises:
         - ValueError: If the specified sensitive attribute type is not one of the supported types
-          ("binary", "categorical", "continuous").
+          ("binary", "categorical", "numerical").
         """
         if self.sensitive_attribute_type == "binary" or self.sensitive_attribute_type == "categorical":
             if deterministic:
@@ -330,13 +396,13 @@ class AttributeInferenceAttack:
                     dim=-1
                 )
 
-        elif self.sensitive_attribute_type == "continuous":
+        elif self.sensitive_attribute_type == "numerical":
             sensitive_attribute = self.sensitive_attribute_logits
 
         else:
             raise ValueError(
                 f'{self.sensitive_attribute_type} is not a supported type for the sensitive attribute.'
-                f'Possible are: "binary", "categorical", "continuous"'
+                f'Possible are: "binary", "categorical", "numerical"'
             )
 
         sensitive_attribute = sensitive_attribute.squeeze()
@@ -347,19 +413,6 @@ class AttributeInferenceAttack:
             sensitive_attribute += self.sensitive_attribute_interval[0]
 
         return sensitive_attribute
-
-    def _init_optimizer(self):
-        if self.optimizer_name == "sgd":
-            optimizer = optim.SGD(
-                [self.sensitive_attribute_logits],
-                lr=self.learning_rate
-            )
-        else:
-            raise NotImplementedError(
-                f"Optimizer '{self.optimizer_name}' is not implemented."
-            )
-
-        return optimizer
 
     def _get_model_at_round(self, round_id, mode="global"):
         """
@@ -529,6 +582,120 @@ class AttributeInferenceAttack:
         """
         self.sensitive_attribute = self._sample_sensitive_attribute(deterministic=True)
         predicted_sensitive_attribute = self.sensitive_attribute.clone().detach()
+
+        true_sensitive_attribute = self.true_features[:, self.sensitive_attribute_id].clone()
+
+        return self.success_metric(predicted_sensitive_attribute, true_sensitive_attribute)
+
+
+class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
+    def __init__(
+            self, model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device,
+            criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None
+    ):
+
+        super(ModelDrivenAttributeInferenceAttack, self).__init__(
+            dataset=dataset,
+            sensitive_attribute_id=sensitive_attribute_id,
+            sensitive_attribute_type=sensitive_attribute_type,
+            initialization=initialization,
+            device=device,
+            criterion=criterion,
+            is_binary_classification=is_binary_classification,
+            learning_rate=learning_rate,
+            optimizer_name=optimizer_name,
+            success_metric=success_metric,
+            rng=rng,
+            torch_rng=torch_rng
+        )
+
+        self.model = model
+        self.model.eval()
+
+    def _init_sensitive_attribute(self):
+        """
+        Initialize the logits of the sensitive attribute.
+
+        Returns:
+        - torch.Tensor: A tensor representing the initialized logits of the sensitive attribute with gradients enabled.
+        """
+        if self.initialization == "normal":
+            logits = torch.randn(size=(self.num_classes,), generator=self.torch_rng)
+        else:
+            raise NotImplementedError(
+                f"{self.initialization} is not a valid initialization strategy. "
+                f"Possible are 'normal'."
+            )
+
+        logits = logits.clone().detach().requires_grad_(True).to(self.device)
+
+        return logits
+
+    def execute_attack(self, num_iterations):
+        """
+        Execute the federated learning attack on the provided dataset.
+
+        Parameters:
+        - num_iterations (int): The number of iterations to perform the attack.
+        """
+        for idx, (_, label) in enumerate(zip(self.predicted_features, self.true_labels)):
+
+            if self.sensitive_attribute_type == "binary":
+
+                with torch.no_grad():
+
+                    clone_1 = self.predicted_features[idx].clone()
+                    clone_1[self.sensitive_attribute_id] = 1
+
+                    clone_0 = self.predicted_features[idx].clone()
+                    clone_0[self.sensitive_attribute_id] = 0
+
+                    loss_1 = self.criterion(self.model(clone_1), label)
+                    loss_0 = self.criterion(self.model(clone_0), label)
+
+                    if loss_0 <= loss_1:
+                        self.predicted_features[idx, self.sensitive_attribute_id] = 0
+                    else:
+                        self.predicted_features[idx, self.sensitive_attribute_id] = 1
+
+            elif self.sensitive_attribute_type == "numerical":
+                sensitive_attribute = self._init_sensitive_attribute()
+                optimizer = self._init_optimizer(sensitive_attribute)
+
+                for _ in range(num_iterations):
+
+                    optimizer.zero_grad()
+                    self.model.zero_grad()
+                    self.predicted_features = self.predicted_features.detach()
+
+                    self.predicted_features[idx, self.sensitive_attribute_id] = sensitive_attribute
+
+                    loss = self.criterion(self.model(self.predicted_features[idx]), label)
+
+                    loss.backward()
+                    optimizer.step()
+
+                self.predicted_features[idx, self.sensitive_attribute_id] = sensitive_attribute
+                self.predicted_features = self.predicted_features.detach()
+
+            elif self.sensitive_attribute_type == "categorical":
+                raise NotImplementedError(
+                    "Attribute Inference Attack is not yet implemented for categorical variables!"
+                )
+            else:
+                raise ValueError(
+                    f"{self.sensitive_attribute_type} is not a valid type for the sensitive attribute."
+                    f"Possible are: 'binary', 'categorical', 'numerical'."
+                )
+
+    def evaluate_attack(self):
+        """
+        Evaluate the success of the federated learning attack on the provided dataset.
+
+        Returns:
+        - torch.Tensor: The success metric value.
+        """
+        predicted_sensitive_attribute = self.predicted_features[:, self.sensitive_attribute_id].clone()
 
         true_sensitive_attribute = self.true_features[:, self.sensitive_attribute_id].clone()
 

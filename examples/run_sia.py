@@ -7,16 +7,8 @@ import numpy as np
 
 from tqdm import tqdm
 
-import torch
-import torch.nn as nn
 
 from torch.utils.data import DataLoader
-
-from fedklearn.models.linear import LinearLayer
-from fedklearn.trainer.trainer import Trainer
-from fedklearn.attacks.sia import SourceInferenceAttack
-
-from fedklearn.metrics import *
 
 from utils import *
 
@@ -144,9 +136,13 @@ def main():
 
     models_metadata_dict = load_models_metadata_dict(args)
 
+    criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
+        task_name=args.task_name, federated_dataset=federated_dataset, device=args.device
+    )
+
     trainers_dict = initialize_trainers_dict(
-        models_metadata_dict=models_metadata_dict, federated_dataset=federated_dataset, task_name=args.task_name,
-        device=args.device
+        models_metadata_dict=models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
+        is_binary_classification=is_binary_classification, metric=metric, device=args.device
     )
 
     scores_list = []
@@ -162,15 +158,9 @@ def main():
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
         dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
 
-        attack_simulator = SourceInferenceAttack(
-            attacked_client_id=attacked_client_id,
-            dataloader=dataloader,
-            trainers_dict=trainers_dict
+        score = evaluate_sia(
+            attacked_client_id=attacked_client_id, dataloader=dataloader, trainers_dict=trainers_dict
         )
-
-        attack_simulator.execute_attack()
-
-        score = attack_simulator.evaluate_attack()
 
         logging.info(f"Score={score:.3f} for client {attacked_client_id}")
 

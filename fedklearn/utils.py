@@ -222,6 +222,9 @@ def model_jsd(model_1, model_2, dataloader, task_type, device, epsilon=1e-10):
     Returns:
     - jsd_value (float): Jensen-Shannon Divergence between the output distributions of the two models.
     """
+    model_1.eval()
+    model_2.eval()
+
     model_1 = model_1.to(device)
     model_2 = model_2.to(device)
 
