@@ -516,6 +516,29 @@ def initialize_simulator(clients, args, rng):
     return simulator
 
 
+def save_last_round_metadata(all_messages_metadata, metadata_dir):
+    last_saved_round_id = max(map(int, all_messages_metadata["global"].keys()))
+
+    last_clients_messages_metadata = dict()
+    last_server_messages_metadata = dict()
+
+    for client_id in all_messages_metadata:
+        last_clients_messages_metadata[client_id] = all_messages_metadata[client_id][f"{last_saved_round_id}"]
+        last_server_messages_metadata[client_id] = all_messages_metadata["global"][f"{last_saved_round_id}"]
+
+    last_models_metadata_path = os.path.join(metadata_dir, "last.json")
+    with open(last_models_metadata_path, "w") as f:
+        json.dump(last_clients_messages_metadata, f)
+
+    logging.info(f"Last models sent by the client saved to {last_models_metadata_path}")
+
+    server_models_metadata_path = os.path.join(metadata_dir, "server.json")
+    with open(server_models_metadata_path, "w") as f:
+        json.dump(last_server_messages_metadata, f)
+
+    logging.info(f"Last models sent by the server saved to {server_models_metadata_path}")
+
+
 def main():
     """
     Execute the federated learning simulation.
@@ -578,6 +601,8 @@ def main():
         json.dump(simulator.messages_metadata, f)
 
     logging.info(f"The messages metadata dictionary has been saved in {messages_metadata_path}")
+
+    save_last_round_metadata(simulator.messages_metadata, args.metadata_dir)
 
 
 if __name__ == "__main__":

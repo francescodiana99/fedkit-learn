@@ -76,7 +76,7 @@ python run_simulation.py \
     --data_dir ../data/adult \
     --chkpts_dir ../chkpts/adult \
     --logs_dir ../logs/adult/training \
-    --metadata_path ../metadata/adult \
+    --metadata_dir ../metadata/adult \
     --log_freq 10 \
     --save_freq 1 \
     --num_rounds 100 \
@@ -105,7 +105,7 @@ python run_simulation.py \
     --local_models_dir ../local_models/adult \
     --chkpts_dir ../chkpts/adult \
     --logs_dir ../logs/adult/training \
-    --metadata_path ../metadata/adult \
+    --metadata_dir ../metadata/adult \
     --log_freq 10 \
     --save_freq 1 \
     --num_rounds 100 \
