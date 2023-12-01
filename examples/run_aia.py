@@ -68,7 +68,7 @@ def parse_args(args_list=None):
         "--threshold",
         type=float,
         help="non-negative scalar, between 0 and 1, used as a threshold in the binary case.",
-        default=1.0
+        default=0.5
     )
 
     parser.add_argument(
