@@ -254,7 +254,7 @@ class FederatedToyDataset:
         if self.problem_type == 'classification':
             labels = (logits > 0).astype(np.int64).squeeze()
         elif self.problem_type == 'regression':
-            labels = logits.squeeze()
+            labels = logits.squeeze().astype(np.float32)
         else:
             raise ValueError("Invalid problem type. Use 'classification' or 'regression'.")
 

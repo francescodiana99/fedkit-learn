@@ -13,7 +13,7 @@ def mean_squared_error(y_true, y_pred):
     Returns:
         torch.Tensor: Mean Squared Error.
     """
-    return F.mse_loss(y_pred, y_true)
+    return F.mse_loss(y_pred, y_true, reduction='mean')
 
 
 def mean_absolute_error(y_true, y_pred):
@@ -27,7 +27,7 @@ def mean_absolute_error(y_true, y_pred):
     Returns:
         torch.Tensor: Mean Absolute Error.
     """
-    return F.l1_loss(y_pred, y_true)
+    return F.l1_loss(y_pred, y_true, reduction='mean')
 
 
 def r2_score(y_true, y_pred):
@@ -45,6 +45,7 @@ def r2_score(y_true, y_pred):
     total_variance = torch.sum((y_true - mean_y_true)**2)
     residual_variance = torch.sum((y_true - y_pred)**2)
     r2 = 1 - (residual_variance / total_variance)
+
     return r2
 
 

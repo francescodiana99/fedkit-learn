@@ -199,7 +199,7 @@ def jsd(p, q, distribution_type, epsilon=1e-10):
         jsd_value = 0.5 * (kl_pm + kl_qm)
 
     elif distribution_type == 'gaussian':
-        jsd_value = 0.25 * torch.linalg.norm(p - q, dim=-1) - 0.5 * p.size(0)
+        jsd_value = torch.linalg.norm(p - q, dim=-1) / 16
 
     else:
         raise ValueError("Invalid distribution type. Possible values: 'bernoulli', 'multinomial', 'gaussian'.")

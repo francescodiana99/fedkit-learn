@@ -158,7 +158,7 @@ def parse_args(args_list=None):
 
 def initialize_gradient_prediction_trainer(args, federated_dataset):
     if args.task_name == "adult":
-        n_features = 42 + 1  # +1 because of the bias term
+        n_features = 41 + 1  # +1 because of the bias term
         gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
     elif args.task_name == "toy_classification":
         n_features = federated_dataset.n_features + 1  # +1 because of the bias term

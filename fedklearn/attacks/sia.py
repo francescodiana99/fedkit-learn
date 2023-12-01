@@ -26,6 +26,7 @@ class SourceInferenceAttack:
                 trainer = self.trainers_dict[client_id]
 
                 loss = trainer.compute_loss(batch)
+                loss = loss.reshape(-1, 1)
 
                 self.losses[int(client_id)].append(loss)
 

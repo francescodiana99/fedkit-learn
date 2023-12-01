@@ -230,8 +230,15 @@ def main():
 
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
-        model = trainers_dict[f"{attacked_client_id}"].model
-        reference_model = reference_trainers_dict[f"{attacked_client_id}"].model
+        try:
+            model = trainers_dict[f"{attacked_client_id}"].model
+        except KeyError:
+            model = trainers_dict[attacked_client_id].model
+
+        try:
+            reference_model = reference_trainers_dict[f"{attacked_client_id}"].model
+        except KeyError:
+            reference_model = reference_trainers_dict[attacked_client_id].model
 
         model.eval()
         reference_model.eval()

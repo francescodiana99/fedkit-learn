@@ -518,13 +518,16 @@ def initialize_simulator(clients, args, rng):
 
 def save_last_round_metadata(all_messages_metadata, metadata_dir):
     last_saved_round_id = max(map(int, all_messages_metadata["global"].keys()))
+    _random_key = list(all_messages_metadata["global"].keys())[0]
+    last_saved_round_id = int(last_saved_round_id) if isinstance(_random_key, int) else str(last_saved_round_id)
 
     last_clients_messages_metadata = dict()
     last_server_messages_metadata = dict()
 
     for client_id in all_messages_metadata:
-        last_clients_messages_metadata[client_id] = all_messages_metadata[client_id][f"{last_saved_round_id}"]
-        last_server_messages_metadata[client_id] = all_messages_metadata["global"][f"{last_saved_round_id}"]
+        if str(client_id).isdigit():
+            last_clients_messages_metadata[client_id] = all_messages_metadata[client_id][last_saved_round_id]
+            last_server_messages_metadata[client_id] = all_messages_metadata["global"][last_saved_round_id]
 
     last_models_metadata_path = os.path.join(metadata_dir, "last.json")
     with open(last_models_metadata_path, "w") as f:

@@ -303,7 +303,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         self.sensitive_attribute = self._sample_sensitive_attribute()
 
-        self.optimizer = self._init_optimizer(self.predicted_features)
+        self.optimizer = self._init_optimizer(self.sensitive_attribute_logits)
 
         self.global_models_dict = self._get_models_dict(mode="global")
 
