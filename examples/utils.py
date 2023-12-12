@@ -82,6 +82,40 @@ def load_dataset(task_name, data_dir, rng):
         )
 
 
+def get_last_rounds(round_ids, keep_frac=0.):
+    """
+    Extracts a subset of the given round_ids, starting from a specific index.
+
+    Parameters:
+    - round_ids (list of str): A list of round identifiers.
+    - keep_frac (float, optional): Fraction of rounds to keep.
+      If set to 0.0, all rounds, except the last, will be discarded.
+      If set to 1.0, all rounds will be kept.
+      If set to a value between 0.0 and 1.0, it determines the fraction of rounds to keep
+      starting from the end of the list. Defaults to 0. (i.e., discarding all rounds, except the last).
+
+    Returns:
+    - list of str: A subset of round_ids based on the specified keep_frac.
+
+    Example:
+    >>> round_ids_list = ['1', '2', '3', '4', '5']
+    >>> get_last_rounds(round_ids_list, keep_frac=0.2)
+    ['2', '3', '4', '5']
+
+    Note:
+    - The round_ids are assumed to be sortable as strings.
+    - The function ensures that at least one round is kept, even when keep_frac is 0.
+    """
+    assert 0 <= keep_frac <= 1, "keep_frac must be in the range (0, 1)"
+
+    n_rounds = len(round_ids)
+    start_index = int((n_rounds - 1) * (1. - keep_frac))
+
+    int_list = sorted(list(map(int, round_ids)))
+
+    return set(map(str, int_list[start_index:]))
+
+
 def get_trainer_parameters(task_name, federated_dataset, device):
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)

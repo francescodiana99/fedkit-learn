@@ -2,3 +2,5 @@ tqdm
 torch
 pandas
 scikit-learn
+tensorboard
+packaging

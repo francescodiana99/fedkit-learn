@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.utils.data import Dataset
 from torch.utils.data._utils.collate import default_collate
 
 from scipy.special import logit
@@ -110,7 +111,7 @@ class BaseAttributeInferenceAttack(ABC):
 
         self.num_classes = self._compute_num_sensitive_classes()
 
-        self.predicted_features = self.true_features.clone()
+        self.predicted_features = torch.zeros_like(self.true_features)
 
     def _get_all_features(self):
         """
@@ -409,7 +410,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         if self.sensitive_attribute_type == "binary":
             # Linearly scale the sensitive attribute to the initial interval
-            sensitive_attribute *= self.sensitive_attribute_interval[1]
+            sensitive_attribute *= (self.sensitive_attribute_interval[1] - self.sensitive_attribute_interval[0])
             sensitive_attribute += self.sensitive_attribute_interval[0]
 
         return sensitive_attribute
@@ -539,13 +540,19 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
             virtual_grad = self._compute_virtual_gradient(global_model=global_model)
 
-            loss += 1 - F.cosine_similarity(virtual_grad, pseudo_grad, dim=0)
+            round_loss = F.cosine_similarity(virtual_grad, pseudo_grad, dim=0)
+
+            loss += 1 - round_loss
 
         self.sensitive_attribute_logits.grad = (
             torch.autograd.grad(loss, self.sensitive_attribute_logits, retain_graph=True)[0]
         )
 
         self.optimizer.step()
+
+        logging.debug(f"logits: {self.sensitive_attribute_logits.squeeze()}")
+        logging.debug(f"gradients: {self.sensitive_attribute_logits.grad.squeeze()}")
+        logging.debug(f"true attribute: {self.true_features[:, self.sensitive_attribute_id].clone().squeeze()}")
 
         self.sensitive_attribute.data = self._sample_sensitive_attribute(deterministic=False, hard=True)
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute

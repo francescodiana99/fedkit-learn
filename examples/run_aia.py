@@ -9,8 +9,6 @@ import numpy as np
 
 from tqdm import tqdm
 
-import torch
-import torch.nn as nn
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -49,6 +47,17 @@ def parse_args(args_list=None):
         type=str,
         help="type of the sensitive attribute. Possible are 'binary', 'categorical', and 'continuous'",
         choices=['binary', 'categorical', 'continuous'],
+    )
+
+    parser.add_argument(
+        "--keep_rounds_frac",
+        type=float,
+        help="Fraction of rounds to keep."
+             "If set to 0.0, all rounds, except the last, will be discarded."
+             "If set to 1.0, all rounds will be kept."
+             "If set to a value between 0.0 and 1.0, it determines the fraction of rounds to keep "
+             "starting from the end of the list. Defaults to 0. (i.e., discarding all rounds, except the last).",
+        default=0.0
     )
 
     parser.add_argument(
@@ -177,6 +186,8 @@ def main():
     with open(args.metadata_path, "r") as f:
         all_messages_metadata = json.load(f)
 
+    keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
+
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
@@ -222,8 +233,8 @@ def main():
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
         client_messages_metadata = {
-            "global": all_messages_metadata["global"],
-            "local": all_messages_metadata[f"{attacked_client_id}"]
+            "global": {key: all_messages_metadata["global"][key] for key in keep_round_ids},
+            "local": {key: all_messages_metadata[f"{attacked_client_id}"][key] for key in keep_round_ids}
         }
 
         attack_simulator = AttributeInferenceAttack(

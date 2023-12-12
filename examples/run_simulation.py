@@ -117,6 +117,11 @@ def parse_args(args_list=None):
 
     # Args for toy dataset
     parser.add_argument(
+        "--use_bias",
+        action="store_true",
+        help="If selected, a bias term to the linear model behind the toy dataset."
+    )
+    parser.add_argument(
         "--n_tasks",
         type=int,
         default=2,
@@ -201,7 +206,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=1024, help="Batch size"
+        default=1024,
+        help="Batch size"
     )
 
     parser.add_argument(
@@ -262,7 +268,8 @@ def parse_args(args_list=None):
     )
     parser.add_argument(
         "--log_freq",
-        type=int, default=10,
+        type=int,
+        default=10,
         help="Logging frequency"
     )
     parser.add_argument(
@@ -324,6 +331,7 @@ def initialize_dataset(args, rng):
             n_train_samples=args.n_train_samples,
             n_test_samples=args.n_test_samples,
             problem_type="regression",
+            bias=args.use_bias,
             n_numerical_features=args.n_numerical_features,
             n_binary_features=args.n_binary_features,
             sensitive_attribute_type=args.sensitive_attribute_type,
@@ -340,6 +348,7 @@ def initialize_dataset(args, rng):
             n_train_samples=args.n_train_samples,
             n_test_samples=args.n_test_samples,
             problem_type="classification",
+            bias=args.use_bias,
             n_numerical_features=args.n_numerical_features,
             n_binary_features=args.n_binary_features,
             sensitive_attribute_type=args.sensitive_attribute_type,

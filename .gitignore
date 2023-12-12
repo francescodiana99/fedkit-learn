@@ -1,5 +1,8 @@
 # Don't track content of these folders
 .idea/
+chkpts/
+local_models/
+logs/
 
 # Don't track files with these extensions
 *.ipynb
@@ -7,6 +10,7 @@
 *.pth
 *.csv
 *.json
+*.npz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

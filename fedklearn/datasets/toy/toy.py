@@ -23,6 +23,7 @@ class FederatedToyDataset:
     - n_binary_features (int): Number of binary features in the dataset.
     - sensitive_attribute_type (str): Type of the sensitive feature, either 'numerical' or 'binary'.
     - sensitive_attribute_weight (float): Weight of the sensitive feature.
+    - bias (bool): If `True`, a bias term is included in the linear model.
     - noise_level (float): Optional noise level to add to labels.
     - cache_dir (str): Directory to store generated datasets.
     - force_generation (bool): If True, forces regeneration of datasets even if cached ones exist.
@@ -51,9 +52,8 @@ class FederatedToyDataset:
     def __init__(
             self, cache_dir="./", n_tasks=None, n_train_samples=None, n_test_samples=None, problem_type=None,
             n_numerical_features=None, n_binary_features=None, sensitive_attribute_type=None,
-            sensitive_attribute_weight=None, noise_level=None, force_generation=False, allow_generation=True,
-            rng=None
-
+            sensitive_attribute_weight=None, bias=False, noise_level=None, force_generation=False,
+            allow_generation=True, rng=None
     ):
 
         if any(param is None for param in [n_tasks, n_train_samples, n_test_samples, problem_type,
@@ -118,6 +118,8 @@ class FederatedToyDataset:
 
             self.noise_level = noise_level
 
+            self.bias = bias
+
             self.rng = rng if rng is not None else np.random.default_rng()
 
             self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
@@ -158,7 +160,10 @@ class FederatedToyDataset:
 
     def _initialize_model_parameters(self):
         weights = self.rng.standard_normal(size=(self.n_numerical_features + self.n_binary_features, 1))
-        bias = self.rng.standard_normal(size=1)
+        if self.bias:
+            bias = self.rng.standard_normal(size=1)
+        else:
+            bias = np.zeros(shape=1)
 
         modified_weights = weights.copy()
 
@@ -241,6 +246,7 @@ class FederatedToyDataset:
         numerical_data = self.rng.standard_normal(size=(self.n_samples, self.n_numerical_features))
 
         binary_data = self.rng.integers(low=0, high=2, size=(self.n_samples, self.n_binary_features))
+        binary_data = 2. * binary_data - 1.
 
         features = np.concatenate((numerical_data, binary_data.astype(float)), axis=1)
 
