@@ -7,14 +7,14 @@ import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import Dataset
-from torch.utils.data._utils.collate import default_collate
 
 from scipy.special import logit
 
 from tqdm import tqdm
 
 from ..utils import *
+
+from utils import *
 
 
 EPSILON = 1e-5
@@ -120,9 +120,7 @@ class BaseAttributeInferenceAttack(ABC):
         Returns:
         - Tuple of torch.Tensors: A tuple containing tensors representing all features and labels in the dataset.
         """
-        all_examples = [example for example in self.dataset]
-
-        return default_collate(all_examples)
+        return get_all_features(self.dataset)
 
     def _compute_num_sensitive_classes(self):
         if self.sensitive_attribute_type == "binary":

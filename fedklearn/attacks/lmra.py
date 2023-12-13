@@ -4,11 +4,15 @@ import numpy as np
 
 import torch
 import torch.optim as optim
+import torch.nn.functional as F
+
 from torch.utils.data import TensorDataset, DataLoader
 
 from tqdm import tqdm
 
 from ..utils import *
+
+from .utils import *
 
 
 class LocalModelReconstructionAttack:
@@ -63,6 +67,7 @@ class LocalModelReconstructionAttack:
                     }
                 }
         model_init_fn: Function to initialize the federated learning model.
+        gradient_oracle (GradientOracle): computing and retrieving gradients of a given model's parameters.
         gradient_prediction_trainer (Trainer): Trainer for the gradient prediction model.
         round_ids (list): List of round IDs extracted from the provided messages metadata.
         last_round (int): Integer representing the last round.
@@ -130,7 +135,8 @@ class LocalModelReconstructionAttack:
     def __init__(
             self, messages_metadata, model_init_fn, gradient_prediction_trainer,
             optimizer_name, learning_rate, momentum, weight_decay, dataset,
-            logger, log_freq, rng=None
+            logger, log_freq, rng=None,
+            gradient_oracle=None
     ):
         """
         Initialize the AttributeInferenceAttack.
@@ -139,6 +145,7 @@ class LocalModelReconstructionAttack:
         - messages_metadata: Metadata containing information about communication rounds.
         - model_init_fn: Function to initialize the federated learning model.
         - gradient_prediction_trainer (Trainer): Trainer for the gradient prediction model.
+        - gradient_oracle (GradientOracle): computing and retrieving gradients of a given model's parameters.
         - dataset: Federated learning dataset.
         - optimizer_name (str): Name of the optimizer to use (default is "sgd").
         - learning_rate (float): Learning rate for the optimizer.
@@ -154,6 +161,8 @@ class LocalModelReconstructionAttack:
         self.model_init_fn = model_init_fn
 
         self.gradient_prediction_trainer = gradient_prediction_trainer
+
+        self.gradient_oracle = gradient_oracle
 
         self.device = gradient_prediction_trainer.device
 
@@ -184,9 +193,9 @@ class LocalModelReconstructionAttack:
 
         self.gradients_loader = DataLoader(self.gradients_dataset, batch_size=len(self.round_ids), shuffle=True)
 
-        self.reconstructed_model_params = self._initialize_reconstructed_model_params()
+        self.reconstructed_model = self._init_reconstructed_model()
 
-        self.reconstructed_model = self.model_init_fn().to(self.device)
+        self.reconstructed_model_params = get_param_tensor(self.reconstructed_model).clone().detach().to(self.device)
 
         self.optimizer = self._initialize_optimizer()
 
@@ -303,14 +312,22 @@ class LocalModelReconstructionAttack:
 
         return TensorDataset(global_models_tensor, pseudo_gradients_tensor)
 
-    def _initialize_reconstructed_model_params(self):
+    def _init_reconstructed_model(self):
         """
-        Initialize and return the parameters of a reconstructed model.
+        Initialize a reconstructed model by calling the provided model initialization function.
 
         Returns:
-            torch.Tensor: Tensor containing the initialized model parameters.
+            torch.nn.Module: The initialized model with gradients set to zero.
         """
-        return get_param_tensor(self.model_init_fn()).clone().detach().requires_grad_(True).to(self.device)
+        model = self._get_model_at_round(self.last_round_id, mode="local").to(self.device)
+
+        for param in model.parameters():
+            if param.grad is None:
+                param.grad = torch.zeros_like(param)
+            else:
+                param.grad.data.zero_()
+
+        return model
 
     def _initialize_optimizer(self):
         """
@@ -321,7 +338,7 @@ class LocalModelReconstructionAttack:
         """
         if self.optimizer_name == "sgd":
             optimizer = optim.SGD(
-                [self.reconstructed_model_params],
+                [param for param in self.reconstructed_model.parameters() if param.requires_grad],
                 lr=self.learning_rate,
                 momentum=self.momentum,
                 weight_decay=self.weight_decay
@@ -354,8 +371,7 @@ class LocalModelReconstructionAttack:
         """
         for c_iteration in tqdm(range(num_iterations), leave=False):
             self.gradient_prediction_trainer.fit_epoch(self.gradients_loader)
-            loss_val, metric_val = self.gradient_prediction_trainer.evaluate_loader(
-                self.gradients_loader)
+            loss_val, metric_val = self.gradient_prediction_trainer.evaluate_loader(self.gradients_loader)
 
             self.logger.add_scalar("Gradient Estimation Loss", loss_val, c_iteration)
 
@@ -364,51 +380,86 @@ class LocalModelReconstructionAttack:
                 logging.debug(f"Iteration {c_iteration}: Gradient Estimation Loss: {loss_val:4f}")
                 logging.debug("+" * 50)
 
-    def reconstruct_local_model(self, num_iterations):
+    def verify_gradient_predictor(self, scaling_coeff):
+        for round_id in self.round_ids:
+            model_params = self.global_models_dict[round_id]
+
+            pseudo_gradient = scaling_coeff * self.pseudo_gradients_dict[round_id]
+
+            oracle_gradient = self.gradient_oracle.predict_gradient(model_params).detach()
+
+            predicted_gradient = scaling_coeff * self.gradient_prediction_trainer.model(model_params).detach()
+
+            err = F.mse_loss(predicted_gradient, oracle_gradient)
+
+            logging.debug(
+                f"params: {model_params} | oracle: {oracle_gradient} | pseudo: {pseudo_gradient} |"
+                f" predicted: {predicted_gradient} | err: {err}"
+            )
+
+    def reconstruct_local_model(self, num_iterations, use_gradient_oracle, debug=False, scaling_coeff=None):
         """
         Reconstructs a local model by iteratively updating its parameters based on estimated gradients.
 
         Args:
             num_iterations (int): Number of optimization iterations for reconstructing the local model.
+            use_gradient_oracle (bool): If `True`, use gradient oracle; otherwise, use gradient predictor.
+            debug (bool): If `True`, enables debug mode for additional logging and checks. Default is `False`.
+            scaling_coeff (float): A scaling coefficient applied to the predicted gradient if debug mode is enabled.
 
         Returns:
-            torch.nn.Module:
-                The reconstructed local model.
+            None
+
         """
-
         for c_iteration in tqdm(range(num_iterations), leave=False):
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=False)
 
-            loss = torch.linalg.vector_norm(
-                self.gradient_prediction_trainer.model(self.reconstructed_model_params),
-                ord=2
-            )
+            if use_gradient_oracle and self.gradient_oracle is not None:
+                gradient = self.gradient_oracle.predict_gradient(self.reconstructed_model_params)
+            elif use_gradient_oracle:
+                logging.warning("Gradient Oracle is not provided. Gradient predictor is used!")
+                gradient = self.gradient_prediction_trainer.model(self.reconstructed_model_params)
+            else:
+                gradient = self.gradient_prediction_trainer.model(self.reconstructed_model_params)
 
-            loss.backward()
+            gradient = gradient.detach()
+
+            if debug and scaling_coeff is not None:
+                oracle_gradient = self.gradient_oracle.predict_gradient(self.reconstructed_model_params)
+                oracle_gradient = oracle_gradient.detach()
+
+                predicted_gradient = self.gradient_prediction_trainer.model(self.reconstructed_model_params)
+                predicted_gradient = predicted_gradient.detach()
+
+                predicted_gradient = scaling_coeff * predicted_gradient
+
+                err = F.mse_loss(predicted_gradient, oracle_gradient)
+
+                logging.debug(
+                    f"params: {self.reconstructed_model_params} | oracle: {oracle_gradient} | "
+                    f" predicted: {predicted_gradient} | err: {err}"
+                )
+
+            set_grad_tensor(model=self.reconstructed_model, grad_tensor=gradient, device=self.device)
 
             self.optimizer.step()
 
-            loss_val = loss.item()
-            self.logger.add_scalar("Estimated Gradient Norm", loss_val, c_iteration)
+            self.reconstructed_model_params = (
+                get_param_tensor(self.reconstructed_model).clone().detach().to(self.device)
+            )
+
+            loss = torch.linalg.vector_norm(gradient, ord=2).item()
+
+            self.logger.add_scalar("Estimated Gradient Norm", loss, c_iteration)
+
+            logging.debug(f"reconstructed params: {self.reconstructed_model_params}")
 
             if c_iteration % self.log_freq == 0:
                 logging.debug("+" * 50)
-                logging.debug(f"Iteration {c_iteration}: Estimated Gradient Norm: {loss_val:4f}")
+                logging.debug(f"Iteration {c_iteration}: Estimated Gradient Norm: {loss:4f}")
                 logging.debug("+" * 50)
 
-        reconstructed_model = self.model_init_fn().to(self.device)
-
-        set_param_tensor(
-            model=reconstructed_model,
-            param_tensor=self.reconstructed_model_params.detach(),
-            device=self.device
-        )
-
-        reconstructed_model.eval()
-
-        return reconstructed_model
-
-    def execute_attack(self, num_iterations):
+    def execute_attack(self, num_iterations, use_gradient_oracle=False):
         """
         Executes local model reconstruction attack by performing the following steps:
 
@@ -419,6 +470,7 @@ class LocalModelReconstructionAttack:
         Parameters:
         - num_iterations (int): The number of iterations used for fitting the gradient predictor
                               and reconstructing the local model.
+        - use_gradient_oracle (bool): If `True`, use gradient oracle; otherwise, use gradient predictor.
 
         Returns:
         torch.nn.Module:
@@ -426,7 +478,12 @@ class LocalModelReconstructionAttack:
         """
         self.fit_gradient_predictor(num_iterations=num_iterations)
         self._freeze_gradient_predictor()
-        self.reconstructed_model = self.reconstruct_local_model(num_iterations=num_iterations)
+
+        # TODO: add flag for debug mode
+        self.verify_gradient_predictor(scaling_coeff=10.)
+        self.reconstruct_local_model(
+            num_iterations=num_iterations, use_gradient_oracle=use_gradient_oracle, debug=True, scaling_coeff=10.
+        )
 
         return self.reconstructed_model
 
@@ -448,3 +505,94 @@ class LocalModelReconstructionAttack:
             self.reconstructed_model, reference_model, dataloader=dataloader, task_type=task_type,
             device=self.device, epsilon=epsilon
         )
+
+
+class GradientOracle:
+    """
+    A class for computing and retrieving gradients of a given model's parameters with respect to a specified criterion.
+
+    Attributes:
+    - model_init_fn (function): A function that initializes the model architecture.
+    - dataset (torch.utils.data.Dataset): The dataset used for training the model.
+    - is_binary_classification (bool): A flag indicating whether the task is binary classification.
+    - criterion (torch.nn.Module): The loss criterion used for training the model.
+    - device (torch.device): The device (CPU or GPU) on which the model and computations are performed.
+    - model (torch.nn.Module): The initialized model.
+    - true_features (torch.Tensor): Tensor containing all features from the dataset.
+    """
+
+    def __init__(self, model_init_fn, dataset, is_binary_classification, criterion, device):
+        """
+        Initialize the GradientOracle.
+
+        Parameters:
+        - model_init_fn (callable): A function that initializes the model.
+        - dataset: The dataset containing features and labels.
+        - is_binary_classification (bool): Indicates whether the task is binary classification.
+        - criterion: The loss criterion used for computing gradients.
+        - device: The device (e.g., 'cpu' or 'cuda') on which the computations will be performed.
+        """
+
+        self.model_init_fn = model_init_fn
+        self.dataset = dataset
+
+        self.criterion = criterion
+        self.is_binary_classification = is_binary_classification
+
+        self.device = device
+
+        self.model = self.model_init_fn()
+
+        self.true_features, self.true_labels = self._get_all_features()
+
+        self.true_features = self.true_features.to(self.device).type(torch.float32)
+        self.true_labels = self.true_labels.to(self.device)
+
+        if self.is_binary_classification:
+            self.true_labels = self.true_labels.type(torch.float32).unsqueeze(1)
+
+    def _get_all_features(self):
+        """
+        Retrieve all features and labels from the dataset.
+
+        Returns:
+        - Tuple of torch.Tensors: A tuple containing tensors representing all features and labels in the dataset.
+        """
+        return get_all_features(self.dataset)
+
+    def _set_model_parameters(self, params):
+        """
+        Set the model parameters to the given tensor.
+
+        Parameters:
+        - params: The tensor containing model parameters.
+        """
+        set_param_tensor(
+            model=self.model,
+            param_tensor=params,
+            device=self.device
+        )
+
+    def predict_gradient(self, params):
+        """
+         Predict the gradients of the model parameters based on the given parameters.
+
+         Parameters:
+         - params: The tensor containing model parameters.
+
+         Returns:
+         - torch.Tensor: The computed gradients.
+         """
+        self._set_model_parameters(params)
+
+        self.model.zero_grad()
+
+        grad = torch.autograd.grad(
+            self.criterion(self.model(self.true_features), self.true_labels),
+            self.model.parameters(),
+            create_graph=True
+        )
+
+        grad = torch.cat([g.view(-1) for g in grad])
+
+        return grad

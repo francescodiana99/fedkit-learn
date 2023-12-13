@@ -305,6 +305,9 @@ class FederatedAveraging(Simulator):
         """
         logging.debug(f"Round {self.c_round}:")
 
+        self.synchronize()
+        logging.debug(f"Clients synchronized successfully")
+
         self.simulate_local_updates()
 
         if save_chkpts:

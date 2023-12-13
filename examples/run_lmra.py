@@ -7,14 +7,14 @@ import numpy as np
 
 from tqdm import tqdm
 
-import torch
-import torch.nn as nn
 import torch.optim as optim
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from fedklearn.attacks.lmra import LocalModelReconstructionAttack
+from fedklearn.attacks.lmra import LocalModelReconstructionAttack, GradientOracle
+
+from fedklearn.models.sequential import SequentialNet
 
 from utils import *
 from constants import *
@@ -60,16 +60,35 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        '--hidden_layers',
+        type=int,
+        nargs='+',
+        default=[],
+        help='List representing the number of neurons in each hidden layer of the gradient prediction model'
+    )
+
+    parser.add_argument(
+        "--use_oracle",
+        action="store_true",
+        help="If selected, use gradient oracle; otherwise, use gradient predictor."
+    )
+    parser.add_argument(
         "--optimizer",
         type=str,
         default="sgd",
         help="Optimizer"
     )
     parser.add_argument(
-        "--learning_rate",
+        "--estimation_learning_rate",
         type=float,
         default=1e-2,
-        help="Learning rate"
+        help="Learning rate used to train the gradient estimator."
+    )
+    parser.add_argument(
+        "--reconstruction_learning_rate",
+        type=float,
+        default=1e-2,
+        help="Learning rate used to reconstruct the model; i.e., used to minimize the norm of the estimated gradient."
     )
     parser.add_argument(
         "--momentum",
@@ -86,7 +105,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=1024, help="Batch size"
+        default=1024,
+        help="Batch size"
     )
 
     parser.add_argument(
@@ -111,7 +131,8 @@ def parse_args(args_list=None):
     )
     parser.add_argument(
         "--log_freq",
-        type=int, default=10,
+        type=int,
+        default=10,
         help="Logging frequency"
     )
 
@@ -159,22 +180,25 @@ def parse_args(args_list=None):
 def initialize_gradient_prediction_trainer(args, federated_dataset):
     if args.task_name == "adult":
         n_features = 41 + 1  # +1 because of the bias term
-        gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
     elif args.task_name == "toy_classification":
         n_features = federated_dataset.n_features + 1  # +1 because of the bias term
-        gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
     elif args.task_name == "toy_regression":
         n_features = federated_dataset.n_features + 1  # +1 because of the bias term
-        gradient_prediction_model = LinearLayer(input_dimension=n_features, output_dimension=n_features).to(args.device)
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
 
+    gradient_prediction_model = SequentialNet(
+        input_dimension=n_features, output_dimension=n_features, hidden_layers=args.hidden_layers
+    )
+
+    gradient_prediction_model = gradient_prediction_model.to(args.device)
+
     if args.optimizer == "sgd":
         optimizer = optim.SGD(
             [param for param in gradient_prediction_model.parameters() if param.requires_grad],
-            lr=args.learning_rate,
+            lr=args.estimation_learning_rate,
             momentum=args.momentum,
             weight_decay=args.weight_decay
         )
@@ -210,11 +234,17 @@ def main():
         reference_models_metadata_dict = json.load(f)
 
     if args.task_name == "adult":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        is_binary_classification = True
     elif args.task_name == "toy_classification":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        is_binary_classification = True
     elif args.task_name == "toy_regression":
+        criterion = nn.MSELoss().to(args.device)
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -246,12 +276,25 @@ def main():
 
         gradient_prediction_trainer = initialize_gradient_prediction_trainer(args, federated_dataset=federated_dataset)
 
+        if args.use_oracle:
+            gradient_oracle = GradientOracle(
+                model_init_fn=model_init_fn, dataset=dataset, criterion=criterion,
+                is_binary_classification=is_binary_classification, device=args.device
+            )
+        else:
+            # TODO: Set to None
+            gradient_oracle = GradientOracle(
+                model_init_fn=model_init_fn, dataset=dataset, criterion=criterion,
+                is_binary_classification=is_binary_classification, device=args.device
+            )
+
         attack_simulator = LocalModelReconstructionAttack(
             messages_metadata=client_messages_metadata,
             model_init_fn=model_init_fn,
             gradient_prediction_trainer=gradient_prediction_trainer,
+            gradient_oracle=gradient_oracle,
             optimizer_name=args.optimizer,
-            learning_rate=args.learning_rate,
+            learning_rate=args.reconstruction_learning_rate,
             momentum=args.momentum,
             weight_decay=args.weight_decay,
             dataset=dataset,
@@ -260,7 +303,10 @@ def main():
             rng=rng
         )
 
-        reconstructed_model = attack_simulator.execute_attack(num_iterations=args.num_rounds)
+        reconstructed_model = attack_simulator.execute_attack(
+            num_iterations=args.num_rounds, use_gradient_oracle=args.use_oracle
+        )
+
         logging.info("Local model reconstructed successfully.")
 
         logging.info("=" * 50)
