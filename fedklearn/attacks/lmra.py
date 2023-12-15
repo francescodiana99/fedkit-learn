@@ -367,18 +367,23 @@ class LocalModelReconstructionAttack:
             num_iterations (int): The number of training rounds for the gradient predictor.
 
         Returns:
-            None
+            A tuple (loss, metric), where loss is the average value of the loss
+            function over all batches, and average_metric is the average computed evaluation metric.
         """
         for c_iteration in tqdm(range(num_iterations), leave=False):
             self.gradient_prediction_trainer.fit_epoch(self.gradients_loader)
-            loss_val, metric_val = self.gradient_prediction_trainer.evaluate_loader(self.gradients_loader)
+            loss, metric = self.gradient_prediction_trainer.evaluate_loader(self.gradients_loader)
 
-            self.logger.add_scalar("Gradient Estimation Loss", loss_val, c_iteration)
+            self.logger.add_scalar("Gradient Estimation Loss", loss, c_iteration)
 
             if c_iteration % self.log_freq == 0:
                 logging.debug("+" * 50)
-                logging.debug(f"Iteration {c_iteration}: Gradient Estimation Loss: {loss_val:4f}")
+                logging.debug(f"Iteration {c_iteration}: Gradient Estimation Loss: {loss:4f}")
                 logging.debug("+" * 50)
+
+        loss, metric = self.gradient_prediction_trainer.evaluate_loader(self.gradients_loader)
+
+        return loss, metric
 
     def verify_gradient_predictor(self, scaling_coeff):
         for round_id in self.round_ids:
@@ -476,7 +481,10 @@ class LocalModelReconstructionAttack:
         torch.nn.Module:
             reconstructed_model: The reconstructed local model after the attack.
         """
-        self.fit_gradient_predictor(num_iterations=num_iterations)
+        estimation_loss, estimation_metric = self.fit_gradient_predictor(num_iterations=num_iterations)
+
+        logging.info(f"Gradient Estimation Loss: {estimation_loss:4f} | Metric: {estimation_metric:4f}")
+
         self._freeze_gradient_predictor()
 
         # TODO: add flag for debug mode
@@ -549,7 +557,7 @@ class GradientOracle:
         self.true_labels = self.true_labels.to(self.device)
 
         if self.is_binary_classification:
-            self.true_labels = self.true_labels.type(torch.float32).unsqueeze(1)
+            self.true_labels = self.true_labels.type(torch.float32)
 
     def _get_all_features(self):
         """
@@ -587,12 +595,12 @@ class GradientOracle:
 
         self.model.zero_grad()
 
-        grad = torch.autograd.grad(
-            self.criterion(self.model(self.true_features), self.true_labels),
-            self.model.parameters(),
-            create_graph=True
-        )
+        predictions = self.model(self.true_features)
 
-        grad = torch.cat([g.view(-1) for g in grad])
+        predictions = predictions.squeeze()
 
-        return grad
+        loss = self.criterion(predictions, self.true_labels)
+
+        loss.backward()
+
+        return get_grad_tensor(self.model)

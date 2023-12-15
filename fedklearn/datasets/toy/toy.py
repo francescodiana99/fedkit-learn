@@ -179,6 +179,8 @@ class FederatedToyDataset:
             (weights[complement_idx] / norm_factor) * np.sqrt(1 - self.sensitive_attribute_weight)
         )
 
+        modified_weights /= np.linalg.norm(modified_weights)
+
         return modified_weights, bias
 
     def _save_metadata(self):

@@ -157,11 +157,14 @@ class Trainer:
         y = y.to(self.device)
 
         if self.is_binary_classification:
-            y = y.type(torch.float32).unsqueeze(1)
+            y = y.type(torch.float32)
 
         self.optimizer.zero_grad()
 
         y_pred = self.model(x)
+
+        y_pred = y_pred.squeeze()
+
         loss = self.criterion(y_pred, y)
 
         loss.backward()
@@ -198,9 +201,12 @@ class Trainer:
             y = y.to(self.device)
 
             if self.is_binary_classification:
-                y = y.type(torch.float32).unsqueeze(1)
+                y = y.type(torch.float32)
 
             y_pred = self.model(x)
+
+            y_pred = y_pred.squeeze()
+
             loss = self.criterion(y_pred, y)
 
         return loss
@@ -242,11 +248,14 @@ class Trainer:
         y = y.to(self.device)
 
         if self.is_binary_classification:
-            y = y.type(torch.float32).unsqueeze(1)
+            y = y.type(torch.float32)
 
         self.optimizer.zero_grad()
 
         y_pred = self.model(x)
+
+        y_pred = y_pred.squeeze()
+
         loss = self.criterion(y_pred, y)
         metric = self.metric(y_pred, y)
 
@@ -301,11 +310,13 @@ class Trainer:
             n_samples += y.size(0)
 
             if self.is_binary_classification:
-                y = y.type(torch.float32).unsqueeze(1)
+                y = y.type(torch.float32)
 
             self.optimizer.zero_grad()
 
             y_pred = self.model(x)
+
+            y_pred = y_pred.squeeze()
 
             loss = self.criterion(y_pred, y)
 
@@ -359,9 +370,11 @@ class Trainer:
                 y = y.to(self.device)
 
                 if self.is_binary_classification:
-                    y = y.type(torch.float32).unsqueeze(1)
+                    y = y.type(torch.float32)
 
                 y_pred = self.model(x)
+
+                y_pred = y_pred.squeeze()
 
                 global_loss += self.criterion(y_pred, y).item() * y.size(0)
                 global_metric += self.metric(y_pred, y) * y.size(0)
