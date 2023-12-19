@@ -5,3 +5,6 @@ scikit-learn
 tensorboard
 packaging
 numpy
+requests
+imageio
+matplotlib
