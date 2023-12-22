@@ -1,3 +1,4 @@
+import os
 import logging
 
 import numpy as np
@@ -402,20 +403,28 @@ class LocalModelReconstructionAttack:
                 f" predicted: {predicted_gradient} | err: {err}"
             )
 
-    def reconstruct_local_model(self, num_iterations, use_gradient_oracle, debug=False, scaling_coeff=None):
+    def reconstruct_local_model(
+            self, num_iterations, use_gradient_oracle, save_dir=None, save_freq=1, debug=False, scaling_coeff=None
+    ):
         """
         Reconstructs a local model by iteratively updating its parameters based on estimated gradients.
 
         Args:
             num_iterations (int): Number of optimization iterations for reconstructing the local model.
             use_gradient_oracle (bool): If `True`, use gradient oracle; otherwise, use gradient predictor.
+            save_dir (str or None): Directory to save reconstructed models. If `None`, models will not be saved.
+            save_freq (int): Frequency for saving reconstructed models.
             debug (bool): If `True`, enables debug mode for additional logging and checks. Default is `False`.
-            scaling_coeff (float): A scaling coefficient applied to the predicted gradient if debug mode is enabled.
+            scaling_coeff (float or None): A scaling coefficient applied to the predicted gradient
+                if debug mode is enabled.
 
         Returns:
-            None
+            dict: A dictionary containing metadata for saved reconstructed models, where keys are iteration numbers
+                and values are corresponding file paths. Returns an empty dictionary if no models are saved.
 
         """
+        reconstructed_models_metadata_dict = dict()
+
         for c_iteration in tqdm(range(num_iterations), leave=False):
             self.optimizer.zero_grad(set_to_none=False)
 
@@ -459,12 +468,32 @@ class LocalModelReconstructionAttack:
 
             logging.debug(f"reconstructed params: {self.reconstructed_model_params}")
 
-            if c_iteration % self.log_freq == 0:
+            log_flag = c_iteration % self.log_freq == 0
+            save_flag = c_iteration % save_freq == 0
+
+            if log_flag:
                 logging.debug("+" * 50)
                 logging.debug(f"Iteration {c_iteration}: Estimated Gradient Norm: {loss:4f}")
                 logging.debug("+" * 50)
 
-    def execute_attack(self, num_iterations, use_gradient_oracle=False):
+            if save_flag:
+                logging.debug("+" * 50)
+                logging.info(f"Save reconstructed model for iteration {c_iteration}..")
+                checkpoint = {'model_state_dict': self.reconstructed_model.state_dict()}
+
+                save_path = os.path.join(save_dir, f"{c_iteration}.pt")
+                save_path = os.path.abspath(save_path)
+                torch.save(checkpoint, save_path)
+
+                reconstructed_models_metadata_dict[f"{c_iteration}"] = save_path
+
+                logging.debug("+" * 50)
+
+        return reconstructed_models_metadata_dict
+
+    def execute_attack(
+            self, num_iterations, use_gradient_oracle=False, save_dir=None, save_freq=1, debug=False, scaling_coeff=None
+    ):
         """
         Executes local model reconstruction attack by performing the following steps:
 
@@ -476,24 +505,39 @@ class LocalModelReconstructionAttack:
         - num_iterations (int): The number of iterations used for fitting the gradient predictor
                               and reconstructing the local model.
         - use_gradient_oracle (bool): If `True`, use gradient oracle; otherwise, use gradient predictor.
+        - save_dir (str): Directory to save reconstructed models. If `None`, models will not be saved.
+        - save_freq (int): Frequency for saving reconstructed models.
+        - debug (bool): If `True`, enables debug mode for additional logging and checks. Default is `False`.
+        - scaling_coeff (float or None): A scaling coefficient applied to the predicted gradient
+                if debug mode is enabled.
 
         Returns:
-        torch.nn.Module:
-            reconstructed_model: The reconstructed local model after the attack.
+            dict: A dictionary containing metadata for saved reconstructed models, where keys are iteration numbers
+                and values are corresponding file paths. Returns an empty dictionary if no models are saved.
         """
+
         estimation_loss, estimation_metric = self.fit_gradient_predictor(num_iterations=num_iterations)
 
         logging.info(f"Gradient Estimation Loss: {estimation_loss:4f} | Metric: {estimation_metric:4f}")
 
         self._freeze_gradient_predictor()
 
-        # TODO: add flag for debug mode
-        self.verify_gradient_predictor(scaling_coeff=10.)
-        self.reconstruct_local_model(
-            num_iterations=num_iterations, use_gradient_oracle=use_gradient_oracle, debug=True, scaling_coeff=10.
+        if debug and scaling_coeff is not None:
+            self.verify_gradient_predictor(scaling_coeff=scaling_coeff)
+
+        reconstructed_models_metadata_dict = self.reconstruct_local_model(
+            num_iterations=num_iterations, use_gradient_oracle=use_gradient_oracle,
+            save_dir=save_dir, save_freq=save_freq, debug=debug, scaling_coeff=scaling_coeff
         )
 
-        return self.reconstructed_model
+        checkpoint = {'model_state_dict': self.reconstructed_model.state_dict()}
+        save_path = os.path.join(save_dir, f"{num_iterations}.pt")
+        save_path = os.path.abspath(save_path)
+        torch.save(checkpoint, save_path)
+
+        reconstructed_models_metadata_dict[f"{num_iterations}"] = save_path
+
+        return reconstructed_models_metadata_dict
 
     def evaluate_attack(self, reference_model, dataloader, task_type, epsilon=1e-10):
         """

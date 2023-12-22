@@ -20,6 +20,9 @@ from utils import *
 from constants import *
 
 
+SCALING_COEFF = 10.
+
+
 def parse_args(args_list=None):
     """
     Parse command-line arguments.
@@ -142,6 +145,12 @@ def parse_args(args_list=None):
         default="./reconstructed_models",
         help="Directory to save reconstructed models."
     )
+    parser.add_argument(
+        "--save_freq",
+        type=int,
+        default=10,
+        help="Saving frequency."
+    )
 
     parser.add_argument(
         "--results_path",
@@ -157,6 +166,11 @@ def parse_args(args_list=None):
         help="Random seed"
     )
 
+    parser.add_argument(
+        '--debug',
+        help="Flag to use debug mode.",
+        action="store_true"
+    )
     parser.add_argument(
         '-v', '--verbose',
         help='Increase verbosity level. Repeat for more detailed log messages.',
@@ -276,17 +290,13 @@ def main():
 
         gradient_prediction_trainer = initialize_gradient_prediction_trainer(args, federated_dataset=federated_dataset)
 
-        if args.use_oracle:
+        if args.use_oracle or args.debug:
             gradient_oracle = GradientOracle(
                 model_init_fn=model_init_fn, dataset=dataset, criterion=criterion,
                 is_binary_classification=is_binary_classification, device=args.device
             )
         else:
-            # TODO: Set to None
-            gradient_oracle = GradientOracle(
-                model_init_fn=model_init_fn, dataset=dataset, criterion=criterion,
-                is_binary_classification=is_binary_classification, device=args.device
-            )
+            gradient_oracle = None
 
         attack_simulator = LocalModelReconstructionAttack(
             messages_metadata=client_messages_metadata,
@@ -303,8 +313,13 @@ def main():
             rng=rng
         )
 
-        reconstructed_model = attack_simulator.execute_attack(
-            num_iterations=args.num_rounds, use_gradient_oracle=args.use_oracle
+        save_dir = os.path.join(args.reconstructed_models_dir, f"{attacked_client_id}")
+        os.makedirs(save_dir, exist_ok=True)
+
+        reconstructed_models_metadata_dict[f"{attacked_client_id}"] = attack_simulator.execute_attack(
+            num_iterations=args.num_rounds, use_gradient_oracle=args.use_oracle,
+            save_dir=save_dir, save_freq=args.save_freq,
+            debug=args.debug, scaling_coeff=SCALING_COEFF  # TODO: read scaling coeff from metadata
         )
 
         logging.info("Local model reconstructed successfully.")
@@ -329,16 +344,6 @@ def main():
 
         scores_list.append(score)
         n_samples_list.append(len(dataset))
-
-        logging.info("=" * 50)
-        logging.info(f"Save reconstructed model for client {attacked_client_id}..")
-        checkpoint = {'model_state_dict': reconstructed_model.state_dict()}
-
-        path = os.path.join(args.reconstructed_models_dir, f"{attacked_client_id}.pt")
-        path = os.path.abspath(path)
-        torch.save(checkpoint, path)
-
-        reconstructed_models_metadata_dict[f"{attacked_client_id}"] = path
 
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     
