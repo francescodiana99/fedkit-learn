@@ -419,8 +419,9 @@ class LocalModelReconstructionAttack:
                 if debug mode is enabled.
 
         Returns:
-            dict: A dictionary containing metadata for saved reconstructed models, where keys are iteration numbers
-                and values are corresponding file paths. Returns an empty dictionary if no models are saved.
+            Dict[str: str]: A dictionary containing metadata for saved reconstructed models,
+             where keys are iteration numbers and values are corresponding file paths.
+             Returns an empty dictionary if no models are saved.
 
         """
         reconstructed_models_metadata_dict = dict()
@@ -512,8 +513,8 @@ class LocalModelReconstructionAttack:
                 if debug mode is enabled.
 
         Returns:
-            dict: A dictionary containing metadata for saved reconstructed models, where keys are iteration numbers
-                and values are corresponding file paths. Returns an empty dictionary if no models are saved.
+            * Dict[str: str]: A dictionary containing metadata for saved reconstructed models,
+                where keys are iteration ids and values are corresponding file paths.
         """
 
         estimation_loss, estimation_metric = self.fit_gradient_predictor(num_iterations=num_iterations)
@@ -525,17 +526,20 @@ class LocalModelReconstructionAttack:
         if debug and scaling_coeff is not None:
             self.verify_gradient_predictor(scaling_coeff=scaling_coeff)
 
+        # Note: It is that reconstructed_models_metadata_dict is an empty dictionary.
         reconstructed_models_metadata_dict = self.reconstruct_local_model(
             num_iterations=num_iterations, use_gradient_oracle=use_gradient_oracle,
             save_dir=save_dir, save_freq=save_freq, debug=debug, scaling_coeff=scaling_coeff
         )
 
-        checkpoint = {'model_state_dict': self.reconstructed_model.state_dict()}
-        save_path = os.path.join(save_dir, f"{num_iterations}.pt")
-        save_path = os.path.abspath(save_path)
-        torch.save(checkpoint, save_path)
+        if not reconstructed_models_metadata_dict:
+            # Add the final reconstructed model to the metadata if the metadata is empty
+            checkpoint = {'model_state_dict': self.reconstructed_model.state_dict()}
+            save_path = os.path.join(save_dir, f"{num_iterations}.pt")
+            save_path = os.path.abspath(save_path)
+            torch.save(checkpoint, save_path)
 
-        reconstructed_models_metadata_dict[f"{num_iterations}"] = save_path
+            reconstructed_models_metadata_dict[f"{num_iterations-1}"] = save_path
 
         return reconstructed_models_metadata_dict
 

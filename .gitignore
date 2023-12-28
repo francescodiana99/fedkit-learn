@@ -6,12 +6,13 @@ logs/
 
 # Don't track files with these extensions
 *.ipynb
-*.npy
-*.pth
 *.csv
 *.json
 *.npz
+*.npy
 *.pt
+*.pth
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

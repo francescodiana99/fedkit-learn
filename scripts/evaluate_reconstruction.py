@@ -1,13 +1,11 @@
 import argparse
+import logging
 
 import numpy as np
 
-import torch
 from torch.utils.data import DataLoader
 
 from fedklearn.utils import model_jsd
-
-from fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
 
 from utils import *
 from constants import *
@@ -145,87 +143,37 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def evaluate_aia(
-        model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device, num_iterations,
-        criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None
+def compute_scores(
+        task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split, batch_size,
+        reference_trainers_dict, trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
+        aia_initialization, aia_num_rounds, device, rng, torch_rng
 ):
-
-    attack_simulator = ModelDrivenAttributeInferenceAttack(
-        model=model,
-        dataset=dataset,
-        sensitive_attribute_id=sensitive_attribute_id,
-        sensitive_attribute_type=sensitive_attribute_type,
-        initialization=initialization,
-        device=device,
-        criterion=criterion,
-        is_binary_classification=is_binary_classification,
-        learning_rate=learning_rate,
-        optimizer_name=optimizer_name,
-        success_metric=success_metric,
-        rng=rng,
-        torch_rng=torch_rng
-    )
-
-    attack_simulator.execute_attack(num_iterations=num_iterations)
-    score = attack_simulator.evaluate_attack()
-
-    return float(score)
-
-
-def main():
-    args = parse_args()
-
-    configure_logging(args)
-
-    rng = np.random.default_rng(seed=args.seed)
-    torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
-
-    task_type = get_task_type(args.task_name)
-
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
-    num_clients = len(federated_dataset.task_id_to_name)
-
-    with open(args.models_metadata_path, "r") as f:
-        models_metadata_dict = json.load(f)
-
-    with open(args.reference_models_metadata_path, "r") as f:
-        reference_models_metadata_dict = json.load(f)
-
-    criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
-        task_name=args.task_name, federated_dataset=federated_dataset, device=args.device
-    )
-
-    trainers_dict = initialize_trainers_dict(
-        models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
-        is_binary_classification=is_binary_classification, metric=metric, device=args.device
-    )
-
-    reference_trainers_dict = initialize_trainers_dict(
-        reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
-        is_binary_classification=is_binary_classification, metric=metric, device=args.device
-    )
+    task_type = get_task_type(task_name)
 
     scores_per_attack_dict = {f"{attack}": [] for attack in ATTACKS}
     n_samples_list = []
 
     logging.info("Simulate Attacks..")
 
+    num_clients = len(trainers_dict)
+
     for attacked_client_id in tqdm(range(num_clients)):
         logging.info("=" * 100)
         logging.info(f"Simulating attacks for client {attacked_client_id}...")
 
-        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
-        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-        if args.task_name == "adult":
-            sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
-            sensitive_attribute_type = args.sensitive_attribute_type
-        elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
+        if task_name == "adult":
+            # TODO: hard-code sensitive attribute_id and type in the federated_dataset
+            sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
+            sensitive_attribute_type = sensitive_attribute_type
+        elif task_name == "toy_classification" or task_name == "toy_regression":
             sensitive_attribute_id = federated_dataset.sensitive_attribute_id
             sensitive_attribute_type = federated_dataset.sensitive_attribute_type
         else:
             raise NotImplementedError(
-                f"Dataset initialization for task '{args.task_name}' is not implemented."
+                f"Dataset initialization for task '{task_name}' is not implemented."
             )
 
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
@@ -250,16 +198,16 @@ def main():
         logging.info(f"SIA Score={sia_score:.3f} for client {attacked_client_id}")
 
         lmra_score = model_jsd(
-            model, reference_model, dataloader=dataloader, task_type=task_type, device=args.device, epsilon=EPSILON
+            model, reference_model, dataloader=dataloader, task_type=task_type, device=device, epsilon=EPSILON
         )
 
         logging.info(f"LMRA Score={lmra_score:.3f} for client {attacked_client_id}")
 
         aia_score = evaluate_aia(
             model=model, dataset=dataset, sensitive_attribute_id=sensitive_attribute_id,
-            sensitive_attribute_type=sensitive_attribute_type, initialization=args.initialization, device=args.device,
-            num_iterations=args.num_rounds, criterion=criterion, is_binary_classification=is_binary_classification,
-            learning_rate=args.learning_rate, optimizer_name=args.optimizer, success_metric=success_metric,
+            sensitive_attribute_type=sensitive_attribute_type, initialization=aia_initialization, device=device,
+            num_iterations=aia_num_rounds, criterion=criterion, is_binary_classification=is_binary_classification,
+            learning_rate=learning_rate, optimizer_name=optimizer_name, success_metric=success_metric,
             rng=rng, torch_rng=torch_rng
         )
 
@@ -271,7 +219,59 @@ def main():
 
         n_samples_list.append(len(dataset))
 
-    logging.info("Save scores..")
+    return scores_per_attack_dict, n_samples_list
+
+
+def main():
+    args = parse_args()
+
+    configure_logging(args)
+
+    rng = np.random.default_rng(seed=args.seed)
+    torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
+
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+
+    with open(args.models_metadata_path, "r") as f:
+        models_metadata_dict = json.load(f)
+
+    with open(args.reference_models_metadata_path, "r") as f:
+        reference_models_metadata_dict = json.load(f)
+
+    criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
+        task_name=args.task_name, federated_dataset=federated_dataset, device=args.device
+    )
+
+    reference_trainers_dict = initialize_trainers_dict(
+        reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
+        is_binary_classification=is_binary_classification, metric=metric, device=args.device
+    )
+
+    trainers_dict = initialize_trainers_dict(
+        models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
+        is_binary_classification=is_binary_classification, metric=metric, device=args.device
+    )
+
+    scores_per_attack_dict, n_samples_list = compute_scores(
+        task_name=args.task_name,
+        federated_dataset=federated_dataset,
+        sensitive_attribute=args.sensitive_attribute,
+        sensitive_attribute_type=args.sensitive_attribute_type,
+        split=args.split,
+        batch_size=args.batch_size,
+        reference_trainers_dict=reference_trainers_dict,
+        trainers_dict=trainers_dict,
+        criterion=criterion,
+        is_binary_classification=is_binary_classification,
+        learning_rate=args.learning_rate,
+        optimizer_name=args.optimizer,
+        aia_initialization=args.initialization,
+        aia_num_rounds=args.num_rounds,
+        device=args.device,
+        rng=rng, torch_rng=torch_rng
+    )
+
+    logging.info("Saving scores..")
     os.makedirs(args.results_dir, exist_ok=True)
 
     for attack_name in scores_per_attack_dict:
@@ -279,10 +279,10 @@ def main():
         logging.info(f"Save scores for {attack_name}")
 
         scores_list = scores_per_attack_dict[attack_name]
-        results_path = os.path.join(args.results_dir, attack_name)
+        results_path = os.path.join(args.results_dir, f"{attack_name}.json")
         save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=results_path)
 
-    logging.info(f"The results dictionary has been saved in {args.results_dir}")
+    logging.info(f"All results have been saved in {args.results_dir}")
 
 
 if __name__ == "__main__":

@@ -2,17 +2,16 @@ import os
 import json
 import logging
 
-import torch.nn as nn
-
 from fedklearn.metrics import *
-
-from fedklearn.attacks.sia import SourceInferenceAttack
 
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
+
+from fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
+from fedklearn.attacks.sia import SourceInferenceAttack
 
 
 def none_or_float(value):
@@ -25,12 +24,34 @@ def none_or_float(value):
         return float(value)
 
 
+def swap_dict_levels(nested_dict):
+    """
+    Swap the levels of keys in a nested dictionary.
+
+    Parameters:
+    - nested_dict (dict): The nested dictionary where the first level represents outer keys
+                         and the second level represents inner keys.
+
+    Returns:
+    - dict: A new dictionary with swapped levels, where the first level represents inner keys
+            and the second level represents outer keys.
+    """
+    swapped_dict = {}
+
+    for outer_key, inner_dict in nested_dict.items():
+        for inner_key, data in inner_dict.items():
+            if inner_key not in swapped_dict:
+                swapped_dict[inner_key] = {}
+            swapped_dict[inner_key][outer_key] = data
+
+    return swapped_dict
+
+
 def configure_logging(args):
     """
     Set up logging based on verbosity level
     """
     logging.basicConfig(level=logging.INFO - (args.verbose - args.quiet) * 10)
-
 
 def get_task_type(task_name):
     if task_name == "adult":
@@ -140,6 +161,20 @@ def get_trainer_parameters(task_name, federated_dataset, device):
 
 
 def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_binary_classification, metric, device):
+
+    """
+    Initialize trainers for models based on the provided dictionary mapping IDs to model paths.
+
+    Parameters:
+    - models_metadata_dict (Dict[str: str]): A dictionary mapping model IDs to their corresponding paths.
+    - criterion (torch.nn.Module) : The loss function.
+    - model_init_fn (Callable): The function used to initialize the models.
+    - is_binary_classification (bool): Indicates whether the task is binary classification.
+    - device (str): The device (e.g., 'cpu' or 'cuda') on which the models will be initialized.
+
+    Returns:
+    - Dict[str: Trainer]: A dictionary mapping model IDs to initialized trainers for these models.
+    """
     optimizer = None
 
     trainers_dict = dict()
@@ -161,6 +196,17 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
 
 
 def evaluate_sia(attacked_client_id, dataloader, trainers_dict):
+    """
+    Evaluate Source Inference Attack.
+
+    Parameters:
+    - attacked_client_id (str): The ID of the attacked client.
+    - dataloader (torch.utils.data.DataLoader): DataLoader for the evaluation dataset.
+    - trainers_dict (Dict[str, Trainer]): A dictionary mapping model IDs to Trainer objects.
+
+    Returns:
+    - float: The evaluation score for the Source Inference Attack.
+    """
     attack_simulator = SourceInferenceAttack(
         attacked_client_id=attacked_client_id,
         dataloader=dataloader,
@@ -172,6 +218,33 @@ def evaluate_sia(attacked_client_id, dataloader, trainers_dict):
     score = attack_simulator.evaluate_attack()
 
     return score
+
+
+def evaluate_aia(
+        model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device, num_iterations,
+        criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None
+):
+
+    attack_simulator = ModelDrivenAttributeInferenceAttack(
+        model=model,
+        dataset=dataset,
+        sensitive_attribute_id=sensitive_attribute_id,
+        sensitive_attribute_type=sensitive_attribute_type,
+        initialization=initialization,
+        device=device,
+        criterion=criterion,
+        is_binary_classification=is_binary_classification,
+        learning_rate=learning_rate,
+        optimizer_name=optimizer_name,
+        success_metric=success_metric,
+        rng=rng,
+        torch_rng=torch_rng
+    )
+
+    attack_simulator.execute_attack(num_iterations=num_iterations)
+    score = attack_simulator.evaluate_attack()
+
+    return float(score)
 
 
 def weighted_average(scores, n_samples):

@@ -270,7 +270,11 @@ def main():
 
     os.makedirs(args.reconstructed_models_dir, exist_ok=True)
 
-    reconstructed_models_metadata_dict = dict()
+    # reconstructed_models_metadata_dict stores all the reconstruction trajectory.
+    # final_reconstructed_models_dict only stores the final reconstructed models.
+    all_reconstructed_models_metadata_dict = dict()
+    final_reconstructed_models_metadata_dict = dict()
+
     scores_list = []
     n_samples_list = []
 
@@ -316,10 +320,16 @@ def main():
         save_dir = os.path.join(args.reconstructed_models_dir, f"{attacked_client_id}")
         os.makedirs(save_dir, exist_ok=True)
 
-        reconstructed_models_metadata_dict[f"{attacked_client_id}"] = attack_simulator.execute_attack(
+        all_reconstructed_models_metadata_dict[f"{attacked_client_id}"] = attack_simulator.execute_attack(
             num_iterations=args.num_rounds, use_gradient_oracle=args.use_oracle,
             save_dir=save_dir, save_freq=args.save_freq,
             debug=args.debug, scaling_coeff=SCALING_COEFF  # TODO: read scaling coeff from metadata
+        )
+
+        last_saved_iteration = max(all_reconstructed_models_metadata_dict[f"{attacked_client_id}"], key=int)
+
+        final_reconstructed_models_metadata_dict[f"{attacked_client_id}"] = (
+            all_reconstructed_models_metadata_dict[f"{attacked_client_id}"][last_saved_iteration]
         )
 
         logging.info("Local model reconstructed successfully.")
@@ -345,14 +355,32 @@ def main():
         scores_list.append(score)
         n_samples_list.append(len(dataset))
 
+    # Swaps the levels of keys in all_reconstructed_models_metadata_dict.
+    # In the new dictionary, the first level represents iteration ids and the second level represents client ids.
+    all_reconstructed_models_metadata_dict = swap_dict_levels(all_reconstructed_models_metadata_dict)
+
+    # Saving results
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
-    
+
     logging.info("=" * 100)
-    logging.info("Save reconstructed models metadata..")
-    reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "reconstructed.json")
-    with open(reconstructed_models_metadata_path, "w") as f:
-        json.dump(reconstructed_models_metadata_dict, f)
-    logging.info(f"Reconstructed models metadata is save to {reconstructed_models_metadata_path}")
+    logging.info("Save trajectory of all reconstructed models metadata..")
+
+    all_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "trajectory.json")
+    with open(all_reconstructed_models_metadata_path, "w") as f:
+        json.dump(all_reconstructed_models_metadata_dict, f)
+
+    logging.info(
+        f"The trajectories of all reconstructed models metadata is saved to {all_reconstructed_models_metadata_path}"
+    )
+
+    logging.info("=" * 100)
+    logging.info("Save final reconstructed models metadata..")
+
+    final_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "reconstructed.json")
+    with open(final_reconstructed_models_metadata_path, "w") as f:
+        json.dump(final_reconstructed_models_metadata_dict, f)
+
+    logging.info(f"Final reconstructed models metadata is saved to {final_reconstructed_models_metadata_path}")
 
 
 if __name__ == "__main__":

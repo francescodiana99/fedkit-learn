@@ -49,11 +49,13 @@ This will install the project along its dependencies.
 We provide code to simulate federated training of machine learning models (`federated/`), as well as code to simulate 
 machine learning attacks (`attacks/`). Moreover, we implement standard federated learning datasets in `datasets/`. 
 
-## Examples
-In `examples/`, we provide scripts to simulate federated learning (`examples/run_simulation.py`), 
+## Paper Experiments
+In `scripts/`, we provide scripts to simulate federated learning (`scripts/run_simulation.py`), 
 as long as scripts to simulate federated attacks. The list of supported attacks includes:
-Attribute Inference Attack (`examples/run_aia.py`), Source Inference Attack (`examples/run_sia.py`), 
-Sample Reconstruction Attack (`examples/run_sra.py`), and Local Model Reconstruction Attack (`examples/run_lmra.py`). 
+Attribute Inference Attack (`scripts/run_aia.py`), Source Inference Attack (`scripts/run_sia.py`), 
+Sample Reconstruction Attack (`scripts/run_sra.py`), and Local Model Reconstruction Attack (`scripts/run_lmra.py`).
+Additionally, we provide two scripts to evaluate reconstructed models (`scripts/evaluate_reconstructed_models.py`
+and `scripts/evaluate_oracle_models.py`).
 
 ### Simulate Federated Learning
 To simulate federated learning on Adult dataset, navigate to examples directory (`examples/`), and execute 
@@ -111,7 +113,6 @@ python run_simulation.py \
     --num_rounds 100 \
     --seed 42 
 ```
-
 
 
 ## Contributing

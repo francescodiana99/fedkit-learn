@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from ..utils import *
 
-from utils import *
+from .utils import *
 
 
 EPSILON = 1e-5
@@ -113,6 +113,8 @@ class BaseAttributeInferenceAttack(ABC):
 
         self.predicted_features = torch.zeros_like(self.true_features)
 
+        self.sensitive_attribute_interval = self._get_sensitive_attribute_interval()
+
     def _get_all_features(self):
         """
         Retrieve all features and labels from the federated learning dataset.
@@ -136,6 +138,17 @@ class BaseAttributeInferenceAttack(ABC):
             )
 
         return num_classes
+
+    def _get_sensitive_attribute_interval(self):
+        """
+        Calculate the interval of the sensitive attribute values in the dataset.
+
+        Returns:
+        - Tuple of float: A tuple containing the lower and upper bounds of the sensitive attribute values.
+        """
+        lower_bound = self.true_features[:, self.sensitive_attribute_id].min()
+        upper_bound = self.true_features[:, self.sensitive_attribute_id].max()
+        return lower_bound, upper_bound
 
     def _init_optimizer(self, sensitive_attribute):
         if self.optimizer_name == "sgd":
@@ -292,11 +305,9 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.logger = logger
         self.log_freq = log_freq
 
-        self.round_ids = self._get_round_ids()
-
         self.model_init_fn = model_init_fn
 
-        self.sensitive_attribute_interval = self._get_sensitive_attribute_interval()
+        self.round_ids = self._get_round_ids()
 
         self.sensitive_attribute_logits = self._init_sensitive_attribute_logits()
 
@@ -320,17 +331,6 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
             "Global and local round ids do not match!"
 
         return list(self.messages_metadata["global"].keys())
-
-    def _get_sensitive_attribute_interval(self):
-        """
-        Calculate the interval of the sensitive attribute values in the dataset.
-
-        Returns:
-        - Tuple of float: A tuple containing the lower and upper bounds of the sensitive attribute values.
-        """
-        lower_bound = self.true_features[:, self.sensitive_attribute_id].min()
-        upper_bound = self.true_features[:, self.sensitive_attribute_id].max()
-        return lower_bound, upper_bound
 
     def _init_sensitive_attribute_logits(self):
         """
@@ -650,18 +650,18 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
                 with torch.no_grad():
 
                     clone_1 = self.predicted_features[idx].clone()
-                    clone_1[self.sensitive_attribute_id] = 1
+                    clone_1[self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
 
                     clone_0 = self.predicted_features[idx].clone()
-                    clone_0[self.sensitive_attribute_id] = 0
+                    clone_0[self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
 
                     loss_1 = self.criterion(self.model(clone_1), label)
                     loss_0 = self.criterion(self.model(clone_0), label)
 
                     if loss_0 <= loss_1:
-                        self.predicted_features[idx, self.sensitive_attribute_id] = 0
+                        self.predicted_features[idx, self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
                     else:
-                        self.predicted_features[idx, self.sensitive_attribute_id] = 1
+                        self.predicted_features[idx, self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
 
             elif self.sensitive_attribute_type == "numerical":
                 sensitive_attribute = self._init_sensitive_attribute()
