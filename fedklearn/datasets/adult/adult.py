@@ -317,7 +317,7 @@ class FederatedAdultDataset:
 
         df["education"] = df["education"].apply(self._transform_education_level)
 
-        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True)
+        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
 
         if self.test_frac is None:
             train_df, test_df = df[:num_train], df[num_train:]

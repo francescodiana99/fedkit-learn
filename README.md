@@ -11,9 +11,9 @@ exploring federated learning, federated attack simulations, and working with fed
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Examples](#Examples)
-- [Contributing](#Contributing)
-- [License](#License)
+- [Paper Experiments](#paper-experiments)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Introduction 
 
@@ -58,37 +58,22 @@ Additionally, we provide two scripts to evaluate reconstructed models (`scripts/
 and `scripts/evaluate_oracle_models.py`).
 
 ### Simulate Federated Learning
-To simulate federated learning on Adult dataset, navigate to examples directory (`examples/`), and execute 
-the Python script `examples/run_simulation.py` 
-```bash
-cd examples/
+To simulate federated learning, navigate to examples directory (`scripts/`), and execute 
+the Python script `run_simulation.py`. The script generates the following files\directories:
+* data folder
+* local models folder: local optimal models associated to each client; 
+i.e., trained on the client local dataset with no collaboration
+* chkpts folder: models exchanged between the clients and the server
+* metadata folder: it contains three JSON files
+  * `federated.json`:
+  * `last.json`:
+  * `server.json`: 
+  * `local.json`: 
 
-python run_simulation.py \
-    --task_name adult \
-    --test_frac none \
-    --scaler standard \
-    --optimizer sgd \
-    --learning_rate 0.03 \
-    --momentum 0.0 \
-    --weight_decay 0.0 \
-    --batch_size 1024 \
-    --local_steps 1 \
-    --by_epoch \
-    --device cpu \
-    --data_dir ../data/adult \
-    --chkpts_dir ../chkpts/adult \
-    --logs_dir ../logs/adult/training \
-    --metadata_dir ../metadata/adult \
-    --log_freq 10 \
-    --save_freq 1 \
-    --num_rounds 100 \
-    --seed 42 
-```
-
-If you want to save the local models associated to each client, run 
+#### Adult Dataset 
 
 ```bash
-cd examples/
+cd scripts/
 
 python run_simulation.py \
     --task_name adult \
@@ -103,17 +88,211 @@ python run_simulation.py \
     --local_steps 1 \
     --by_epoch \
     --device cpu \
-    --data_dir ../data/adult \
-    --local_models_dir ../local_models/adult \
-    --chkpts_dir ../chkpts/adult \
-    --logs_dir ../logs/adult/training \
-    --metadata_dir ../metadata/adult \
+    --data_dir ./data/adult \
+    --local_models_dir ./local_models/adult \
+    --chkpts_dir ./chkpts/adult \
+    --logs_dir ./logs/adult/training \
+    --metadata_dir ./metadata/adult \
     --log_freq 10 \
     --save_freq 1 \
     --num_rounds 100 \
     --seed 42 
 ```
 
+#### Toy Classification Dataset
+
+```bash
+cd scripts/
+
+python run_simulation.py \
+    --task_name toy_classification \
+    --n_tasks 2 \
+    --n_train_samples 10 \
+    --n_test_samples 1000 \
+    --n_numerical_features 0 \
+    --n_binary_features 1 \
+    --sensitive_attribute_type binary \
+    --sensitive_attribute_weight  0.5 \
+    --noise_level 0.0 \
+    --compute_local_models \
+    --optimizer sgd \
+    --learning_rate 0.1 \
+    --momentum 0.0 \
+    --weight_decay 0.0 \
+    --batch_size 1024 \
+    --local_steps 1 \
+    --by_epoch \
+    --device cpu \
+    --data_dir ./data/toy_classification \
+    --local_models_dir local_models/toy_classification \
+    --chkpts_dir ./chkpts/toy_classification \
+    --logs_dir ./logs/toy_classification/training \
+    --metadata_dir ./metadata/toy_classification \
+    --log_freq 10 \
+    --save_freq 1 \
+    --num_rounds 200 \
+    --seed 42 \
+```
+### State-of-the-art Attacks
+After simulating federated learning, and generating the metadata files, you can execute state-of-the-art attacks.  
+
+#### Attribute Inference Attack
+
+To execute AIA attack, navigate to examples directory (`scripts/`), and execute 
+the Python script `run_aia.py`. The results are saved in a JSON file, storing a list of the same size as the 
+number of clients. Each element is a dictionary of the form `{"score": SCORE, "n_samples": N_SAMPLES}`. 
+
+#### Adult Dataset
+
+```bash
+cd scripts/
+
+python run_aia.py \
+    --task_name adult \
+    --keep_rounds_frac 0.0 \
+    --temperature 1.0 \
+    --metadata_path ./metadata/adult/federated.json \
+    --data_dir ./data/toy_classification \
+    --split train \
+    --optimizer sgd \
+    --learning_rate 1. \
+    --num_rounds 200 \
+    --device cpu \
+    --logs_dir ./logs/adult/aia \
+    --log_freq 1 \
+    --results_path ./results/adult/aia.json \
+    --seed 42 
+```
+
+#### Toy Classification Dataset
+
+```bash
+cd scripts/
+
+python run_aia.py \
+    --task_name toy_classification \
+    --keep_rounds_frac 0.0 \
+    --temperature 1.0 \
+    --metadata_path ./metadata/toy_classification/federated.json \
+    --data_dir ./data/toy_classification \
+    --split train \
+    --optimizer sgd \
+    --learning_rate 1. \
+    --num_rounds 200 \
+    --device cpu \
+    --logs_dir ./logs/toy_classification/aia \
+    --log_freq 1 \
+    --results_path ./results/toy_classification/aia.json \
+    --seed 42 
+```
+
+#### Source Inference Attack
+
+To execute SIA attack, navigate to examples directory (`scripts/`), and execute 
+the Python script `run_sia.py`. The results are saved in a JSON file, storing a list of the same size as the 
+number of clients. Each element is a dictionary of the form `{"score": SCORE, "n_samples": N_SAMPLES}`. 
+
+#### Adult Dataset
+
+```bash
+cd scripts/
+
+python run_aia.py \
+  --task_name adult \
+  --metadata_dir ./metadata/adult/ \
+  --data_dir ./data/adult \
+  --split train \
+  --batch_size 1024 \
+  --device cpu \
+  --results_path ./results/adult/sia.json \
+  --seed 42
+```
+
+#### Toy Classification Dataset
+
+```bash
+cd scripts/
+
+python run_aia.py \
+  --task_name toy_classification \
+  --metadata_dir ./metadata/toy_classification/ \
+  --data_dir ./data/toy_classification \
+  --split train \
+  --batch_size 1024 \
+  --device cpu \
+  --results_path ./results/toy_classification/sia.json \
+  --seed 42
+```
+
+#### Sample Reconstruction Attack
+**Coming soon...**
+
+### Execute Local Model Reconstruction Attack
+
+To execute LMRA attack, navigate to examples directory (`scripts/`), and execute 
+the Python script `run_lmra.py`. The script generates the following files\directories:
+
+#### Adult Dataset
+
+```bash
+cd scripts/
+
+python run_lmra.py \
+  --task_name adult \
+  --data_dir ./data/adult \
+  --split train \
+  --metadata_dir ./metadata/adult/ \
+  --hidden_layers 1024 \
+  --use_oracle \
+  --optimizer sgd \
+  --estimation_learning_rate 0.01 \
+  --reconstruction_learning_rate 0.3 \
+  --momentum 0.0 \
+  --weight_decay 0.0 \
+  --batch_size 1024 \
+  --num_rounds 100
+  --device cpu \
+  --logs_dir ./logs/adult \ 
+  --log_freq 1 \
+  --reconstructed_models_dir ./reconstructed_models/adult \
+  --save_freq 1 \
+  --results_path ./results/toy_classification/lmra.json \ 
+  --seed 42 \
+  --debug \
+  -v
+```
+
+#### Toy Classification Dataset
+
+```bash
+cd scripts/
+
+python run_lmra.py \
+  --task_name toy_classification \
+  --data_dir ./data/toy_classification \
+  --split train \
+  --metadata_dir ./metadata/toy_classification/ \
+  --hidden_layers 1024 \
+  --use_oracle \
+  --optimizer sgd \
+  --estimation_learning_rate 0.01 \
+  --reconstruction_learning_rate 0.3 \
+  --momentum 0.0 \
+  --weight_decay 0.0 \
+  --batch_size 1024 \
+  --num_rounds 100
+  --device cpu \
+  --logs_dir ./logs/toy_classification \ 
+  --log_freq 1 \
+  --reconstructed_models_dir ./reconstructed_models/toy_classification \
+  --save_freq 1 \
+  --results_path ./results/toy_classification/lmra.json \ 
+  --seed 42 \
+  --debug \
+  -v
+```
+
+### Evaluate Local Model Reconstruction Attack
 
 ## Contributing
 We welcome contributions! To contribute to FedKit-Learn, please follow the guidelines 
