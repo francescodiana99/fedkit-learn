@@ -199,6 +199,8 @@ cd scripts/
 
 python run_aia.py \
   --task_name adult \
+  --sensitive_attribute sex_Male \
+  --sensitive_attribute_type binary \ 
   --metadata_dir ./metadata/adult/ \
   --data_dir ./data/adult \
   --split train \
@@ -231,6 +233,17 @@ python run_aia.py \
 
 To execute LMRA attack, navigate to examples directory (`scripts/`), and execute 
 the Python script `run_lmra.py`. The script generates the following files\directories:
+* reconstructed models folder: contains a folder for each client. Each folder stores the reconstructed models of each 
+client at different iterations.
+* reconstruction metadata files: 
+  * `reconstructed.json`:
+  * `trajectory.json`:
+* results file: The results are saved in a JSON file, storing a list of the same size as the 
+number of clients. Each element is a dictionary of the form `{"score": SCORE, "n_samples": N_SAMPLES}`. 
+
+The script also takes an option `--use_oracle`. If selected, the local model reconstruction attack uses
+an oracle to compute the gradients instead of estimating them.
+Note that using the oracle is almost equivalent to using SGD with the full gradient. 
 
 #### Adult Dataset
 
@@ -293,6 +306,8 @@ python run_lmra.py \
 ```
 
 ### Evaluate Local Model Reconstruction Attack
+
+Once LMRA is executed, you can evaluate the performance of the reconstructed model when used in other attacks.  
 
 ## Contributing
 We welcome contributions! To contribute to FedKit-Learn, please follow the guidelines 
