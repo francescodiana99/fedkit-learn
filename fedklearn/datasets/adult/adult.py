@@ -1,5 +1,6 @@
 import os
 import ssl
+import json
 import urllib
 import logging
 
@@ -55,6 +56,8 @@ class FederatedAdultDataset:
         rng (Random Number Generator): An instance of a random number generator.
             If `None`, a new generator will be created.
 
+        _metadata_path (str): JSON file storing the metadata.
+
     Methods:
         __init__(self, cache_dir="./", test_frac=None, drop_nationality=True, rng=None):
             Class constructor to initialize the object.
@@ -108,6 +111,8 @@ class FederatedAdultDataset:
 
         tasks_folder = os.path.join(self.cache_dir, 'tasks')
 
+        self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
+
         if os.path.exists(tasks_folder):
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
@@ -127,7 +132,7 @@ class FederatedAdultDataset:
 
             task_dicts = [train_tasks_dict, test_tasks_dict]
 
-            self.task_id_to_name = {i: task_name for i, task_name in enumerate(train_tasks_dict.keys())}
+            self.task_id_to_name = {f"{i}": task_name for i, task_name in enumerate(train_tasks_dict.keys())}
 
             for mode, task_dict in zip(['train', 'test'], task_dicts):
                 for task_name, task_data in task_dict.items():
@@ -139,13 +144,7 @@ class FederatedAdultDataset:
 
                     logging.debug(f"{mode.capitalize()} data for task '{task_name}' cached at: {file_path}")
 
-    def _load_task_mapping(self):
-        task_dir = os.path.join(self.cache_dir, 'tasks')
-        task_names = [
-            dir_name for dir_name in os.listdir(task_dir) if os.path.isdir(os.path.join(task_dir, dir_name))
-        ]
-
-        self.task_id_to_name = {i: task_name for i, task_name in enumerate(task_names)}
+            self._save_task_mapping(self.task_id_to_name)
 
     @staticmethod
     def set_scaler(scaler_name):
@@ -235,6 +234,14 @@ class FederatedAdultDataset:
                 )
 
         return tasks_dict
+
+    def _save_task_mapping(self, metadata_dict):
+        with open(self._metadata_path, "w") as f:
+            json.dump(metadata_dict, f)
+
+    def _load_task_mapping(self):
+        with open(self._metadata_path, "r") as f:
+            self.task_id_to_name = json.load(f)
 
     def _download_and_preprocess(self):
         """ Download the adult dataset and preprocess it.
@@ -346,7 +353,7 @@ class FederatedAdultDataset:
         Returns an instance of the `AdultDataset` class for a specific task and data split type.
 
         Args:
-            task_id (int): The task number.
+            task_id (int or str): The task number.
             mode (str, optional): The type of data split, either 'train' or 'test'. Default is 'train'.
 
         Returns:
@@ -354,6 +361,8 @@ class FederatedAdultDataset:
         """
         if mode not in ['train', 'test']:
             raise ValueError(f"Invalid mode '{mode}'. Supported values are 'train' or 'test'.")
+
+        task_id = str(task_id)
 
         task_name = self.task_id_to_name[task_id]
         task_cache_dir = os.path.join(self.cache_dir, 'tasks', task_name)
