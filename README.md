@@ -30,8 +30,6 @@ scenarios by providing a set of tools and utilities.
 
 * **Federated Datasets**: Access federated datasets or create your own for training and evaluation.
 
-* **Customization**: Easily customize federated learning algorithms, models, and communication strategies to suit your specific requirements.
-
 ## Installation
 
 To clone the repository, run
@@ -259,7 +257,7 @@ python run_lmra.py \
   --use_oracle \
   --optimizer sgd \
   --estimation_learning_rate 0.01 \
-  --reconstruction_learning_rate 0.3 \
+  --reconstruction_learning_rate 0.03 \
   --momentum 0.0 \
   --weight_decay 0.0 \
   --batch_size 1024 \
@@ -289,7 +287,7 @@ python run_lmra.py \
   --use_oracle \
   --optimizer sgd \
   --estimation_learning_rate 0.01 \
-  --reconstruction_learning_rate 0.3 \
+  --reconstruction_learning_rate 0.03 \
   --momentum 0.0 \
   --weight_decay 0.0 \
   --batch_size 1024 \

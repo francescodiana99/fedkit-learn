@@ -4,8 +4,20 @@ import torch
 class SourceInferenceAttack:
     """
     Class representing a source inference attack in federated learning.
+
+
     """
     def __init__(self, attacked_client_id, dataloader, trainers_dict):
+        """
+        Class representing a source inference attack in federated learning.
+
+        Parameters:
+        attacked_client_id (int or str): identifier of the attacked client.
+        dataloader (torch.utils.data.DataLoader): loads the attacked client data.
+        trainers_dict (Dict[str: Trainer]): maps the clients ids to their trainers. Each client in the federation
+            is mapped to a Trainer object with its reconstructed model.
+
+        """
         self.dataloader = dataloader
         self.trainers_dict = trainers_dict
 
@@ -34,7 +46,7 @@ class SourceInferenceAttack:
         """
 
         Returns:
-            None
+            * float
         """
         losses = torch.hstack([torch.cat(self.losses[client_id]) for client_id in range(self.num_clients)])
 

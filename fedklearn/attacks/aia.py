@@ -23,7 +23,7 @@ EPSILON = 1e-5
 class BaseAttributeInferenceAttack(ABC):
     """
     Class representing an attribute inference attack in federated learning.
-    This attack aims to infer sensitive attributes of clients from federated learning updates.
+    This attack aims to infer sensitive attributes of clients from federated learning updates or models.
 
     Args:
         dataset (torch.utils.data.Dataset): The dataset of the attacked client.
@@ -31,7 +31,7 @@ class BaseAttributeInferenceAttack(ABC):
         sensitive_attribute_type (str): Type of the sensitive attribute ("binary", "categorical", or "numerical").
         initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
         device (str or torch.Device): Device on which to perform computations.
-        criterion: Loss criterion for the attack.
+        criterion (torch.nn.Criterion): Loss criterion.
         is_binary_classification (bool): True if the federated learning task is binary classification.
         learning_rate (float): Learning rate for the optimizer.
         optimizer_name (str): Name of the optimizer to use (default is "sgd").
@@ -54,9 +54,9 @@ class BaseAttributeInferenceAttack(ABC):
             If None, a default random number generator will be created.
 
         n_samples (int): Number of samples
-        true_features (torch.Tensor): true features tensor
-        predicted_features (torch.Tensor): predicted features tensor
-        true_labels (torch.Tensor): true labels tensor
+        true_features (torch.Tensor): true features tensor; shape=(n_samples, n_features).
+        predicted_features (torch.Tensor): predicted features tensor; shape=(n_samples, n_features).
+        true_labels (torch.Tensor): true labels' tensor.
 
     Methods:
         execute_attack(num_iterations):
@@ -126,7 +126,7 @@ class BaseAttributeInferenceAttack(ABC):
 
     def _compute_num_sensitive_classes(self):
         if self.sensitive_attribute_type == "binary":
-            num_classes = 1  # num_classes is only used t initialize logits
+            num_classes = 1  # num_classes is only used to initialize logits
         elif self.sensitive_attribute_type == "categorical":
             num_classes = torch.unique(self.true_features[:, self.sensitive_attribute_id]).numel()
         elif self.sensitive_attribute_type == "numerical":
@@ -173,6 +173,7 @@ class BaseAttributeInferenceAttack(ABC):
         """
         pass
 
+    @abstractmethod
     def evaluate_attack(self):
         """
         Evaluate the success of the federated learning attack on the provided dataset.
@@ -195,18 +196,18 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
             the attacked client and the server during a federated training process.
             The dictionary should have the following structure:
                 {
-                    "server": {
+                    "global": {
                         <round_id_1>: "<path/to/server/checkpoints_1>",
                         <round_id_2>: "<path/to/server/checkpoints_2>",
                         ...
                     },
-                    "client": {
+                    "local": {
                         <round_id_1>: "<path/to/client/checkpoints_1>",
                         <round_id_2>: "<path/to/client/checkpoints_2>",
                         ...
                     }
                 }
-        model_init_fn: Function to initialize the federated learning model.
+        model_init_fn (Callable): Function to initialize the federated learning model.
         gumbel_temperature (float): non-negative scalar temperature used for Gumbel-Softmax distribution.
         gumbel_threshold (float): non-negative scalar, between 0 and 1, used as a threshold in the binary case.
         logger: The logger for recording simulation logs.
@@ -311,7 +312,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         self.sensitive_attribute_logits = self._init_sensitive_attribute_logits()
 
-        self.sensitive_attribute = self._sample_sensitive_attribute()
+        self.sensitive_attribute = self._sample_sensitive_attribute(deterministic=True)
 
         self.optimizer = self._init_optimizer(self.sensitive_attribute_logits)
 
@@ -538,6 +539,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
             virtual_grad = self._compute_virtual_gradient(global_model=global_model)
 
+            # TODO: move to cosine dissimilarity
             round_loss = F.cosine_similarity(virtual_grad, pseudo_grad, dim=0)
 
             loss += 1 - round_loss
@@ -664,6 +666,7 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
                         self.predicted_features[idx, self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
 
             elif self.sensitive_attribute_type == "numerical":
+                # TODO: brainstorm with co-authors if this is correct
                 sensitive_attribute = self._init_sensitive_attribute()
                 optimizer = self._init_optimizer(sensitive_attribute)
 

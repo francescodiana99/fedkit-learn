@@ -171,6 +171,7 @@ def jsd(p, q, distribution_type, epsilon=1e-10):
         - p, q should be tensors representing means of the Gaussian distributions.
 
     """
+    # TODO: check formulas
     if distribution_type == 'bernoulli':
         assert torch.all((p >= 0) & (p <= 1)), "Probabilities in p must be in the range (0, 1)"
         assert torch.all((q >= 0) & (q <= 1)), "Probabilities in q must be in the range (0, 1)"

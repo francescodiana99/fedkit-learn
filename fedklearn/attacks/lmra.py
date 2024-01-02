@@ -28,12 +28,12 @@ class LocalModelReconstructionAttack:
             the attacked client and the server during a federated training process.
             The dictionary should have the following structure:
                 {
-                    "server": {
+                    "global": {
                         <round_id_1>: "<path/to/server/checkpoints_1>",
                         <round_id_2>: "<path/to/server/checkpoints_2>",
                         ...
                     },
-                    "client": {
+                    "local": {
                         <round_id_1>: "<path/to/client/checkpoints_1>",
                         <round_id_2>: "<path/to/client/checkpoints_2>",
                         ...
@@ -387,6 +387,7 @@ class LocalModelReconstructionAttack:
         return loss, metric
 
     def verify_gradient_predictor(self, scaling_coeff):
+        # TODO (OTHMANE): clarify docs for this function
         for round_id in self.round_ids:
             model_params = self.global_models_dict[round_id]
 
