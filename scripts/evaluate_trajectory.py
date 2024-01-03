@@ -321,7 +321,7 @@ def main():
         results_path = os.path.join(args.results_dir, f"{attack_name}.json")
         os.makedirs(os.path.dirname(results_path), exist_ok=True)
         with open(results_path, 'w') as f:
-            json.dump(all_results, f)
+            json.dump(all_results[attack_name], f)
 
     logging.info(f"The results dictionary has been saved in {args.results_dir}")
 

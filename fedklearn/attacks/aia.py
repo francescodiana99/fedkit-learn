@@ -111,9 +111,11 @@ class BaseAttributeInferenceAttack(ABC):
 
         self.num_classes = self._compute_num_sensitive_classes()
 
-        self.predicted_features = torch.zeros_like(self.true_features)
+        self.predicted_features = self.true_features
 
         self.sensitive_attribute_interval = self._get_sensitive_attribute_interval()
+
+        self.predicted_features[self.sensitive_attribute_id] = 0.
 
     def _get_all_features(self):
         """
@@ -645,16 +647,16 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
         Parameters:
         - num_iterations (int): The number of iterations to perform the attack.
         """
-        for idx, (_, label) in enumerate(zip(self.predicted_features, self.true_labels)):
+        for idx, (_, label) in enumerate(zip(self.true_features, self.true_labels)):
 
             if self.sensitive_attribute_type == "binary":
 
                 with torch.no_grad():
 
-                    clone_1 = self.predicted_features[idx].clone()
+                    clone_1 = self.true_features[idx].clone()
                     clone_1[self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
 
-                    clone_0 = self.predicted_features[idx].clone()
+                    clone_0 = self.true_features[idx].clone()
                     clone_0[self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
 
                     loss_1 = self.criterion(self.model(clone_1), label)

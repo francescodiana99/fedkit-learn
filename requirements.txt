@@ -1,5 +1,6 @@
 tqdm
 torch
+numpy
 pandas
 scikit-learn
 tensorboard

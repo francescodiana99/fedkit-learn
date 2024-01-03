@@ -1,8 +1,17 @@
 # Don't track content of these folders
 .idea/
+
+data/
+logs/
+metadata/
 chkpts/
 local_models/
-logs/
+reconstructed_models/
+results/
+
+notebooks/
+
+temp/
 
 # Don't track files with these extensions
 *.ipynb

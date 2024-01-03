@@ -148,7 +148,7 @@ def get_trainer_parameters(task_name, federated_dataset, device):
         is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
     elif task_name == "toy_regression":
-        criterion = nn.MSELoss().to(device)
+        criterion = nn.MSELoss(reduction="none").to(device)
         model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
         metric = mean_squared_error
