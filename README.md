@@ -305,7 +305,62 @@ python run_lmra.py \
 
 ### Evaluate Local Model Reconstruction Attack
 
-Once LMRA is executed, you can evaluate the performance of the reconstructed model when used in other attacks.  
+Once LMRA is executed, you can evaluate the performance of the reconstructed model when used in other attacks.
+
+#### Adult Dataset
+
+```bash
+cd scripts/
+
+python evaluate_reconstructed.py \
+  --task_name adult \
+  --data_dir ../data/adult \
+  --split train \
+  --models_metadata_path ../metadata/adult/reconstructed.json \
+  --reference_models_metadata_path ../metadata/adult/local.json \
+  --sensitive_attribute sex_Male \
+  --sensitive_attribute_type binary \
+  --results_dir ./results/adult/reconstructed \ 
+  --seed 42 \
+  -v
+```
+
+#### Synthetic Dataset
+
+```bash
+cd scripts/
+
+python evaluate_reconstructed.py \
+  --task_name toy_classification  \
+  --data_dir ./data/toy_classification \
+  --split train \
+  --metadata_dir ./metadata/toy_classification/ \
+  --models_metadata_path ../metadata/toy_classification/reconstructed.json \
+  --reference_models_metadata_path ../metadata/toy_classification/local.json \
+  --results_dir ./results/toy_classification/reconstructed \ 
+  --seed 42 \
+  -v
+```
+**Evaluate Trajectory.** One can also evaluate each reconstructed model
+
+#### Adult Dataset (Evaluate Trajectory)
+```bash
+cd scripts/
+
+python evaluate_trajectory.py \
+  --task_name adult \
+  --data_dir ../data/adult \
+  --split train \
+  --models_metadata_path ../metadata/adult/trajectory.json \
+  --reference_models_metadata_path ../metadata/adult/local.json \
+  --sensitive_attribute sex_Male \
+  --sensitive_attribute_type binary \
+  --results_dir ./results/adult/reconstructed \
+  --plots_dir ../plots/adult/reconstructed \ 
+  --seed 42 \
+  -v
+```
+
 
 ## Contributing
 We welcome contributions! To contribute to FedKit-Learn, please follow the guidelines 
@@ -313,5 +368,5 @@ outlined in `CONTRIBUTING.md`.
 We appreciate bug reports, feature requests, and pull requests.
 
 ## License
-FedKit-Learn is released under the [Apache License 2.0](LICENSE). Feel free to use, modify, 
+FedKit-Learn is released under the Apache License 2.0. Feel free to use, modify,
 and distribute this package in accordance with the terms of the Apache License 2.0.
