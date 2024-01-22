@@ -195,7 +195,7 @@ number of clients. Each element is a dictionary of the form `{"score": SCORE, "n
 ```bash
 cd scripts/
 
-python run_aia.py \
+python run_sia.py \
   --task_name adult \
   --sensitive_attribute sex_Male \
   --sensitive_attribute_type binary \ 
@@ -213,7 +213,7 @@ python run_aia.py \
 ```bash
 cd scripts/
 
-python run_aia.py \
+python run_sia.py \
   --task_name toy_classification \
   --metadata_dir ./metadata/toy_classification/ \
   --data_dir ./data/toy_classification \
@@ -291,7 +291,7 @@ python run_lmra.py \
   --momentum 0.0 \
   --weight_decay 0.0 \
   --batch_size 1024 \
-  --num_rounds 100
+  --num_rounds 100 \
   --device cpu \
   --logs_dir ./logs/toy_classification \ 
   --log_freq 1 \
@@ -312,7 +312,7 @@ Once LMRA is executed, you can evaluate the performance of the reconstructed mod
 ```bash
 cd scripts/
 
-python evaluate_reconstructed.py \
+python evaluate_reconstruction.py \
   --task_name adult \
   --data_dir ../data/adult \
   --split train \
@@ -330,7 +330,7 @@ python evaluate_reconstructed.py \
 ```bash
 cd scripts/
 
-python evaluate_reconstructed.py \
+python evaluate_reconstruction.py \
   --task_name toy_classification  \
   --data_dir ./data/toy_classification \
   --split train \
