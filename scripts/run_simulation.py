@@ -51,6 +51,8 @@ Options:
     --seed: Random seed for reproducibility.
 """
 import argparse
+import logging
+import shutil
 
 import numpy as np
 
@@ -176,6 +178,13 @@ def parse_args(args_list=None):
         "--compute_local_models",
         action="store_true",
         help="Flag for training local models"
+    )
+
+    parser.add_argument(
+        "--model_config_path",
+        type=str,
+        default=None,
+        help="Path to the model configuration file",
     )
 
     parser.add_argument(
@@ -375,24 +384,48 @@ def initialize_trainer(args):
     Returns:
         Trainer: Initialized trainer.
     """
+    # allow the use of a different path from the default one
+    if args.model_config_path is not None:
+            if args.model_config_path != os.path.join(args.metadata_dir, "model_config.json"):
+                logging.info(f"Loading model configuration from {args.model_config_path}")
+                logging.info(f"Copying model configuration to {os.path.join(args.metadata_dir, 'model_config.json')}")
+                shutil.copy(args.model_config_path, os.path.join(args.metadata_dir, "model_config.json"))
+            else:
+                logging.info(f"Loading model configuration from {args.model_config_path}")
+
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
-        # TODO: infer the input_dimension
-        model = LinearLayer(input_dimension=41, output_dimension=1).to(args.device)
         is_binary_classification = True
+        if args.model_config_path is not None:
+            model = initialize_model(args.model_config_path).to(args.device)
+        else:
+            # TODO: infer the input_dimension
+            init_args = {'input_dimension':41, 'output_dimension':1}
+            model = LinearLayer(**init_args).to(args.device)
+            save_model_config(model, init_args, args.metadata_dir)
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
         dimension = args.n_numerical_features + args.n_binary_features
-        model = LinearLayer(input_dimension=dimension, output_dimension=1).to(args.device)
         is_binary_classification = True
+        if args.model_config_path is not None:
+            model = initialize_model(args.model_config_path).to(args.device)
+        else:
+            init_args = {'input_dimension':dimension, 'output_dimension':1}
+            model = LinearLayer(**init_args).to(args.device)
+            save_model_config(model, init_args, args.metadata_dir)
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_squared_error
         dimension = args.n_numerical_features + args.n_binary_features
-        model = LinearLayer(input_dimension=dimension, output_dimension=1).to(args.device)
         is_binary_classification = False
+        if args.model_config_path is not None:
+            model = initialize_model(args.model_config_path).to(args.device)
+        else:
+            init_args = {'input_dimension':dimension, 'output_dimension':1}
+            model = LinearLayer(**init_args).to(args.device)
+            save_model_config(model, init_args, args.metadata_dir)
     else:
         raise NotImplementedError(
             f"Trainer initialization for task '{args.task_name}' is not implemented."
@@ -495,6 +528,7 @@ def compute_local_models(federated_dataset, args):
         trainer.save_checkpoint(path)
 
         models_dict[f"{task_id}"] = path
+
 
     return models_dict
 

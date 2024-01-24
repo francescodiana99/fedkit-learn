@@ -249,20 +249,19 @@ def main():
 
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = True
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
+    model_init_fn = lambda: initialize_model(os.path.join(args.metadata_dir, "model_config.json"))
+    logging.info(f"Loading model configuration from {os.path.join(args.metadata_dir, 'model_config.json')}")
 
     task_type = get_task_type(args.task_name)
 

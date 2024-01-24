@@ -188,22 +188,22 @@ def main():
 
     keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
 
+    model_config_path = os.path.join(os.path.dirname(args.metadata_path), "model_config.json")
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = True
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
+    model_init_fn = lambda: initialize_model(model_config_path)
+    logging.info(f"loading model config from {model_config_path}")
 
     scores_list = []
     n_samples_list = []

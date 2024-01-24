@@ -137,9 +137,11 @@ def main():
     models_metadata_dict = load_models_metadata_dict(args)
 
     criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
-        task_name=args.task_name, federated_dataset=federated_dataset, device=args.device
+        task_name=args.task_name,
+        federated_dataset=federated_dataset,
+        device=args.device,
+        model_config_path=os.path.join(args.metadata_dir, "model_config.json")
     )
-
     trainers_dict = initialize_trainers_dict(
         models_metadata_dict=models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
         is_binary_classification=is_binary_classification, metric=metric, device=args.device
