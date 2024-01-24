@@ -292,26 +292,6 @@ def initialize_model(model_config_path):
     model = eval(model_config["model_class"])(**model_config["init_params"])
     return model
 
-    # with open(config_path, 'r') as f:
-    #     config = json.load(f)
-    #
-    # if "model" not in config.keys():
-    #     raise KeyError("Missing 'model' key in the configuration file.")
-    #
-    # if config["model"] == "Linear":
-    #     model = LinearLayer(input_dimension=config["input_dimension"], output_dimension=config["output_dimension"])
-    # elif config["model"] == "TwoLinearLayers":
-    #     model = TwoLinearLayers(input_dimension=config["input_dimension"], hidden_dimension=config["hidden_dimension"],
-    #                             output_dimension=config["output_dimension"])
-    # elif config["model"] == "SequentialNet":
-    #     model = SequentialNet(input_dimension=config["input_dimension"], output_dimension=config["output_dimension"],
-    #                           hidden_layers=config["hidden_layers"])
-    # else:
-    #     raise NotImplementedError(f"Network initialization for '{config['model']}' is not implemented."
-    #                               f"Allowed options are 'Linear', 'TwoLinearLayers', and 'SequentialNet'.")
-    #
-    # return model
-
 def save_model_config(model, init_params, config_dir):
     """
     Save the configuration of a model to a JSON file.
