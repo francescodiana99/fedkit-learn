@@ -289,24 +289,24 @@ def initialize_model(model_config_path):
     """
     with open(model_config_path, "r") as f:
         model_config = json.load(f)
-    model = eval(model_config["model_class"])(**model_config["init_params"])
+    model = eval(model_config["model_class"])(**model_config["init_args"])
     return model
 
-def save_model_config(model, init_params, config_dir):
+def save_model_config(model, init_args, config_dir):
     """
     Save the configuration of a model to a JSON file.
     Args:
-        init_params(dict): dictionary of parameters used to initialize the model.
+        init_args(dict): dictionary of parameters used to initialize the model.
         model(nn.Module): model to be saved.
         config_dir: directory to save the configuration file.
     """
     model_config = {
         "model_class": model.__class__.__name__,
-        "init_params": init_params
+        "init_args": init_args
     }
 
-    config_path = os.path.join(config_dir, "model_config.json")
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    config_path = os.path.join(config_dir, "config_1.json")
+    os.makedirs(config_dir, exist_ok=True)
 
     with open(config_path, "w") as f:
         json.dump(model_config, f)

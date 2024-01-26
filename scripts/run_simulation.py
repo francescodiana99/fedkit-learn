@@ -52,6 +52,7 @@ Options:
 """
 import argparse
 import logging
+import os
 import shutil
 
 import numpy as np
@@ -183,7 +184,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--model_config_path",
         type=str,
-        default=None,
+        required=True,
         help="Path to the model configuration file",
     )
 
@@ -384,48 +385,31 @@ def initialize_trainer(args):
     Returns:
         Trainer: Initialized trainer.
     """
-    # allow the use of a different path from the default one
-    if args.model_config_path is not None:
-            if args.model_config_path != os.path.join(args.metadata_dir, "model_config.json"):
-                logging.info(f"Loading model configuration from {args.model_config_path}")
-                logging.info(f"Copying model configuration to {os.path.join(args.metadata_dir, 'model_config.json')}")
-                shutil.copy(args.model_config_path, os.path.join(args.metadata_dir, "model_config.json"))
-            else:
-                logging.info(f"Loading model configuration from {args.model_config_path}")
+    model_config_dir = os.path.join("../fedklearn/configs", args.task_name)
+
+    if os.path.dirname(args.model_config_path) != model_config_dir:
+        raise ValueError(f"Model configuration file should be placed in {model_config_dir}")
+    else:
+        logging.info(f"Loading model configuration from {args.model_config_path}")
+        model = initialize_model(args.model_config_path)
+        model_config_metadata_path = os.path.join(args.metadata_dir, "model_config.json")
+        logging.info(f"Saving current model configuration into {model_config_metadata_path}")
+        # copy to make it consistent during the attack simulations.
+        shutil.copy(args.model_config_path, model_config_metadata_path)
 
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
         is_binary_classification = True
-        if args.model_config_path is not None:
-            model = initialize_model(args.model_config_path).to(args.device)
-        else:
-            # TODO: infer the input_dimension
-            init_args = {'input_dimension':41, 'output_dimension':1}
-            model = LinearLayer(**init_args).to(args.device)
-            save_model_config(model, init_args, args.metadata_dir)
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
-        dimension = args.n_numerical_features + args.n_binary_features
         is_binary_classification = True
-        if args.model_config_path is not None:
-            model = initialize_model(args.model_config_path).to(args.device)
-        else:
-            init_args = {'input_dimension':dimension, 'output_dimension':1}
-            model = LinearLayer(**init_args).to(args.device)
-            save_model_config(model, init_args, args.metadata_dir)
+
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_squared_error
-        dimension = args.n_numerical_features + args.n_binary_features
         is_binary_classification = False
-        if args.model_config_path is not None:
-            model = initialize_model(args.model_config_path).to(args.device)
-        else:
-            init_args = {'input_dimension':dimension, 'output_dimension':1}
-            model = LinearLayer(**init_args).to(args.device)
-            save_model_config(model, init_args, args.metadata_dir)
     else:
         raise NotImplementedError(
             f"Trainer initialization for task '{args.task_name}' is not implemented."

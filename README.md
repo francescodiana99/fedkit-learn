@@ -57,7 +57,8 @@ and `scripts/evaluate_oracle_models.py`).
 
 ### Simulate Federated Learning
 To simulate federated learning, navigate to examples directory (`scripts/`), and execute 
-the Python script `run_simulation.py`. The script generates the following files\directories:
+the Python script `run_simulation.py`. According to the specific model configuration provided in `config/`,
+the script generates the following files\directories:
 * data folder
 * local models folder: local optimal models associated to each client; 
 i.e., trained on the client local dataset with no collaboration
@@ -67,6 +68,7 @@ i.e., trained on the client local dataset with no collaboration
   * `last.json`:
   * `server.json`: 
   * `local.json`: 
+  * `model_config.json`:
 
 #### Adult Dataset 
 
@@ -91,6 +93,7 @@ python run_simulation.py \
     --chkpts_dir ./chkpts/adult \
     --logs_dir ./logs/adult/training \
     --metadata_dir ./metadata/adult \
+    --model_config_path ../fedklearn/configs/adult/config_1.json \
     --log_freq 10 \
     --save_freq 1 \
     --num_rounds 100 \
@@ -126,6 +129,7 @@ python run_simulation.py \
     --chkpts_dir ./chkpts/toy_classification \
     --logs_dir ./logs/toy_classification/training \
     --metadata_dir ./metadata/toy_classification \
+    --model_config_path ../fedklearn/configs/toy_classification/config_1.json \
     --log_freq 10 \
     --save_freq 1 \
     --num_rounds 200 \
@@ -316,8 +320,8 @@ python evaluate_reconstruction.py \
   --task_name adult \
   --data_dir ../data/adult \
   --split train \
-  --models_metadata_path ../metadata/adult/reconstructed.json \
-  --reference_models_metadata_path ../metadata/adult/local.json \
+  --models_metadata_path ./metadata/adult/reconstructed.json \
+  --reference_models_metadata_path ./metadata/adult/local.json \
   --sensitive_attribute sex_Male \
   --sensitive_attribute_type binary \
   --results_dir ./results/adult/reconstructed \ 
@@ -335,8 +339,8 @@ python evaluate_reconstruction.py \
   --data_dir ./data/toy_classification \
   --split train \
   --metadata_dir ./metadata/toy_classification/ \
-  --models_metadata_path ../metadata/toy_classification/reconstructed.json \
-  --reference_models_metadata_path ../metadata/toy_classification/local.json \
+  --models_metadata_path ./metadata/toy_classification/reconstructed.json \
+  --reference_models_metadata_path ./metadata/toy_classification/local.json \
   --results_dir ./results/toy_classification/reconstructed \ 
   --seed 42 \
   -v
@@ -351,8 +355,8 @@ python evaluate_trajectory.py \
   --task_name adult \
   --data_dir ../data/adult \
   --split train \
-  --models_metadata_path ../metadata/adult/trajectory.json \
-  --reference_models_metadata_path ../metadata/adult/local.json \
+  --models_metadata_path ./metadata/adult/trajectory.json \
+  --reference_models_metadata_path ./metadata/adult/local.json \
   --sensitive_attribute sex_Male \
   --sensitive_attribute_type binary \
   --results_dir ./results/adult/reconstructed \
