@@ -136,11 +136,15 @@ def main():
 
     models_metadata_dict = load_models_metadata_dict(args)
 
+    with open(os.path.join(args.metadata_dir, "model_config.json"), "r") as f:
+        model_config_dict = json.load(f)
+    logging.info(f"Loading model configuration from {model_config_dict['model_config']}")
+
     criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
         task_name=args.task_name,
         federated_dataset=federated_dataset,
         device=args.device,
-        model_config_path=os.path.join(args.metadata_dir, "model_config.json")
+        model_config_path=model_config_dict['model_config']
     )
     trainers_dict = initialize_trainers_dict(
         models_metadata_dict=models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,

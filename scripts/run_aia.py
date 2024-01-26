@@ -188,7 +188,6 @@ def main():
 
     keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
 
-    model_config_path = os.path.join(os.path.dirname(args.metadata_path), "model_config.json")
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
@@ -202,8 +201,10 @@ def main():
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
         )
-    model_init_fn = lambda: initialize_model(model_config_path)
-    logging.info(f"loading model config from {model_config_path}")
+    with open(os.path.join(os.path.dirname(args.metadata_path), "model_config.json"), "r") as f:
+        model_config_path = json.load(f)
+    model_init_fn = lambda: initialize_model(model_config_path["model_config"])
+    logging.info(f"Loading model configuration from {model_config_path['model_config']}")
 
     scores_list = []
     n_samples_list = []
