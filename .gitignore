@@ -81,3 +81,6 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Exclude .json files in the config directory
+config/*.json
