@@ -322,6 +322,7 @@ python evaluate_reconstruction.py \
   --split train \
   --models_metadata_path ./metadata/adult/reconstructed.json \
   --reference_models_metadata_path ./metadata/adult/local.json \
+  --models_config_metadata_path ./metadata/adult/model_config.json \
   --sensitive_attribute sex_Male \
   --sensitive_attribute_type binary \
   --results_dir ./results/adult/reconstructed \ 
@@ -338,9 +339,9 @@ python evaluate_reconstruction.py \
   --task_name toy_classification  \
   --data_dir ./data/toy_classification \
   --split train \
-  --metadata_dir ./metadata/toy_classification/ \
   --models_metadata_path ./metadata/toy_classification/reconstructed.json \
   --reference_models_metadata_path ./metadata/toy_classification/local.json \
+  --models_config_metadata_path ./metadata/toy_classification/model_config.json \
   --results_dir ./results/toy_classification/reconstructed \ 
   --seed 42 \
   -v
@@ -357,6 +358,7 @@ python evaluate_trajectory.py \
   --split train \
   --models_metadata_path ./metadata/adult/trajectory.json \
   --reference_models_metadata_path ./metadata/adult/local.json \
+  --models_config_metadata_path ./metadata/adult/model_config.json \
   --sensitive_attribute sex_Male \
   --sensitive_attribute_type binary \
   --results_dir ./results/adult/reconstructed \
