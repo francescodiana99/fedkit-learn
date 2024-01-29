@@ -4,7 +4,8 @@ import logging
 
 from fedklearn.metrics import *
 
-from fedklearn.models.linear import LinearLayer
+from fedklearn.models.linear import LinearLayer, TwoLinearLayers
+from fedklearn.models.sequential import SequentialNet
 from fedklearn.trainer.trainer import Trainer
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
@@ -135,21 +136,25 @@ def get_last_rounds(round_ids, keep_frac=0.):
 
     return set(map(str, int_list[start_index:]))
 
-
-def get_trainer_parameters(task_name, federated_dataset, device):
+def get_trainer_parameters(task_name, federated_dataset, device, model_config_path=None):
+    if model_config_path is not None:
+        model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
+        if model_config_path is None:
+            model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
     elif task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        if model_config_path is None:
+            model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
     elif task_name == "toy_regression":
         criterion = nn.MSELoss(reduction="none").to(device)
-        model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
+        if model_config_path is None:
+            model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
         metric = mean_squared_error
     else:
@@ -271,3 +276,37 @@ def save_scores(scores_list, n_samples_list, results_path):
         json.dump(results, f)
 
     logging.info(f"The results dictionary has been saved in {results_path}")
+
+def initialize_model(model_config_path):
+    """
+    Initialize a model based on the provided configuration file.
+
+    Parameters:
+    - config_path(str): Path to the configuration file.
+
+    Returns:
+    - torch.nn.Module: The initialized model.
+    """
+    with open(model_config_path, "r") as f:
+        model_config = json.load(f)
+    model = eval(model_config["model_class"])(**model_config["init_args"])
+    return model
+
+def save_model_config(model, init_args, config_dir):
+    """
+    Save the configuration of a model to a JSON file.
+    Args:
+        init_args(dict): dictionary of parameters used to initialize the model.
+        model(nn.Module): model to be saved.
+        config_dir: directory to save the configuration file.
+    """
+    model_config = {
+        "model_class": model.__class__.__name__,
+        "init_args": init_args
+    }
+
+    config_path = os.path.join(config_dir, "config_1.json")
+    os.makedirs(config_dir, exist_ok=True)
+
+    with open(config_path, "w") as f:
+        json.dump(model_config, f)

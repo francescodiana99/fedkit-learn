@@ -51,6 +51,9 @@ Options:
     --seed: Random seed for reproducibility.
 """
 import argparse
+import logging
+import os
+import shutil
 
 import numpy as np
 
@@ -176,6 +179,13 @@ def parse_args(args_list=None):
         "--compute_local_models",
         action="store_true",
         help="Flag for training local models"
+    )
+
+    parser.add_argument(
+        "--model_config_path",
+        type=str,
+        required=True,
+        help="Path to the model configuration file",
     )
 
     parser.add_argument(
@@ -375,23 +385,26 @@ def initialize_trainer(args):
     Returns:
         Trainer: Initialized trainer.
     """
+    model_config_dir = os.path.join("../fedklearn/configs", args.task_name)
+
+    if os.path.dirname(args.model_config_path) != model_config_dir:
+        raise ValueError(f"Model configuration file should be placed in {model_config_dir}")
+    else:
+        logging.info(f"Loading model configuration from {args.model_config_path}")
+        model = initialize_model(args.model_config_path)
+
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
-        # TODO: infer the input_dimension
-        model = LinearLayer(input_dimension=41, output_dimension=1).to(args.device)
         is_binary_classification = True
     elif args.task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
-        dimension = args.n_numerical_features + args.n_binary_features
-        model = LinearLayer(input_dimension=dimension, output_dimension=1).to(args.device)
         is_binary_classification = True
+
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_squared_error
-        dimension = args.n_numerical_features + args.n_binary_features
-        model = LinearLayer(input_dimension=dimension, output_dimension=1).to(args.device)
         is_binary_classification = False
     else:
         raise NotImplementedError(
@@ -496,6 +509,7 @@ def compute_local_models(federated_dataset, args):
 
         models_dict[f"{task_id}"] = path
 
+
     return models_dict
 
 
@@ -576,6 +590,12 @@ def main():
     clients = initialize_clients(federated_dataset, args)
 
     os.makedirs(args.metadata_dir, exist_ok=True)
+
+    logging.info("=" * 100)
+    logging.info("Saving models configuration metadata..")
+    model_config_metadata_path = os.path.join(args.metadata_dir, "model_config.json")
+    with open(model_config_metadata_path, "w") as f:
+        json.dump({"model_config":args.model_config_path}, f)
 
     if args.compute_local_models:
         logging.info("=" * 100)

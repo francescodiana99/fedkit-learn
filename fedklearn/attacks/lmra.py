@@ -140,7 +140,7 @@ class LocalModelReconstructionAttack:
             gradient_oracle=None
     ):
         """
-        Initialize the AttributeInferenceAttack.
+        Initialize the LocalModelReconstructionAttack.
 
         Parameters:
         - messages_metadata: Metadata containing information about communication rounds.
