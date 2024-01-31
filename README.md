@@ -153,8 +153,10 @@ python run_aia.py \
     --task_name adult \
     --keep_rounds_frac 0.0 \
     --temperature 1.0 \
+    --sensitive_attribute sex_Male \
+    --sensitive_attribute_type binary \
     --metadata_path ./metadata/adult/federated.json \
-    --data_dir ./data/toy_classification \
+    --data_dir ./data/adult \
     --split train \
     --optimizer sgd \
     --learning_rate 1. \

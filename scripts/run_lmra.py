@@ -190,21 +190,26 @@ def parse_args(args_list=None):
     else:
         return parser.parse_args(args_list)
 
+# TODO: infer the number of parameters
+def initialize_gradient_prediction_trainer(args, federated_dataset, client_messages_metadata, local_model_init_fn):
+    local_model_chkpt = torch.load(client_messages_metadata['local']['0'])["model_state_dict"]
+    local_model = local_model_init_fn()
+    local_model.load_state_dict(local_model_chkpt)
 
-def initialize_gradient_prediction_trainer(args, federated_dataset):
-    if args.task_name == "adult":
-        n_features = 41 + 1  # +1 because of the bias term
-    elif args.task_name == "toy_classification":
-        n_features = federated_dataset.n_features + 1  # +1 because of the bias term
-    elif args.task_name == "toy_regression":
-        n_features = federated_dataset.n_features + 1  # +1 because of the bias term
-    else:
-        raise NotImplementedError(
-            f"Network initialization for task '{args.task_name}' is not implemented"
-        )
+    n_params = get_n_params(local_model)
+    # if args.task_name == "adult":
+    #     n_features = 41 + 1  # +1 because of the bias term
+    # elif args.task_name == "toy_classification":
+    #     n_features = federated_dataset.n_features + 1  # +1 because of the bias term
+    # elif args.task_name == "toy_regression":
+    #     n_features = federated_dataset.n_features + 1  # +1 because of the bias term
+    # else:
+    #     raise NotImplementedError(
+    #         f"Network initialization for task '{args.task_name}' is not implemented"
+    #     )
 
     gradient_prediction_model = SequentialNet(
-        input_dimension=n_features, output_dimension=n_features, hidden_layers=args.hidden_layers
+        input_dimension=n_params, output_dimension=n_params, hidden_layers=args.hidden_layers
     )
 
     gradient_prediction_model = gradient_prediction_model.to(args.device)
@@ -293,7 +298,12 @@ def main():
             "local": all_messages_metadata[f"{attacked_client_id}"]
         }
 
-        gradient_prediction_trainer = initialize_gradient_prediction_trainer(args, federated_dataset=federated_dataset)
+        gradient_prediction_trainer = (
+            initialize_gradient_prediction_trainer(args,
+                                                   federated_dataset=federated_dataset,
+                                                   client_messages_metadata=client_messages_metadata,
+                                                   local_model_init_fn=model_init_fn)
+        )
 
         if args.use_oracle or args.debug:
             gradient_oracle = GradientOracle(

@@ -295,10 +295,10 @@ def initialize_model(model_config_path):
 def save_model_config(model, init_args, config_dir):
     """
     Save the configuration of a model to a JSON file.
-    Args:
-        init_args(dict): dictionary of parameters used to initialize the model.
-        model(nn.Module): model to be saved.
-        config_dir: directory to save the configuration file.
+    Parameters:
+    - init_args(dict): dictionary of parameters used to initialize the model.
+    - model(nn.Module): model to be saved.
+    - config_dir: directory to save the configuration file.
     """
     model_config = {
         "model_class": model.__class__.__name__,
@@ -310,3 +310,15 @@ def save_model_config(model, init_args, config_dir):
 
     with open(config_path, "w") as f:
         json.dump(model_config, f)
+
+
+def get_n_params(model):
+    """
+    Get the number of model parameters.
+    Parameters:
+    - model(nn.Module): model whose parameters are counted.
+    Returns:
+    - int: number of parameters in the model
+    """
+    return sum(p.numel() for p in model.parameters())
+
