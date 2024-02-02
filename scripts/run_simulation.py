@@ -161,6 +161,13 @@ def parse_args(args_list=None):
         default="binary",
         help="Type of sensitive attribute"
     )
+
+    parser.add_argument(
+        "--split_criterion",
+        type=str,
+        default=None,
+        help="Split criterion for Adult dataset"
+    )
     parser.add_argument(
         "--sensitive_attribute_weight",
         type=float,
@@ -333,7 +340,9 @@ def initialize_dataset(args, rng):
             test_frac=args.test_frac,
             drop_nationality=not args.use_nationality,
             scaler_name=args.scaler_name,
-            rng=rng
+            rng=rng,
+            split_criterion=args.split_criterion
+
         )
     elif args.task_name == "toy_regression":
         return FederatedToyDataset(

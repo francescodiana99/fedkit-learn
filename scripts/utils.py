@@ -69,7 +69,7 @@ def get_task_type(task_name):
     return task_type
 
 
-def load_dataset(task_name, data_dir, rng):
+def load_dataset(task_name, data_dir, rng, split_criterion=None):
     """
     Load a federated dataset based on the specified task name.
 
@@ -77,6 +77,7 @@ def load_dataset(task_name, data_dir, rng):
         task_name (str): Name of the task for which the dataset is to be loaded.
         data_dir (str): Directory where the dataset should be stored or loaded from.
         rng (RandomState): NumPy random number generator for reproducibility.
+        split_criterion (str): The split criterion to be used for the task data separation.
 
     Returns:
         FederatedDataset: Initialized federated dataset.
@@ -88,7 +89,9 @@ def load_dataset(task_name, data_dir, rng):
         return FederatedAdultDataset(
             cache_dir=data_dir,
             download=False,
-            rng=rng
+            rng=rng,
+            split_criterion=split_criterion
+
         )
     elif task_name == "toy_regression" or task_name == "toy_classification":
         return FederatedToyDataset(

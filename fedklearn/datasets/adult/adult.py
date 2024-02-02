@@ -40,6 +40,8 @@ class FederatedAdultDataset:
 
         download (bool, optional): Whether to download the data if not already cached. Default is True.
 
+        split_criterion (str, optional): The criterion used to split the data into tasks. Default is 'age_education'.
+
 
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
@@ -86,12 +88,13 @@ class FederatedAdultDataset:
 
 
     Examples:
-        >>> federated_data = FederatedAdultDataset(cache_dir="./data", test_frac=0.2)
+        >>> federated_data = FederatedAdultDataset(cache_dir="./data", test_frac=0.2FederatedAdultDataset)
         >>> client_train_dataset = federated_data.get_task_dataset(task_id=0, mode="train")
         >>> client_test_dataset = federated_data.get_task_dataset(task_id=0, mode="test")
     """
     def __init__(
-            self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True, rng=None
+            self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
+            rng=None, split_criterion='age_education'
     ):
         """
         Raises:
@@ -103,13 +106,14 @@ class FederatedAdultDataset:
         self.drop_nationality = drop_nationality
         self.download = download
         self.scaler_name = scaler_name
+        self.split_criterion = split_criterion
 
         if rng is None:
             rng = np.random.default_rng()
 
         self.rng = rng
 
-        tasks_folder = os.path.join(self.cache_dir, 'tasks')
+        tasks_folder = os.path.join(self.cache_dir, 'tasks', self.split_criterion)
 
         self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
 
@@ -127,8 +131,8 @@ class FederatedAdultDataset:
 
             train_df, test_df = self._download_and_preprocess()
 
-            train_tasks_dict = self._split_data_into_tasks(train_df)
-            test_tasks_dict = self._split_data_into_tasks(test_df)
+            train_tasks_dict = self._split_data_into_tasks(train_df, split_criterion=self.split_criterion)
+            test_tasks_dict = self._split_data_into_tasks(test_df, split_criterion=self.split_criterion)
 
             task_dicts = [train_tasks_dict, test_tasks_dict]
 
@@ -136,7 +140,7 @@ class FederatedAdultDataset:
 
             for mode, task_dict in zip(['train', 'test'], task_dicts):
                 for task_name, task_data in task_dict.items():
-                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', task_name)
+                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
                     os.makedirs(task_cache_dir, exist_ok=True)
 
                     file_path = os.path.join(task_cache_dir, f'{mode}.csv')
@@ -196,14 +200,15 @@ class FederatedAdultDataset:
         return features_scaled
 
     @staticmethod
-    def _split_data_into_tasks(df):
+    def _split_data_into_tasks(df, split_criterion='age_education'):
         """ Split the adult dataset across multiple clients based on specified criteria.
 
-        The input should have columns "age" and "education", with possible values:
-            {"Doctorate," "Prof-school", "Masters", "Bachelors", "Associate", "HS-grad",  "Compulsory"}
+        The available criteria are 'age_education' and 'age'. The 'age_education' criterion splits the data based on
+        age and education level, while the 'age' criterion splits the data based on age only.
 
         Args:
          - df (pd.DataFrame):  Input DataFrame containing the columns "age" and "education".
+         - split_criterion (str, optional): The criterion used to split the data into tasks. Default is 'age_education'.
 
         Raises:
             ValueError: If the input DataFrame does not contain the required columns ('age' and 'education').
@@ -211,27 +216,53 @@ class FederatedAdultDataset:
         Returns:
             - dict: A dictionary where keys are task names and values are DataFrames for each task.
         """
-        required_columns = {'age', 'education'}
-        if not required_columns.issubset(df.columns):
-            raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
-
         tasks_dict = dict()
-        for task_name, criteria in SPLIT_CRITERIA.items():
-            try:
-                task_indices = df.index[
-                    (df['age'].between(*criteria['age'])) & (df['education'] == criteria['education'])
-                ].tolist()
 
-                task_df = df.loc[task_indices]
-                task_df = task_df.drop(['education', 'age'], axis=1)
+        if split_criterion == 'age_education':
+            required_columns = {'age', 'education'}
+            if not required_columns.issubset(df.columns):
+                raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
 
-                tasks_dict[task_name] = task_df
+            for task_name, criteria in SPLIT_CRITERIA['age_education'].items():
+                try:
+                    task_indices = df.index[
+                        (df['age'].between(*criteria['age'])) & (df['education'] == criteria['education'])
+                    ].tolist()
 
-            except KeyError:
-                raise ValueError(
-                    f"Invalid criteria structure for task '{task_name}'."
-                    f" Ensure 'age' and 'education' are specified in the criteria."
-                )
+                    task_df = df.loc[task_indices]
+                    task_df = task_df.drop(['education', 'age'], axis=1)
+
+                    tasks_dict[task_name] = task_df
+
+                except KeyError:
+                    raise ValueError(
+                        f"Invalid criteria structure for task '{task_name}'."
+                        f" Ensure 'age' and 'education' are specified in the criteria."
+                    )
+
+        elif split_criterion == 'age':
+            required_columns = {'age'}
+            if not required_columns.issubset(df.columns):
+                raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
+
+            for task_name, criteria in SPLIT_CRITERIA['age'].items():
+                try:
+                    task_indices = df.index[df['age'].between(*criteria['age'])].tolist()
+
+                    task_df = df.loc[task_indices]
+                    task_df = task_df.drop(['education', 'age'], axis=1)
+
+                    tasks_dict[task_name] = task_df
+
+                except KeyError:
+                    raise ValueError(
+                        f"Invalid criteria structure for task '{task_name}'."
+                        f" Ensure 'age' is specified in the criteria."
+                    )
+
+        else:
+            raise ValueError(f"Invalid criteria '{split_criterion}'."
+                             f" Supported values are {', '.join(SPLIT_CRITERIA.keys())}.")
 
         return tasks_dict
 
@@ -257,7 +288,7 @@ class FederatedAdultDataset:
             * Train/test split
             * Scale the data
 
-        Remark: We keep the original 'age' and the transformed 'education' columns because they are needed to split
+        Remark: We keep the original 'age' and the transformed 'education' columns because they could be needed to split
         data across clients in a later stage.
 
         Args:
@@ -365,7 +396,7 @@ class FederatedAdultDataset:
         task_id = str(task_id)
 
         task_name = self.task_id_to_name[task_id]
-        task_cache_dir = os.path.join(self.cache_dir, 'tasks', task_name)
+        task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
         file_path = os.path.join(task_cache_dir, f'{mode}.csv')
         task_data = pd.read_csv(file_path)
 
