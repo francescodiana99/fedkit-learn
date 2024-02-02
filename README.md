@@ -94,6 +94,7 @@ python run_simulation.py \
     --logs_dir ./logs/adult/training \
     --metadata_dir ./metadata/adult \
     --model_config_path ../fedklearn/configs/adult/config_1.json \
+    --split_criterion age_education \
     --log_freq 10 \
     --save_freq 1 \
     --num_rounds 100 \
