@@ -98,12 +98,6 @@ def parse_args(args_list=None):
         default=0
     )
 
-    parser.add_argument(
-        "--split_criterion",
-        type=str,
-        help="Split criterion for Adult dataset",
-        default=None
-    )
 
     if args_list is None:
         return parser.parse_args()
@@ -138,8 +132,15 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
-                                     split_criterion=args.split_criterion)
+    if args.task_name == "adult":
+        with open(os.path.join(args.data_dir, "split_criterion.json"), "r") as f:
+            split_criterion = json.load(f)['split_criterion']
+
+        federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
+                                         split_criterion=split_criterion)
+    else:
+        federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+
     num_clients = len(federated_dataset.task_id_to_name)
 
     models_metadata_dict = load_models_metadata_dict(args)

@@ -86,6 +86,8 @@ def load_dataset(task_name, data_dir, rng, split_criterion=None):
         NotImplementedError: If the dataset initialization for the specified task is not implemented.
     """
     if task_name == "adult":
+        if split_criterion is None:
+            raise ValueError("Split criterion must be specified for the Adult dataset.")
         return FederatedAdultDataset(
             cache_dir=data_dir,
             download=False,

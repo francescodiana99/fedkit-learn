@@ -153,12 +153,6 @@ def parse_args(args_list=None):
         default=0
     )
 
-    parser.add_argument(
-        "--split_criterion",
-        type=str,
-        default=None,
-        help="Split criterion"
-    )
 
     if args_list is None:
         return parser.parse_args()
@@ -254,8 +248,15 @@ def main():
     rng = np.random.default_rng(seed=args.seed)
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
-                                     split_criterion=args.split_criterion)
+    if args.task_name == "adult":
+        with open(os.path.join(args.data_dir, "split_criterion.json"), "r") as f:
+            split_criterion = json.load(f)['split_criterion']
+
+        federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
+                                         split_criterion=split_criterion)
+
+    else:
+        federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
 
     with open(args.models_metadata_path, "r") as f:
         all_reconstructed_models_metadata_dict = json.load(f)

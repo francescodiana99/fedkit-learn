@@ -60,6 +60,8 @@ class FederatedAdultDataset:
 
         _metadata_path (str): JSON file storing the metadata.
 
+        _split_criterion_path (str): JSON file storing the split criterion.
+
     Methods:
         __init__(self, cache_dir="./", test_frac=None, drop_nationality=True, rng=None):
             Class constructor to initialize the object.
@@ -76,6 +78,15 @@ class FederatedAdultDataset:
         _download_and_preprocess(self):
             Download the Adult dataset and preprocess it.
             Returns scaled features of the training and testing datasets.
+
+        _save_task_mapping(self, metadata_dict):
+            Save the task mapping to a JSON file.
+
+        _load_task_mapping(self):
+            Load the task mapping from a JSON file.
+
+        _save_split_criterion(self, split_criterion):
+            Save the split criterion to a JSON file.
 
         _split_data_into_tasks(self, df):
             Split the Adult dataset across multiple clients based on specified criteria.
@@ -117,6 +128,8 @@ class FederatedAdultDataset:
 
         self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
 
+        self._split_criterion_path = os.path.join(self.cache_dir, "split_criterion.json")
+
         if os.path.exists(tasks_folder):
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
@@ -149,6 +162,8 @@ class FederatedAdultDataset:
                     logging.debug(f"{mode.capitalize()} data for task '{task_name}' cached at: {file_path}")
 
             self._save_task_mapping(self.task_id_to_name)
+
+            self._save_split_criterion(self.split_criterion)
 
     @staticmethod
     def set_scaler(scaler_name):
@@ -273,6 +288,11 @@ class FederatedAdultDataset:
     def _load_task_mapping(self):
         with open(self._metadata_path, "r") as f:
             self.task_id_to_name = json.load(f)
+
+    def _save_split_criterion(self, split_criterion):
+        with open(self._split_criterion_path, "w") as f:
+            criterion_dict = {'split_criterion': self.split_criterion}
+            json.dump(criterion_dict, f)
 
     def _download_and_preprocess(self):
         """ Download the adult dataset and preprocess it.
