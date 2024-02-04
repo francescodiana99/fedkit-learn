@@ -282,12 +282,26 @@ class FederatedAdultDataset:
         return tasks_dict
 
     def _save_task_mapping(self, metadata_dict):
-        with open(self._metadata_path, "w") as f:
-            json.dump(metadata_dict, f)
+        if os.path.exists(self._metadata_path):
+            with open(self._metadata_path, "r") as f:
+                metadata = json.load(f)
+            if self.split_criterion in metadata:
+                metadata[self.split_criterion].update(metadata_dict)
+            else:
+                metadata[self.split_criterion] = metadata_dict
+            with open(self._metadata_path, "w") as f:
+                json.dump(metadata, f)
+
+        else:
+            with open(self._metadata_path, "w") as f:
+                metadata = {self.split_criterion: metadata_dict}
+                json.dump(metadata, f)
+
 
     def _load_task_mapping(self):
-        with open(self._metadata_path, "r") as f:
-            self.task_id_to_name = json.load(f)
+        with (open(self._metadata_path, "r") as f):
+            metadata = json.load(f)
+            self.task_id_to_name = metadata[self.split_criterion]
 
     def _save_split_criterion(self, split_criterion):
         with open(self._split_criterion_path, "w") as f:
