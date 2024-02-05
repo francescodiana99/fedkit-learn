@@ -44,6 +44,8 @@ class FederatedAdultDataset:
 
         n_tasks (int, optional): The number of tasks to split the data into. Default is `None`.
 
+        n_task_samples (int, optional): The number of samples per task. Default is `None`.
+
 
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
@@ -119,7 +121,7 @@ class FederatedAdultDataset:
     """
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
-            rng=None, split_criterion='age_education', n_tasks=None
+            rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None
     ):
         """
         Raises:
@@ -133,6 +135,7 @@ class FederatedAdultDataset:
         self.scaler_name = scaler_name
         self.split_criterion = split_criterion
         self.n_tasks = n_tasks
+        self.n_task_samples = n_task_samples
 
         if rng is None:
             rng = np.random.default_rng()
@@ -145,12 +148,12 @@ class FederatedAdultDataset:
 
         self._split_criterion_path = os.path.join(self.cache_dir, "split_criterion.json")
 
-        #TODO: clean the code
+        # TODO: clean the code
         if os.path.exists(tasks_folder) and self.split_criterion != 'n_tasks':
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
 
-        elif os.path.exists(self._split_criterion_path) and self.split_criterion == 'n_tasks' and \
+        elif os.path.exists(tasks_folder) and self.split_criterion == 'n_tasks' and \
                 n_tasks == len(os.listdir(tasks_folder)):
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
@@ -290,14 +293,18 @@ class FederatedAdultDataset:
     def _split_by_n_tasks(self, df):
         tasks_dict = dict()
         num_samples = len(df)
-        num_samples_per_task = num_samples // self.n_tasks
-        remaining_samples = num_samples % self.n_tasks
+        if self.n_task_samples is None:
+            n_samples_per_task = num_samples // self.n_tasks
+            remaining_samples = 0
+        else:
+            n_samples_per_task = num_samples // self.n_tasks
+            remaining_samples = num_samples % self.n_tasks
 
         start_index = 0
 
         for i in range(self.n_tasks):
             # Calculate the end index based on the regular number of samples
-            end_index = start_index + num_samples_per_task
+            end_index = start_index + n_samples_per_task
 
             # If there are remaining samples, distribute them among the tasks
             if remaining_samples > 0:
@@ -332,7 +339,7 @@ class FederatedAdultDataset:
         split_criterion_dict = {
             'age_education': self._split_by_age_education,
             'age': self._split_by_age,
-            'n_tasks': self._split_by_n_tasks
+            'n_tasks': self._split_by_n_tasks,
         }
 
         if self.split_criterion in split_criterion_dict:
@@ -370,6 +377,9 @@ class FederatedAdultDataset:
     def _save_split_criterion(self):
         with open(self._split_criterion_path, "w") as f:
             criterion_dict = {'split_criterion': self.split_criterion}
+            if self.split_criterion == 'n_tasks':
+                criterion_dict['n_tasks'] = self.n_tasks
+                criterion_dict['n_task_samples'] = self.n_task_samples
             json.dump(criterion_dict, f)
 
     def _download_and_preprocess(self):

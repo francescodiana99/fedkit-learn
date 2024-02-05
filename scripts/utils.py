@@ -68,8 +68,7 @@ def get_task_type(task_name):
 
     return task_type
 
-
-def load_dataset(task_name, data_dir, rng, split_criterion=None):
+def load_dataset(task_name, data_dir, rng):
     """
     Load a federated dataset based on the specified task name.
 
@@ -86,8 +85,23 @@ def load_dataset(task_name, data_dir, rng, split_criterion=None):
         NotImplementedError: If the dataset initialization for the specified task is not implemented.
     """
     if task_name == "adult":
+        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
+            split_dict = json.load(f)
+        split_criterion = split_dict["split_criterion"]
+
         if split_criterion is None:
             raise ValueError("Split criterion must be specified for the Adult dataset.")
+        if split_criterion == "n_tasks":
+            n_tasks = split_dict["n_tasks"]
+            n_task_samples = split_dict["n_task_samples"]
+            return FederatedAdultDataset(
+                cache_dir=data_dir,
+                download=False,
+                rng=rng,
+                split_criterion=split_criterion,
+                n_tasks=n_tasks,
+                n_task_samples=n_task_samples
+            )
         return FederatedAdultDataset(
             cache_dir=data_dir,
             download=False,

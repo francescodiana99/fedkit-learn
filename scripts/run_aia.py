@@ -180,14 +180,7 @@ def main():
     rng = np.random.default_rng(seed=args.seed)
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
-    if args.task_name == "adult":
-        with open(os.path.join(args.data_dir, "split_criterion.json"), "r") as f:
-            split_criterion = json.load(f)['split_criterion']
-
-        federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
-                                         split_criterion=split_criterion)
-    else:
-        federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
 
     num_clients = len(federated_dataset.task_id_to_name)
 

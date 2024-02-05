@@ -130,6 +130,14 @@ def parse_args(args_list=None):
         default=None,
         help="Number of tasks"
     )
+
+    parser.add_argument(
+        "--n_task_samples",
+        type=int,
+        default=None,
+        help="Number of samples per task"
+    )
+
     parser.add_argument(
         "--n_train_samples",
         type=int,
@@ -347,7 +355,9 @@ def initialize_dataset(args, rng):
             scaler_name=args.scaler_name,
             rng=rng,
             split_criterion=args.split_criterion,
-            n_tasks=args.n_tasks
+            n_tasks=args.n_tasks,
+            n_task_samples=args.n_task_samples,
+
 
         )
     elif args.task_name == "toy_regression":
