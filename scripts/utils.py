@@ -92,7 +92,7 @@ def load_dataset(task_name, data_dir, rng, split_criterion=None):
             cache_dir=data_dir,
             download=False,
             rng=rng,
-            split_criterion=split_criterion
+            split_criterion=split_criterion,
 
         )
     elif task_name == "toy_regression" or task_name == "toy_classification":

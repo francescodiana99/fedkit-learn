@@ -127,7 +127,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--n_tasks",
         type=int,
-        default=2,
+        default=None,
         help="Number of tasks"
     )
     parser.add_argument(
@@ -334,6 +334,11 @@ def initialize_dataset(args, rng):
     Returns:
         FederatedDataset: Initialized federated dataset.
     """
+    if args.task_name != "adult" and args.n_tasks is None:
+        raise ValueError(
+            "The number of tasks should be specified for the toy dataset."
+        )
+
     if args.task_name == "adult":
         return FederatedAdultDataset(
             cache_dir=args.data_dir,
@@ -341,7 +346,8 @@ def initialize_dataset(args, rng):
             drop_nationality=not args.use_nationality,
             scaler_name=args.scaler_name,
             rng=rng,
-            split_criterion=args.split_criterion
+            split_criterion=args.split_criterion,
+            n_tasks=args.n_tasks
 
         )
     elif args.task_name == "toy_regression":
