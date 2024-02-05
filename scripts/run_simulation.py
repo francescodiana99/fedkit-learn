@@ -357,6 +357,8 @@ def initialize_dataset(args, rng):
             split_criterion=args.split_criterion,
             n_tasks=args.n_tasks,
             n_task_samples=args.n_task_samples,
+            download=True,
+            force_generation=True
 
 
         )

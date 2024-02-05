@@ -1,4 +1,5 @@
 import os
+import shutil
 import ssl
 import json
 import urllib
@@ -45,6 +46,8 @@ class FederatedAdultDataset:
         n_tasks (int, optional): The number of tasks to split the data into. Default is `None`.
 
         n_task_samples (int, optional): The number of samples per task. Default is `None`.
+
+        force_generation (bool, optional): Whether to force the generation of the dataset. Default is `False`.
 
 
     Attributes:
@@ -121,7 +124,7 @@ class FederatedAdultDataset:
     """
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
-            rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None
+            rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False
     ):
         """
         Raises:
@@ -136,6 +139,7 @@ class FederatedAdultDataset:
         self.split_criterion = split_criterion
         self.n_tasks = n_tasks
         self.n_task_samples = n_task_samples
+        self.force_generation = force_generation
 
         if rng is None:
             rng = np.random.default_rng()
@@ -148,13 +152,8 @@ class FederatedAdultDataset:
 
         self._split_criterion_path = os.path.join(self.cache_dir, "split_criterion.json")
 
-        # TODO: clean the code
-        if os.path.exists(tasks_folder) and self.split_criterion != 'n_tasks':
-            logging.info("Processed data folders found in the tasks directory. Loading existing files.")
-            self._load_task_mapping()
-
-        elif os.path.exists(tasks_folder) and self.split_criterion == 'n_tasks' and \
-                n_tasks == len(os.listdir(tasks_folder)):
+        # TODO: avoid to force generation
+        if os.path.exists(tasks_folder) and not self.force_generation:
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
 
@@ -165,6 +164,11 @@ class FederatedAdultDataset:
             )
 
         else:
+            logging.info("Forcing data generation....")
+            # remove the task folder if it exists to avoid inconsistencies
+            if os.path.exists(tasks_folder):
+                shutil.rmtree(tasks_folder)
+
             self.scaler = self.set_scaler(self.scaler_name)
 
             train_df, test_df = self._download_and_preprocess()
@@ -189,6 +193,7 @@ class FederatedAdultDataset:
             self._save_task_mapping(self.task_id_to_name)
 
             self._save_split_criterion()
+
 
     @staticmethod
     def set_scaler(scaler_name):
@@ -295,10 +300,10 @@ class FederatedAdultDataset:
         num_samples = len(df)
         if self.n_task_samples is None:
             n_samples_per_task = num_samples // self.n_tasks
-            remaining_samples = 0
+            remaining_samples =  num_samples % self.n_tasks
         else:
-            n_samples_per_task = num_samples // self.n_tasks
-            remaining_samples = num_samples % self.n_tasks
+            n_samples_per_task =  self.n_task_samples
+            remaining_samples = 0
 
         start_index = 0
 
@@ -356,13 +361,9 @@ class FederatedAdultDataset:
         if os.path.exists(self._metadata_path):
             with open(self._metadata_path, "r") as f:
                 metadata = json.load(f)
-            if self.split_criterion in metadata:
-                metadata[self.split_criterion].update(metadata_dict)
-            else:
                 metadata[self.split_criterion] = metadata_dict
             with open(self._metadata_path, "w") as f:
                 json.dump(metadata, f)
-
         else:
             with open(self._metadata_path, "w") as f:
                 metadata = {self.split_criterion: metadata_dict}
