@@ -145,9 +145,16 @@ class FederatedAdultDataset:
 
         self._split_criterion_path = os.path.join(self.cache_dir, "split_criterion.json")
 
-        if os.path.exists(tasks_folder):
+        #TODO: clean the code
+        if os.path.exists(tasks_folder) and self.split_criterion != 'n_tasks':
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
+
+        elif os.path.exists(self._split_criterion_path) and self.split_criterion == 'n_tasks' and \
+                n_tasks == len(os.listdir(tasks_folder)):
+            logging.info("Processed data folders found in the tasks directory. Loading existing files.")
+            self._load_task_mapping()
+
 
         elif not self.download:
             raise FileNotFoundError(
