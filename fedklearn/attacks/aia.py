@@ -115,7 +115,7 @@ class BaseAttributeInferenceAttack(ABC):
 
         self.sensitive_attribute_interval = self._get_sensitive_attribute_interval()
 
-        self.predicted_features[self.sensitive_attribute_id] = 0.
+        self.predicted_features[:, self.sensitive_attribute_id] = 0.
 
     def _get_all_features(self):
         """

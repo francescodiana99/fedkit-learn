@@ -315,7 +315,11 @@ class Trainer:
 
             y_pred = self.model(x)
 
-            y_pred = y_pred.squeeze()
+            # condition needed to avoid squeezing the batch size if it is 1
+            if y_pred.shape[0] != 1:
+                y_pred = y_pred.squeeze()
+            else:
+                y_pred = y_pred.squeeze(dim=tuple(y_pred.shape[1:]))
 
             loss = self.criterion(y_pred, y)
 
@@ -373,7 +377,13 @@ class Trainer:
 
                 y_pred = self.model(x)
 
-                y_pred = y_pred.squeeze()
+                if y_pred.shape[0] != 1:
+                    y_pred = y_pred.squeeze()
+                else:
+                    y_pred = y_pred.squeeze(dim=tuple(y_pred.shape[1:]))
+
+                print(y_pred.size())
+                print(y.size())
 
                 global_loss += self.criterion(y_pred, y).item() * y.size(0)
                 global_metric += self.metric(y_pred, y) * y.size(0)
