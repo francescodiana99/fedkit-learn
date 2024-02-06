@@ -382,9 +382,6 @@ class Trainer:
                 else:
                     y_pred = y_pred.squeeze(dim=tuple(y_pred.shape[1:]))
 
-                print(y_pred.size())
-                print(y.size())
-
                 global_loss += self.criterion(y_pred, y).item() * y.size(0)
                 global_metric += self.metric(y_pred, y) * y.size(0)
 
