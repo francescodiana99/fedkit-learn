@@ -646,7 +646,10 @@ class GradientOracle:
 
         predictions = self.model(self.true_features)
 
-        predictions = predictions.squeeze()
+        if predictions.shape[0] != 1:
+            predictions = predictions.squeeze()
+        else:
+            predictions = predictions.squeeze(dim=tuple(predictions.shape[1:]))
 
         loss = self.criterion(predictions, self.true_labels)
 
