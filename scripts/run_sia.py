@@ -57,6 +57,11 @@ def parse_args(args_list=None):
         action='store_true'
     )
 
+    parser.add_argument("--use_global",
+        help='If chosen, the global model will be used instead of the final updated model',
+        action='store_true'
+    )
+
     parser.add_argument(
         "--batch_size",
         type=int,
@@ -109,18 +114,27 @@ def load_models_metadata_dict(args):
     if args.use_oracle:
         with open(os.path.join(args.metadata_dir, "local.json"), "r") as f:
             models_metadata_dict = json.load(f)
+
     else:
         with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
             all_messages_metadata = json.load(f)
 
             last_round_id = max(map(int, all_messages_metadata["global"].keys()))
 
-            all_messages_metadata.pop("global", None)
+            if args.use_global:
+                n_clients = len(all_messages_metadata.keys()) - 1
+                models_metadata_dict = dict()
+                for client_id in range(n_clients):
+                    models_metadata_dict[client_id] = all_messages_metadata["global"][f"{last_round_id}"]
 
-            models_metadata_dict = dict()
+            else:
 
-            for client_id in all_messages_metadata:
-                models_metadata_dict[client_id] = all_messages_metadata[client_id][f"{last_round_id}"]
+                all_messages_metadata.pop("global", None)
+
+                models_metadata_dict = dict()
+
+                for client_id in all_messages_metadata:
+                    models_metadata_dict[client_id] = all_messages_metadata[client_id][f"{last_round_id}"]
 
     return models_metadata_dict
 
@@ -140,7 +154,6 @@ def main():
 
     with open(os.path.join(args.metadata_dir, "model_config.json"), "r") as f:
         model_config_dict = json.load(f)
-    logging.info(f"Loading model configuration from {model_config_dict['model_config']}")
 
     criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
         task_name=args.task_name,

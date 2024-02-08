@@ -270,7 +270,6 @@ def main():
     with open(os.path.join(args.metadata_dir, "model_config.json"), "r") as f:
         model_config_path = json.load(f)
     model_init_fn = lambda: initialize_model(model_config_path["model_config"])
-    logging.info(f"Loading model configuration from {model_config_path['model_config']}")
 
     task_type = get_task_type(args.task_name)
 

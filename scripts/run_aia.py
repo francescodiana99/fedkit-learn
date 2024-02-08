@@ -205,7 +205,6 @@ def main():
     with open(os.path.join(os.path.dirname(args.metadata_path), "model_config.json"), "r") as f:
         model_config_path = json.load(f)
     model_init_fn = lambda: initialize_model(model_config_path["model_config"])
-    logging.info(f"Loading model configuration from {model_config_path['model_config']}")
 
     scores_list = []
     n_samples_list = []

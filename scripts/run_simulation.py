@@ -417,7 +417,6 @@ def initialize_trainer(args):
     if os.path.dirname(args.model_config_path) != model_config_dir:
         raise ValueError(f"Model configuration file should be placed in {model_config_dir}")
     else:
-        logging.info(f"Loading model configuration from {args.model_config_path}")
         model = initialize_model(args.model_config_path)
 
     if args.task_name == "adult":
