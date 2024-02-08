@@ -303,8 +303,13 @@ def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_ta
     else:
         results = dict()
 
+    if str(n_tasks) not in results:
+        results[str(n_tasks)] = dict()
+    if str(n_samples_list[-1]) not in results[str(n_tasks)]:
+        results[str(n_tasks)][str(n_samples_list[-1])] = dict()
+
+    results[str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
     with open(results_path, 'w') as f:
-        results[str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
         json.dump(results, f)
 
     logging.info(f"Average Score={avg_score:.3f}")

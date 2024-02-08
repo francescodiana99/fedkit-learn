@@ -389,9 +389,9 @@ class LocalModelReconstructionAttack:
     def verify_gradient_predictor(self, scaling_coeff):
         # TODO (OTHMANE): clarify docs for this function
         for round_id in self.round_ids:
-            model_params = self.global_models_dict[round_id]
+            model_params = self.global_models_dict[round_id].to(self.device)
 
-            pseudo_gradient = scaling_coeff * self.pseudo_gradients_dict[round_id]
+            pseudo_gradient = scaling_coeff * self.pseudo_gradients_dict[round_id].to(self.device)
 
             oracle_gradient = self.gradient_oracle.predict_gradient(model_params).detach()
 
