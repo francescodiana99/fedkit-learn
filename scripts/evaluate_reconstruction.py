@@ -293,7 +293,9 @@ def main():
         results_path = os.path.join(args.results_dir, f"{attack_name}.json")
         save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=results_path)
 
-    logging.info(f"All results have been saved in {args.results_dir}")
+        results_history_path = os.path.join(args.results_dir, "attacks_history.json")
+        load_and_save_result_history(args.data_dir, scores_list, results_history_path, attack_name, n_samples_list)
+
 
 
 if __name__ == "__main__":

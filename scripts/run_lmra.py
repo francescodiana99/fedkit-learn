@@ -198,16 +198,6 @@ def initialize_gradient_prediction_trainer(args, federated_dataset, client_messa
     local_model.load_state_dict(local_model_chkpt)
 
     n_params = get_n_params(local_model)
-    # if args.task_name == "adult":
-    #     n_features = 41 + 1  # +1 because of the bias term
-    # elif args.task_name == "toy_classification":
-    #     n_features = federated_dataset.n_features + 1  # +1 because of the bias term
-    # elif args.task_name == "toy_regression":
-    #     n_features = federated_dataset.n_features + 1  # +1 because of the bias term
-    # else:
-    #     raise NotImplementedError(
-    #         f"Network initialization for task '{args.task_name}' is not implemented"
-    #     )
 
     gradient_prediction_model = SequentialNet(
         input_dimension=n_params, output_dimension=n_params, hidden_layers=args.hidden_layers
@@ -373,6 +363,8 @@ def main():
 
     # Saving results
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
+    results_history_path = os.path.join(args.results_dir, "attacks_history.json")
+    load_and_save_result_history(args.data_dir, scores_list, results_history_path, 'lmra', n_samples_list)
 
     logging.info("=" * 100)
     logging.info("Save trajectory of all reconstructed models metadata..")

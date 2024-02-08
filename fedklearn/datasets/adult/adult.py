@@ -325,6 +325,49 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
+    def split_by_n_tasks_and_labels(self, df):
+        """Split the adult dataset according to the number of tasks, maintaining both the labels in the datasets."""
+        tasks_dict = dict()
+        df_0 = df[df['income'] == 0]
+        df_1 = df[df['income'] == 1]
+        n_samples_0 = len(df_0)
+        n_samples_1 = len(df_1)
+        remaining_df = df.drop(df_0.index).drop(df_1.index)
+
+        if self.n_tasks * self.n_task_samples > len(df):
+            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
+                             f"which has size {len(df)}."
+                             "Please reduce the number of tasks or the number of samples per task.")
+
+        if self.n_task_samples is None:
+            n_samples_per_label =  min(n_samples_0, n_samples_1) // self.n_tasks
+            remaining_samples =  len(df) - (2 * min(n_samples_0, n_samples_1))
+        else:
+            n_samples_per_label =  self.n_task_samples // 2
+            remaining_samples = self.n_task_samples % 2
+
+
+        start_index = 0
+        remain_index = 0
+
+        for i in range(self.n_tasks):
+            end_index = start_index + n_samples_per_label
+            task_df = pd.concat([df_0.iloc[start_index:end_index], df_1.iloc[start_index:end_index]])
+
+            if remaining_samples > 0:
+                task_df = pd.concat([task_df, remaining_df.iloc[remain_index:remain_index+1]])
+                remaining_samples -= 1
+                remain_index += 1
+
+            task_df = task_df.drop(['education', 'age'], axis=1)
+            tasks_dict[f"task_{i}"] = task_df
+
+            start_index = end_index
+
+        return tasks_dict
+
+
+
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
 
@@ -345,11 +388,18 @@ class FederatedAdultDataset:
             'age_education': self._split_by_age_education,
             'age': self._split_by_age,
             'n_tasks': self._split_by_n_tasks,
+            'n_tasks_labels': self.split_by_n_tasks_and_labels
         }
 
         if self.split_criterion in split_criterion_dict:
-            if self.split_criterion == 'n_tasks' and self.n_tasks is None:
-                raise ValueError("Number of tasks must be specified when using the 'n_tasks' split criterion.")
+            if self.split_criterion in ['n_tasks', 'n_tasks_labels'] and self.n_tasks is None:
+                raise ValueError("Number of tasks must be specified when using the 'n_tasks' or the 'n_tasks_labels' "
+                                 "split criterion.")
+
+            if self.split_criterion == 'n_tasks_labels'and self.n_task_samples < 2:
+                raise ValueError(f"The number of samples for each task must be at least 2 when using the "
+                                 "'n_tasks_labels' split criterion.")
+
             tasks_dict = split_criterion_dict[self.split_criterion](df)
         else:
             raise ValueError(f"Invalid criteria '{self.split_criterion}'."
@@ -378,7 +428,7 @@ class FederatedAdultDataset:
     def _save_split_criterion(self):
         with open(self._split_criterion_path, "w") as f:
             criterion_dict = {'split_criterion': self.split_criterion}
-            if self.split_criterion == 'n_tasks':
+            if self.split_criterion in ['n_tasks', 'n_tasks_labels']:
                 criterion_dict['n_tasks'] = self.n_tasks
                 criterion_dict['n_task_samples'] = self.n_task_samples
             json.dump(criterion_dict, f)

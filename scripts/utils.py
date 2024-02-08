@@ -285,14 +285,42 @@ def weighted_average(scores, n_samples):
 
 
 def save_scores(scores_list, n_samples_list, results_path):
-    avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
-    logging.info(f"Average Score={avg_score:.3f}")
 
     logging.info("Saving simulation results..")
     results = [{"score": score, "n_samples": n_samples} for score, n_samples in zip(scores_list, n_samples_list)]
     os.makedirs(os.path.dirname(results_path), exist_ok=True)
     with open(results_path, 'w') as f:
         json.dump(results, f)
+
+
+def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks):
+
+    avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
+
+    if os.path.exists(results_path):
+        with open(results_path, 'r') as f:
+            results = json.load(f)
+    else:
+        results = dict()
+
+    with open(results_path, 'w') as f:
+        results[str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
+        json.dump(results, f)
+
+    logging.info(f"Average Score={avg_score:.3f}")
+
+def load_and_save_result_history(data_dir, scores_list, results_path, attack_name, n_samples_list ):
+    """Save average results for all the attacks in a json file."""
+
+    with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
+        split_dict = json.load(f)
+    split_criterion = split_dict["split_criterion"]
+    if split_criterion in ['n_tasks', 'n_tasks_labels']:
+        n_tasks = split_dict["n_tasks"]
+    save_avg_scores(scores_list=scores_list, attack_name=attack_name, results_path=results_path,
+                    n_tasks=n_tasks, n_samples_list=n_samples_list)
+
+
 
     logging.info(f"The results dictionary has been saved in {results_path}")
 
