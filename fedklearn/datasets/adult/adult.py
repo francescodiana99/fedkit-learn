@@ -12,6 +12,9 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
+
 
 from torch.utils.data import Dataset
 
@@ -244,14 +247,15 @@ class FederatedAdultDataset:
 
         return features_scaled
 
-    @staticmethod
-    def _split_by_age_education(df):
+
+    def _split_by_age_education(self, df):
 
         tasks_dict = dict()
         required_columns = {'age', 'education'}
         if not required_columns.issubset(df.columns):
             raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
 
+        self.n_tasks = SPLIT_CRITERIA['age_education'].items()
         for task_name, criteria in SPLIT_CRITERIA['age_education'].items():
             try:
                 task_indices = df.index[
@@ -271,13 +275,14 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-    @staticmethod
-    def _split_by_age(df):
+
+    def _split_by_age(self, df):
         tasks_dict = dict()
         required_columns = {'age'}
         if not required_columns.issubset(df.columns):
             raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
 
+        self.n_tasks = SPLIT_CRITERIA['age'].items()
         for task_name, criteria in SPLIT_CRITERIA['age'].items():
             try:
                 task_indices = df.index[df['age'].between(*criteria['age'])].tolist()
@@ -325,7 +330,7 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-    def split_by_n_tasks_and_labels(self, df):
+    def _split_by_n_tasks_and_labels(self, df):
         """Split the adult dataset according to the number of tasks, maintaining both the labels in the datasets."""
         tasks_dict = dict()
         df_0 = df[df['income'] == 0]
@@ -367,6 +372,34 @@ class FederatedAdultDataset:
         return tasks_dict
 
 
+    def _split_by_kmeans(self, df):
+        """ Split the dataset using k-means"""
+
+        tasks_dict = dict()
+        kmeans = KMeans(n_clusters=self.n_tasks, random_state=42, init='k-means++', n_init='auto')
+        df = df.drop(['education', 'age'], axis=1)
+        clusters = kmeans.fit_predict(df)
+        for i in range(self.n_tasks):
+            indices = np.where(clusters == i)[0].tolist()
+            task_df = df.iloc[indices]
+            tasks_dict[f"task_{i}"] = task_df
+
+        return tasks_dict
+
+    def _split_by_gmm(self, df):
+        """ Split the dataset using Gaussian Mixture Model"""
+
+        tasks_dict = dict()
+        gmm = GaussianMixture(n_components=self.n_tasks, random_state=42)
+        df = df.drop(['education', 'age'], axis=1)
+        clusters = gmm.fit_predict(df)
+        for i in range(self.n_tasks):
+            indices = np.where(clusters == i)[0].tolist()
+            task_df = df.iloc[indices]
+            tasks_dict[f"task_{i}"] = task_df
+
+        return tasks_dict
+
 
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
@@ -388,13 +421,15 @@ class FederatedAdultDataset:
             'age_education': self._split_by_age_education,
             'age': self._split_by_age,
             'n_tasks': self._split_by_n_tasks,
-            'n_tasks_labels': self.split_by_n_tasks_and_labels
+            'n_tasks_labels': self._split_by_n_tasks_and_labels,
+            'kmeans': self._split_by_kmeans,
+            'gmm': self._split_by_gmm
         }
 
         if self.split_criterion in split_criterion_dict:
-            if self.split_criterion in ['n_tasks', 'n_tasks_labels'] and self.n_tasks is None:
-                raise ValueError("Number of tasks must be specified when using the 'n_tasks' or the 'n_tasks_labels' "
-                                 "split criterion.")
+            if self.split_criterion in ['n_tasks', 'n_tasks_labels', 'kmeans', 'gmm'] and self.n_tasks is None:
+                raise ValueError(f"Number of tasks must be specified when using {', '.join(split_criterion_dict)}' "
+                                 "split criteria.")
 
             if self.split_criterion == 'n_tasks_labels'and self.n_task_samples < 2:
                 raise ValueError(f"The number of samples for each task must be at least 2 when using the "
@@ -402,8 +437,8 @@ class FederatedAdultDataset:
 
             tasks_dict = split_criterion_dict[self.split_criterion](df)
         else:
-            raise ValueError(f"Invalid criteria '{self.split_criterion}'."
-                             f" Supported values are {', '.join(split_criterion_dict)}.")
+            raise ValueError(f"Invalid criterion '{self.split_criterion}'."
+                             f" Supported criteria are {', '.join(split_criterion_dict)}.")
 
         return tasks_dict
 
@@ -427,9 +462,8 @@ class FederatedAdultDataset:
 
     def _save_split_criterion(self):
         with open(self._split_criterion_path, "w") as f:
-            criterion_dict = {'split_criterion': self.split_criterion}
+            criterion_dict = {'split_criterion': self.split_criterion, 'n_tasks': self.n_tasks}
             if self.split_criterion in ['n_tasks', 'n_tasks_labels']:
-                criterion_dict['n_tasks'] = self.n_tasks
                 criterion_dict['n_task_samples'] = self.n_task_samples
             json.dump(criterion_dict, f)
 

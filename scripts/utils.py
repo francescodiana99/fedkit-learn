@@ -293,7 +293,7 @@ def save_scores(scores_list, n_samples_list, results_path):
         json.dump(results, f)
 
 
-def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks):
+def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion):
 
     avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
 
@@ -303,12 +303,18 @@ def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_ta
     else:
         results = dict()
 
-    if str(n_tasks) not in results:
-        results[str(n_tasks)] = dict()
-    if str(n_samples_list[-1]) not in results[str(n_tasks)]:
-        results[str(n_tasks)][str(n_samples_list[-1])] = dict()
+    if split_criterion not in results:
+        results[split_criterion] = dict()
+    if str(n_tasks) not in results[split_criterion]:
+        results[split_criterion][str(n_tasks)] = dict()
+    if split_criterion in ["n_tasks", "n_task_samples"]:
+        if str(n_samples_list[-1]) not in results[split_criterion][str(n_tasks)]:
+            results[split_criterion][str(n_tasks)][str(n_samples_list[-1])] = dict()
 
-    results[str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
+    if split_criterion in ["n_tasks", "n_task_samples"]:
+        results[split_criterion][str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
+    else:
+        results[split_criterion][str(n_tasks)][attack_name] = avg_score
     with open(results_path, 'w') as f:
         json.dump(results, f)
 
@@ -320,10 +326,9 @@ def load_and_save_result_history(data_dir, scores_list, results_path, attack_nam
     with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
         split_dict = json.load(f)
     split_criterion = split_dict["split_criterion"]
-    if split_criterion in ['n_tasks', 'n_tasks_labels']:
-        n_tasks = split_dict["n_tasks"]
+    n_tasks = split_dict["n_tasks"]
     save_avg_scores(scores_list=scores_list, attack_name=attack_name, results_path=results_path,
-                    n_tasks=n_tasks, n_samples_list=n_samples_list)
+                    n_tasks=n_tasks, n_samples_list=n_samples_list, split_criterion=split_criterion)
 
 
 
