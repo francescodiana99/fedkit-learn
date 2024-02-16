@@ -255,7 +255,7 @@ class FederatedAdultDataset:
         if not required_columns.issubset(df.columns):
             raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
 
-        self.n_tasks = SPLIT_CRITERIA['age_education'].items()
+        self.n_tasks = len(SPLIT_CRITERIA['age_education'].items())
         for task_name, criteria in SPLIT_CRITERIA['age_education'].items():
             try:
                 task_indices = df.index[
@@ -282,7 +282,7 @@ class FederatedAdultDataset:
         if not required_columns.issubset(df.columns):
             raise ValueError(f"Input DataFrame must contain columns {', '.join(required_columns)}.")
 
-        self.n_tasks = SPLIT_CRITERIA['age'].items()
+        self.n_tasks = len(SPLIT_CRITERIA['age'].items())
         for task_name, criteria in SPLIT_CRITERIA['age'].items():
             try:
                 task_indices = df.index[df['age'].between(*criteria['age'])].tolist()

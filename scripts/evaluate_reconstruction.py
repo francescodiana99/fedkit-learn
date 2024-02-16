@@ -218,11 +218,19 @@ def compute_scores(
             rng=rng, torch_rng=torch_rng
         )
 
+        aia_reference_score = evaluate_aia(model=reference_model, dataset=dataset,
+            sensitive_attribute_id=sensitive_attribute_id, sensitive_attribute_type=sensitive_attribute_type,
+            initialization=aia_initialization, device=device, num_iterations=aia_num_rounds, criterion=criterion,
+            is_binary_classification=is_binary_classification, learning_rate=learning_rate,
+            optimizer_name=optimizer_name, success_metric=success_metric, rng=rng, torch_rng=torch_rng)
+
+
         scores_per_attack_dict["SIA"].append(sia_score)
         scores_per_attack_dict["AIA"].append(aia_score)
         scores_per_attack_dict["LMRA"].append(lmra_score)
 
         logging.info(f"AIA Score={aia_score:.3f} for client {attacked_client_id}")
+        logging.info(f"AIA Reference Score={aia_reference_score:.3f} for client {attacked_client_id}")
 
         n_samples_list.append(len(dataset))
 

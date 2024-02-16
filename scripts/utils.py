@@ -159,7 +159,9 @@ def get_trainer_parameters(task_name, federated_dataset, device, model_config_pa
     if model_config_path is not None:
         model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
+        # TODO I think this should be mean
+        # criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
+        criterion = nn.BCEWithLogitsLoss(reduction="mean").to(device)
         if model_config_path is None:
             model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
