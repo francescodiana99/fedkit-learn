@@ -173,8 +173,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--split_criterion",
         type=str,
-        default=None,
-        help="Split criterion for Adult dataset"
+        required=True,
     )
     parser.add_argument(
         "--sensitive_attribute_weight",

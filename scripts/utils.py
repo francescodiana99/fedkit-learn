@@ -159,7 +159,7 @@ def get_trainer_parameters(task_name, federated_dataset, device, model_config_pa
     if model_config_path is not None:
         model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
-        # TODO I think this should be mean
+        # TODO I think this should be mean, according to , NOTE this changes all the results
         # criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
         criterion = nn.BCEWithLogitsLoss(reduction="mean").to(device)
         if model_config_path is None:
