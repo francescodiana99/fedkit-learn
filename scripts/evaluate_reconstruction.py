@@ -302,7 +302,9 @@ def main():
         save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=results_path)
 
         results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
-        load_and_save_result_history(args.data_dir, scores_list, results_history_path, attack_name, n_samples_list)
+        load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+                                     attack_name=attack_name,n_samples_list=n_samples_list,
+                                     seed=args.seed)
 
 
 

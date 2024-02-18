@@ -159,9 +159,7 @@ def get_trainer_parameters(task_name, federated_dataset, device, model_config_pa
     if model_config_path is not None:
         model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
-        # TODO I think this should be mean, according to , NOTE this changes all the results
-        # criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        criterion = nn.BCEWithLogitsLoss(reduction="mean").to(device)
+        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
         if model_config_path is None:
             model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
         is_binary_classification = True
@@ -295,7 +293,7 @@ def save_scores(scores_list, n_samples_list, results_path):
         json.dump(results, f)
 
 
-def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion):
+def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion, seed):
 
     avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
 
@@ -304,25 +302,27 @@ def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_ta
             results = json.load(f)
     else:
         results = dict()
+    if seed not in results:
+        results[seed] = dict()
 
-    if split_criterion not in results:
-        results[split_criterion] = dict()
-    if str(n_tasks) not in results[split_criterion]:
-        results[split_criterion][str(n_tasks)] = dict()
+    if split_criterion not in results[seed]:
+        results[seed][split_criterion] = dict()
+    if str(n_tasks) not in results[seed][split_criterion]:
+        results[seed][split_criterion][str(n_tasks)] = dict()
     if split_criterion in ["n_tasks", "n_task_samples"]:
-        if str(n_samples_list[-1]) not in results[split_criterion][str(n_tasks)]:
-            results[split_criterion][str(n_tasks)][str(n_samples_list[-1])] = dict()
+        if str(n_samples_list[-1]) not in results[seed][split_criterion][str(n_tasks)]:
+            results[seed][split_criterion][str(n_tasks)][str(n_samples_list[-1])] = dict()
 
     if split_criterion in ["n_tasks", "n_task_samples"]:
-        results[split_criterion][str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
+        results[seed][split_criterion][str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
     else:
-        results[split_criterion][str(n_tasks)][attack_name] = avg_score
+        results[seed][split_criterion][str(n_tasks)][attack_name] = avg_score
     with open(results_path, 'w') as f:
         json.dump(results, f)
 
     logging.info(f"Average Score={avg_score:.3f}")
 
-def load_and_save_result_history(data_dir, scores_list, results_path, attack_name, n_samples_list ):
+def load_and_save_result_history(data_dir, scores_list, results_path, attack_name, n_samples_list,seed ):
     """Save average results for all the attacks in a json file."""
 
     with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
@@ -330,7 +330,7 @@ def load_and_save_result_history(data_dir, scores_list, results_path, attack_nam
     split_criterion = split_dict["split_criterion"]
     n_tasks = split_dict["n_tasks"]
     save_avg_scores(scores_list=scores_list, attack_name=attack_name, results_path=results_path,
-                    n_tasks=n_tasks, n_samples_list=n_samples_list, split_criterion=split_criterion)
+                    n_tasks=n_tasks, n_samples_list=n_samples_list, split_criterion=split_criterion, seed=seed)
 
 
 
