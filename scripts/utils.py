@@ -295,6 +295,7 @@ def save_scores(scores_list, n_samples_list, results_path):
 
 def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion, seed):
 
+    seed = str(seed)
     avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
 
     if os.path.exists(results_path):
