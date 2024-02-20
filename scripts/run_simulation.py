@@ -357,9 +357,8 @@ def initialize_dataset(args, rng):
             n_tasks=args.n_tasks,
             n_task_samples=args.n_task_samples,
             download=True,
-            force_generation=True
-
-
+            force_generation=True,
+            seed=args.seed
         )
     elif args.task_name == "toy_regression":
         return FederatedToyDataset(

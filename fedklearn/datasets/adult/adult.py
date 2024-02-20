@@ -52,6 +52,8 @@ class FederatedAdultDataset:
 
         force_generation (bool, optional): Whether to force the generation of the dataset. Default is `False`.
 
+        seed (int, optional): The seed for the random number generator. Default is 42.
+
 
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
@@ -110,6 +112,18 @@ class FederatedAdultDataset:
             Split the data into a specified number of tasks.
             Returns a dictionary where keys are task names and values are DataFrames for each task.
 
+        _split_by_num_tasks_and_labels(self, df):
+            Split the data into a specified number of tasks, maintaining both the labels in the datasets.
+            Returns a dictionary where keys are task names and values are DataFrames for each task.
+
+        _split_by_kmeans(self, df):
+            Split the data using k-means clustering.
+            Returns a dictionary where keys are task names and values are DataFrames for each task.
+
+        _split_by_gmm(self, df):
+            Split the data using Gaussian Mixture Model.
+            Returns a dictionary where keys are task names and values are DataFrames for each task.
+
         _split_data_into_tasks(self, df):
             Split the Adult dataset across multiple clients based on specified criteria.
             Returns a dictionary where keys are task names or numbers, and values are DataFrames for each task.
@@ -127,7 +141,8 @@ class FederatedAdultDataset:
     """
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
-            rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False
+            rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False,
+            seed=42
     ):
         """
         Raises:
@@ -143,6 +158,7 @@ class FederatedAdultDataset:
         self.n_tasks = n_tasks
         self.n_task_samples = n_task_samples
         self.force_generation = force_generation
+        self.seed = seed
 
         if rng is None:
             rng = np.random.default_rng()
@@ -376,8 +392,8 @@ class FederatedAdultDataset:
         """ Split the dataset using k-means"""
 
         tasks_dict = dict()
-        kmeans = KMeans(n_clusters=self.n_tasks, random_state=42, init='k-means++', n_init='auto')
         df = df.drop(['education', 'age'], axis=1)
+        kmeans = KMeans(n_clusters=self.n_tasks, random_state=self.seed, init='k-means++', n_init='auto')
         clusters = kmeans.fit_predict(df)
         for i in range(self.n_tasks):
             indices = np.where(clusters == i)[0].tolist()
@@ -390,8 +406,8 @@ class FederatedAdultDataset:
         """ Split the dataset using Gaussian Mixture Model"""
 
         tasks_dict = dict()
-        gmm = GaussianMixture(n_components=self.n_tasks, random_state=42)
         df = df.drop(['education', 'age'], axis=1)
+        gmm = GaussianMixture(n_components=self.n_tasks, random_state=self.seed)
         clusters = gmm.fit_predict(df)
         for i in range(self.n_tasks):
             indices = np.where(clusters == i)[0].tolist()
@@ -404,7 +420,8 @@ class FederatedAdultDataset:
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
 
-        The available criteria are 'age_education' and 'age'. The 'age_education' criterion splits the data based on
+        The available criteria are 'age_education', 'age', 'n_tasks', 'n_tasks_labels', kmeans, gmm, nationality.
+        The 'age_education' criterion splits the data based on
         age and education level, while the 'age' criterion splits the data based on age only.
 
         Args:
