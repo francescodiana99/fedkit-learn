@@ -155,25 +155,18 @@ def get_last_rounds(round_ids, keep_frac=0.):
 
     return set(map(str, int_list[start_index:]))
 
-def get_trainer_parameters(task_name, federated_dataset, device, model_config_path=None):
-    if model_config_path is not None:
-        model_init_fn = lambda: initialize_model(model_config_path)
+def get_trainer_parameters(task_name, device, model_config_path):
+    model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        if model_config_path is None:
-            model_init_fn = lambda: LinearLayer(input_dimension=41, output_dimension=1)
-        is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
+        is_binary_classification = True
     elif task_name == "toy_classification":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        if model_config_path is None:
-            model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
     elif task_name == "toy_regression":
         criterion = nn.MSELoss(reduction="none").to(device)
-        if model_config_path is None:
-            model_init_fn = lambda: LinearLayer(input_dimension=federated_dataset.n_features, output_dimension=1)
         is_binary_classification = False
         metric = mean_squared_error
     else:
@@ -246,7 +239,8 @@ def evaluate_sia(attacked_client_id, dataloader, trainers_dict):
 
 def evaluate_aia(
         model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device, num_iterations,
-        criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None
+        criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None,
+        output_losses=False
 ):
 
     attack_simulator = ModelDrivenAttributeInferenceAttack(
@@ -265,9 +259,12 @@ def evaluate_aia(
         torch_rng=torch_rng
     )
 
-    attack_simulator.execute_attack(num_iterations=num_iterations)
+    all_losses = attack_simulator.execute_attack(num_iterations=num_iterations, output_loss=True)
     score = attack_simulator.evaluate_attack()
 
+    if output_losses:
+        logging.info(f"{all_losses[:20]}")
+        logging.info(f"{all_losses[:20].argmax(axis=1)}")
     return float(score)
 
 

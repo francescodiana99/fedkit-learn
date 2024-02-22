@@ -111,7 +111,7 @@ class BaseAttributeInferenceAttack(ABC):
 
         self.num_classes = self._compute_num_sensitive_classes()
 
-        self.predicted_features = self.true_features
+        self.predicted_features = self.true_features.clone()
 
         self.sensitive_attribute_interval = self._get_sensitive_attribute_interval()
 
@@ -640,13 +640,15 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         return logits
 
-    def execute_attack(self, num_iterations):
+    def execute_attack(self, num_iterations, output_loss=False):
         """
         Execute the federated learning attack on the provided dataset.
 
         Parameters:
         - num_iterations (int): The number of iterations to perform the attack.
+        - output_loss (bool): If True, the loss values for each sample are returned.
         """
+        all_losses = torch.zeros(self.n_samples, 2, device=self.device)
         for idx, (_, label) in enumerate(zip(self.true_features, self.true_labels)):
 
             if self.sensitive_attribute_type == "binary":
@@ -662,13 +664,15 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
                     loss_1 = self.criterion(self.model(clone_1), label)
                     loss_0 = self.criterion(self.model(clone_0), label)
 
+                    all_losses[idx, 0] = loss_0
+                    all_losses[idx, 1] = loss_1
+
                     if loss_0 <= loss_1:
                         self.predicted_features[idx, self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
                     else:
                         self.predicted_features[idx, self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
 
             elif self.sensitive_attribute_type == "numerical":
-                # TODO: brainstorm with co-authors if this is correct
                 sensitive_attribute = self._init_sensitive_attribute()
                 optimizer = self._init_optimizer(sensitive_attribute)
 
@@ -697,6 +701,9 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
                     f"{self.sensitive_attribute_type} is not a valid type for the sensitive attribute."
                     f"Possible are: 'binary', 'categorical', 'numerical'."
                 )
+
+        if output_loss:
+            return all_losses
 
     def evaluate_attack(self):
         """

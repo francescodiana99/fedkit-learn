@@ -256,10 +256,11 @@ def main():
     with open(args.models_config_metadata_path, "r") as f:
         model_config_metadata_dict = json.load(f)
 
-    criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
-        task_name=args.task_name, federated_dataset=federated_dataset, device=args.device,
-        model_config_path=model_config_metadata_dict["model_config"]
-    )
+    criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(task_name=args.task_name,
+                                                                                        device=args.device,
+                                                                                        model_config_path=
+                                                                                        model_config_metadata_dict[
+                                                                                            "model_config"])
 
     reference_trainers_dict = initialize_trainers_dict(
         reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
