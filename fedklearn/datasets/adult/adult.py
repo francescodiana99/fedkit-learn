@@ -54,6 +54,8 @@ class FederatedAdultDataset:
 
         seed (int, optional): The seed for the random number generator. Default is 42.
 
+        binarize_marital_status (bool, optional): Whether to binarize the marital status. Default is `False`.
+
 
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
@@ -80,6 +82,9 @@ class FederatedAdultDataset:
 
         _transform_education_level(x):
             A static method to transform the education level.
+            
+        _transform_marital_status(x):
+            A static method to transform the marital status.
 
         _scale_features(self, df, scaler, mode="train"):
             Scale numerical features of the DataFrame.
@@ -142,7 +147,7 @@ class FederatedAdultDataset:
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
             rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42
+            seed=42, binarize_marital_status=False
     ):
         """
         Raises:
@@ -159,6 +164,7 @@ class FederatedAdultDataset:
         self.n_task_samples = n_task_samples
         self.force_generation = force_generation
         self.seed = seed
+        self.binarize_marital_status = binarize_marital_status
 
         if rng is None:
             rng = np.random.default_rng()
@@ -235,6 +241,15 @@ class FederatedAdultDataset:
             return "Associate"
         else:
             return x
+
+
+    @staticmethod
+    def _transform_marital_status(x):
+        if x in {'Married-civ-spouse', 'Married-AF-spouse', 'Married-spouse-absent'}:
+            return 1
+        else:
+            return 0
+
 
     @staticmethod
     def _scale_features(df, scaler, mode="train"):
@@ -564,6 +579,10 @@ class FederatedAdultDataset:
         df['income'] = df['income'].replace('<=50K.', 0).replace('>50K.', 1)
 
         df["education"] = df["education"].apply(self._transform_education_level)
+
+        if self.binarize_marital_status:
+            df["marital-status"] = df["marital-status"].apply(self._transform_marital_status)
+            CATEGORICAL_COLUMNS.remove('marital-status')
 
         df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
 

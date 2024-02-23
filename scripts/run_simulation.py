@@ -49,6 +49,7 @@ Options:
     --save_freq: Saving frequency, specifying how often to save model checkpoints.
     --num_rounds: Number of simulation rounds.
     --seed: Random seed for reproducibility.
+    --binarize_marital_status: Flag for binarizing the marital status.
 """
 import argparse
 import logging
@@ -324,6 +325,13 @@ def parse_args(args_list=None):
         default=0
     )
 
+    parser.add_argument(
+        "--binarize_marital_status",
+        action="store_true",
+        help="Flag for binarizing the marital status",
+        default=False
+    )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -358,7 +366,8 @@ def initialize_dataset(args, rng):
             n_task_samples=args.n_task_samples,
             download=True,
             force_generation=True,
-            seed=args.seed
+            seed=args.seed,
+            binarize_marital_status=args.binarize_marital_status
         )
     elif args.task_name == "toy_regression":
         return FederatedToyDataset(

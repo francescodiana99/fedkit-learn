@@ -144,7 +144,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--reference_models_metadata_path",
         type=str,
-        help="Path to the metadata file of the models obtained with the Local Model Reconstruction Attack",
+        help="Path to the metadata file of the reference models",
         required=True
     )
 
@@ -212,6 +212,7 @@ def initialize_metadata_dict_from_checkpoint(metadata_path, round):
 
     return models_metadata_dict
 
+
 def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split,
                    reference_trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
                    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size, trainers_dict, debug=False,
@@ -226,13 +227,14 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
     global_model = trainers_dict["global"].model
 
     scores_per_client_dict = {
-        "local": dict(),
+        "client": dict(),
         "reference": dict(),
         "global": dict(),
         "random": dict()
     }
 
     metrics_dict = {
+        "client": dict(),
         "global": dict(),
         "random": dict(),
         "reference": dict()
@@ -243,13 +245,6 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         logging.info(f"Simulating attack for {attacked_client_id}...")
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
-
-        for client in trainers_dict.keys():
-            if client != "global":
-                scores_per_client_dict["local"][client] = 0
-                scores_per_client_dict["reference"][client] = 0
-                scores_per_client_dict["global"][client] = 0
-                scores_per_client_dict["random"][client] = 0
 
         if task_name == "adult":
             # TODO: hard-code sensitive attribute_id and type in the federated_dataset
@@ -268,10 +263,10 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         if debug:
             try:
-                local_model = trainers_dict[f"{attacked_client_id}"].model
+                client_model = trainers_dict[f"{attacked_client_id}"].model
             except KeyError:
-                local_model = trainers_dict[attacked_client_id].model
-            local_model.eval()
+                client_model = trainers_dict[attacked_client_id].model
+            client_model.eval()
 
             if random_trainer is None:
                 raise ValueError("random_trainer cannot be None in debug mode")
@@ -279,14 +274,17 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                 random_model = random_trainer.model
                 random_model.eval()
 
-            # local model evaluation
-            local_model_loss, local_model_metric = evaluate_trainer(trainers_dict[f"{attacked_client_id}"], dataloader)
+            # client model evaluation
+            client_model_loss, client_model_metric = evaluate_trainer(trainers_dict[f"{attacked_client_id}"], dataloader)
             logging.info(
-                f"Local model {split} loss={local_model_loss:.3f}, Test {split} metric={local_model_metric:.3f}")
+                f"Client model {split} loss={client_model_loss:.3f}, Test {split} metric={client_model_metric:.3f}")
+            metrics_dict["client"][attacked_client_id] = client_model_metric
 
-            local_attacked_weight = local_model.fc.weight[:, sensitive_attribute_id]
-            logging.info(f"Printing attacked feature's weight: {local_attacked_weight}")
-            aia_score_local = evaluate_aia(model=local_model, dataset=dataset,
+
+            if client_model.__class__.__name__ == "LinearLayer":
+                client_attacked_weight = client_model.fc.weight[:, sensitive_attribute_id]
+                logging.info(f"Printing attacked feature's weight: {client_attacked_weight}")
+            aia_score_client = evaluate_aia(model=client_model, dataset=dataset,
                                            sensitive_attribute_id=sensitive_attribute_id,
                                            sensitive_attribute_type=sensitive_attribute_type,
                                            initialization=aia_initialization, device=device,
@@ -294,10 +292,9 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                            is_binary_classification=is_binary_classification,
                                            learning_rate=learning_rate,
                                            optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
-                                           torch_rng=torch_rng, output_losses=True)
-            scores_per_client_dict["local"][attacked_client_id] = aia_score_local
-            logging.info(f"Score={aia_score_local:.3f} for client {attacked_client_id} with local model")
-            logging.info("=" * 100)
+                                           torch_rng=torch_rng, output_losses=False)
+            scores_per_client_dict["client"][f"{attacked_client_id}"] = aia_score_client
+            logging.info(f"Score={aia_score_client:.3f} for client {attacked_client_id} with client model")
 
             # random model evaluation
             random_model_loss, random_model_metric = evaluate_trainer(random_trainer, dataloader)
@@ -307,9 +304,10 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
             logging.info(f"Printing random model parameters {get_param_tensor(random_model)}")
 
-            random_attacked_weight = random_model.fc.weight[:, sensitive_attribute_id]
-            logging.info(
-                f"Printing attacked feature's weight: {random_attacked_weight}")
+            if random_model.__class__.__name__ == "LinearLayer":
+                random_attacked_weight = random_model.fc.weight[:, sensitive_attribute_id]
+                logging.info(
+                    f"Printing attacked feature's weight: {random_attacked_weight}")
 
             aia_score_random = evaluate_aia(model=random_model, dataset=dataset,
                                             sensitive_attribute_id=sensitive_attribute_id,
@@ -320,11 +318,9 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                             is_binary_classification=is_binary_classification,
                                             learning_rate=learning_rate,
                                             optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
-                                            torch_rng=torch_rng, output_losses=True)
-            scores_per_client_dict["random"][attacked_client_id] = aia_score_random
+                                            torch_rng=torch_rng, output_losses=False)
+            scores_per_client_dict["random"][f"{attacked_client_id}"] = aia_score_random
             logging.info(f"Score={aia_score_random:.3f} for client {attacked_client_id} with random model")
-            logging.info("=" * 100)
-
 
         try:
             reference_model = reference_trainers_dict[f"{attacked_client_id}"].model
@@ -339,9 +335,9 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         if debug:
             logging.info(f"Printing global model parameters: {get_param_tensor(global_model)}")
-            global_attacked_weight = global_model.fc.weight[:, sensitive_attribute_id]
-            logging.info(f"Printing attacked feature's weight: {global_attacked_weight}")
-
+            if global_model.__class__.__name__ == "LinearLayer":
+                global_attacked_weight = global_model.fc.weight[:, sensitive_attribute_id]
+                logging.info(f"Printing attacked feature's weight: {global_attacked_weight}")
 
         aia_score_global = evaluate_aia(model=global_model, dataset=dataset,
                                         sensitive_attribute_id=sensitive_attribute_id,
@@ -350,9 +346,8 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                         criterion=criterion,
                                         is_binary_classification=is_binary_classification, learning_rate=learning_rate,
                                         optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
-                                        torch_rng=torch_rng, output_losses=True)
+                                        torch_rng=torch_rng, output_losses=False)
         logging.info(f"Score={aia_score_global:.3f} for client {attacked_client_id} with global model")
-        logging.info("=" * 100)
 
         reference_model_loss, reference_model_metric = evaluate_trainer(
             trainer=reference_trainers_dict[f"{attacked_client_id}"],
@@ -364,9 +359,10 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         if debug:
             logging.info(f"Printing reference model parameters: {get_param_tensor(reference_model)}")
-            reference_attacked_weight = reference_model.fc.weight[:, sensitive_attribute_id]
-            logging.info(
-                f"Printing attacked feature's weight: {reference_attacked_weight}")
+            if reference_model.__class__.__name__ == "LinearLayer":
+                reference_attacked_weight = reference_model.fc.weight[:, sensitive_attribute_id]
+                logging.info(
+                    f"Printing attacked feature's weight: {reference_attacked_weight}")
 
         aia_score_reference = evaluate_aia(model=reference_model, dataset=dataset, num_iterations=aia_num_rounds,
                                            sensitive_attribute_id=sensitive_attribute_id,
@@ -376,19 +372,51 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                            learning_rate=learning_rate,
                                            optimizer_name=optimizer_name,
                                            success_metric=success_metric, rng=rng, torch_rng=torch_rng,
-                                           output_losses=True)
+                                           output_losses=False)
         logging.info(f"Score={aia_score_reference:.3f} for client {attacked_client_id} with reference model")
 
-        metrics_dict["reference"][attacked_client_id] = reference_model_metric
-        metrics_dict["global"][attacked_client_id] = global_metric
+        metrics_dict["reference"][f"{attacked_client_id}"] = reference_model_metric
+        metrics_dict["global"][f"{attacked_client_id}"] = global_metric
 
-        scores_per_client_dict["reference"][attacked_client_id] = aia_score_reference
-        scores_per_client_dict["global"][attacked_client_id] = aia_score_global
+        scores_per_client_dict["reference"][f"{attacked_client_id}"] = aia_score_reference
+        scores_per_client_dict["global"][f"{attacked_client_id}"] = aia_score_global
 
         n_samples_list.append(len(dataset))
 
     return scores_per_client_dict, metrics_dict, n_samples_list
 
+
+def log_scores(metrics_dict, scores_per_client_dict, n_samples_list, debug):
+
+    global_metric = list(metrics_dict["global"].values())
+    reference_metric = list(metrics_dict["reference"].values())
+    avg_global_metric = weighted_average(global_metric, n_samples_list)
+    avg_reference_metric = weighted_average(reference_metric, n_samples_list)
+    global_score = list(scores_per_client_dict["global"].values())
+    avg_global_score = weighted_average(global_score, n_samples_list)
+    reference_score = list(scores_per_client_dict["reference"].values())
+    avg_reference_score = weighted_average(reference_score, n_samples_list)
+
+    logging.info(f"Average metric for global model: {avg_global_metric:.3f}")
+    logging.info(f"Average score for global model: {avg_global_score:.3f}")
+    logging.info(f"Average metric for reference models: {avg_reference_metric:.3f}")
+    logging.info(f"Average score for reference models: {avg_reference_score:.3f}")
+
+
+    if debug:
+        random_metric = list(metrics_dict["random"].values())
+        avg_random_metric = weighted_average(random_metric, n_samples_list)
+        client_metric = list(metrics_dict["client"].values())
+        avg_client_metric = weighted_average(client_metric, n_samples_list)
+        random_score = list(scores_per_client_dict["random"].values())
+        avg_random_score = weighted_average(random_score, n_samples_list)
+        client_score = list(scores_per_client_dict["client"].values())
+        avg_client_score = weighted_average(client_score, n_samples_list)
+
+        logging.info(f"Average metric for random model: {avg_random_metric:.3f}")
+        logging.info(f"Average score for random model: {avg_random_score:.3f}")
+        logging.info(f"Average metric for client models: {avg_client_metric:.3f}")
+        logging.info(f"Average score for client models: {avg_client_score:.3f}")
 
 def main():
 
@@ -451,22 +479,14 @@ def main():
         rng=rng, torch_rng=torch_rng, debug=args.debug
     )
 
-    global_scores = list(metrics_dict["global"].values())
-    avg_global_score = weighted_average(global_scores, n_samples_list)
-    logging.info(f"Average metric for global model: {avg_global_score:.3f}")
-
-
-    if args.debug:
-        random_scores = list(metrics_dict["random"].values())
-        avg_random_score = weighted_average(random_scores, n_samples_list)
-        logging.info(f"Average metric for random model: {avg_random_score:.3f}")
-
+    log_scores(metrics_dict, scores_per_client_dict, n_samples_list, args.debug)
 
     logging.info("Saving scores..")
     os.makedirs(args.results_dir, exist_ok=True)
     scores_path = os.path.join(args.results_dir, f"aia_round_{args.attacked_round}.json")
     with open(scores_path, "w") as f:
         json.dump(scores_per_client_dict, f)
+
 
 
 if __name__ == "__main__":
