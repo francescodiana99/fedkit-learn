@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from collections import defaultdict
 
 from fedklearn.metrics import *
 
@@ -240,7 +241,7 @@ def evaluate_sia(attacked_client_id, dataloader, trainers_dict):
 def evaluate_aia(
         model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device, num_iterations,
         criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None,
-        output_losses=False
+        output_losses=False, output_predictions=False
 ):
 
     attack_simulator = ModelDrivenAttributeInferenceAttack(
@@ -264,6 +265,8 @@ def evaluate_aia(
 
     if output_losses:
         logging.info(f"{all_losses[:20]}")
+
+    if output_predictions:
         logging.info(f"{all_losses[:20].argmax(axis=1)}")
     return float(score)
 
@@ -299,19 +302,11 @@ def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_ta
         with open(results_path, 'r') as f:
             results = json.load(f)
     else:
-        results = dict()
+        results = defaultdict()
     if seed not in results:
         results[seed] = dict()
 
-    if split_criterion not in results[seed]:
-        results[seed][split_criterion] = dict()
-    if str(n_tasks) not in results[seed][split_criterion]:
-        results[seed][split_criterion][str(n_tasks)] = dict()
-    if split_criterion in ["n_tasks", "n_task_samples"]:
-        if str(n_samples_list[-1]) not in results[seed][split_criterion][str(n_tasks)]:
-            results[seed][split_criterion][str(n_tasks)][str(n_samples_list[-1])] = dict()
-
-    if split_criterion in ["n_tasks", "n_task_samples"]:
+    if split_criterion == ["n_task_samples"]:
         results[seed][split_criterion][str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
     else:
         results[seed][split_criterion][str(n_tasks)][attack_name] = avg_score
