@@ -50,6 +50,7 @@ Options:
     --num_rounds: Number of simulation rounds.
     --seed: Random seed for reproducibility.
     --binarize_marital_status: Flag for binarizing the marital status.
+    --force_generation: Flag for forcing the generation of the dataset.
 """
 import argparse
 import logging
@@ -332,6 +333,20 @@ def parse_args(args_list=None):
         default=False
     )
 
+    parser.add_argument(
+        "--force_generation",
+        action="store_true",
+        help="Flag for forcing the generation of the dataset",
+        default=False
+    )
+
+    parser.add_argument(
+        "--sensitive_attribute_id",
+        type=int,
+        default=0,
+        help="Sensitive attribute id"
+    )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -365,9 +380,11 @@ def initialize_dataset(args, rng):
             n_tasks=args.n_tasks,
             n_task_samples=args.n_task_samples,
             download=True,
-            force_generation=True,
+            force_generation=args.force_generation,
             seed=args.seed,
-            binarize_marital_status=args.binarize_marital_status
+            binarize_marital_status=args.binarize_marital_status,
+            sensitive_attribute_id=args.sensitive_attribute_id,
+            device=args.device
         )
     elif args.task_name == "toy_regression":
         return FederatedToyDataset(
