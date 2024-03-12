@@ -15,10 +15,17 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 
+from  fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+
+from torch import nn
+
+from fedklearn.models.linear import LinearLayer
 
 from .constants import *
+from ...metrics import binary_accuracy_with_sigmoid, threshold_binary_accuracy
+from ...trainer.trainer import Trainer
 
 
 class FederatedAdultDataset:
@@ -55,6 +62,10 @@ class FederatedAdultDataset:
         seed (int, optional): The seed for the random number generator. Default is 42.
 
         binarize_marital_status (bool, optional): Whether to binarize the marital status. Default is `False`.
+
+        device (str, optional): The device to use for training the model. Default is 'cpu'.
+
+        sensitive_attribute_id (int, optional): The index of the sensitive attribute in the dataset. Default is `None`.
 
 
     Attributes:
@@ -129,6 +140,14 @@ class FederatedAdultDataset:
             Split the data using Gaussian Mixture Model.
             Returns a dictionary where keys are task names and values are DataFrames for each task.
 
+        _split_by_prediction(self, df):
+            Split the data according to the prediction of a Linear model.
+            Returns a dictionary where keys are task names and values are DataFrames for each task.
+
+        _split_by_aia(self, df):
+            Split the data according to the attribute inference attack.
+            Returns a dictionary where keys are task names and values are DataFrames for each task.
+
         _split_data_into_tasks(self, df):
             Split the Adult dataset across multiple clients based on specified criteria.
             Returns a dictionary where keys are task names or numbers, and values are DataFrames for each task.
@@ -147,7 +166,7 @@ class FederatedAdultDataset:
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
             rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, binarize_marital_status=False
+            seed=42, binarize_marital_status=False, device='cpu', sensitive_attribute_id=None
     ):
         """
         Raises:
@@ -165,6 +184,8 @@ class FederatedAdultDataset:
         self.force_generation = force_generation
         self.seed = seed
         self.binarize_marital_status = binarize_marital_status
+        self.device = device
+        self.sensitive_attribute_id = sensitive_attribute_id
 
         if rng is None:
             rng = np.random.default_rng()
@@ -197,6 +218,20 @@ class FederatedAdultDataset:
             self.scaler = self.set_scaler(self.scaler_name)
 
             train_df, test_df = self._download_and_preprocess()
+
+            if self.split_criterion in ['prediction', 'aia']:
+
+                train_df = train_df.drop(['education', 'age'], axis=1)
+                test_df = test_df.drop(['education', 'age'], axis=1)
+
+                train_dataset = AdultDataset(train_df)
+                test_dataset = AdultDataset(test_df)
+
+                train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=True)
+                test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=True)
+
+                self.split_model = self._train_splitting_model(train_loader=train_loader, test_loader=test_loader,
+                                                               device=self.device)
 
             train_tasks_dict = self._split_data_into_tasks(train_df)
             test_tasks_dict = self._split_data_into_tasks(test_df)
@@ -278,6 +313,61 @@ class FederatedAdultDataset:
 
         return features_scaled
 
+    def _train_splitting_model(self, train_loader, test_loader, device):
+        """Train a model to split the data into tasks."""
+
+        logging.info(f"Training a linear model to split the data...")
+
+        if self.binarize_marital_status:
+            linear_model = LinearLayer(input_dimension=36, output_dimension=1)
+        else:
+            linear_model = LinearLayer(input_dimension=41, output_dimension=1)
+        trainer = Trainer(model=linear_model,
+                          criterion=torch.nn.BCEWithLogitsLoss(),
+                          optimizer=torch.optim.SGD(linear_model.parameters(), lr=0.02),
+                          device=device,
+                          metric=binary_accuracy_with_sigmoid,
+                          is_binary_classification=True
+                          )
+        trainer.fit_epochs(loader=train_loader, n_epochs=200)
+        train_loss, train_metric = trainer.evaluate_loader(train_loader)
+        test_loss, test_metric = trainer.evaluate_loader(test_loader)
+
+        logging.info(f"Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
+        logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
+
+        return linear_model
+
+    @staticmethod
+    def _get_model_split(linear_model, dataloader, columns, device):
+        """Split the data based on the prediction of a linear model."""
+        tasks_dict = dict()
+        tasks_dict["0"] = pd.DataFrame(columns=columns)
+        tasks_dict["1"] = pd.DataFrame(columns=columns)
+
+        linear_model.eval()
+        for x, y in dataloader:
+            x = x.to(device)
+            y = y.to(device)
+            y_pred = torch.round(torch.sigmoid(linear_model(x)))
+
+            y_pred = y_pred.squeeze()
+
+            prediction_mask = torch.eq(y_pred, y).type(torch.float32)
+            tasks_data = torch.cat((x,y.unsqueeze(1), prediction_mask.unsqueeze(1)), dim=1).cpu().numpy()
+            tasks_df = pd.DataFrame(tasks_data)
+
+            tasks_df_0 = tasks_df[tasks_df[-1] == 0].drop(-1, axis=1)
+            tasks_df_0.columns = columns
+
+            tasks_df_1 = tasks_df[tasks_df[-1] == 1].drop(-1, axis=1)
+            tasks_df_1.columns = columns
+
+            # TODO: it is slow, check if there is a way to speed up
+            tasks_dict["0"] = pd.concat([tasks_dict["0"], tasks_df_0], axis=0)
+            tasks_dict["1"] = pd.concat([tasks_dict["1"], tasks_df_1], axis=0)
+
+        return tasks_dict
 
     def _split_by_age_education(self, df):
 
@@ -305,7 +395,6 @@ class FederatedAdultDataset:
                 )
 
         return tasks_dict
-
 
     def _split_by_age(self, df):
         tasks_dict = dict()
@@ -402,7 +491,6 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-
     def _split_by_kmeans(self, df):
         """ Split the dataset using k-means"""
 
@@ -431,6 +519,39 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
+    def _split_by_prediction(self, df):
+        """Split the dataset according to the prediction of a Linear model"""
+
+        columns = df.columns
+        dataset = AdultDataset(df)
+        dataloader = DataLoader(dataset, batch_size=1024, shuffle=True)
+        device = self.device
+        tasks_dict = self._get_model_split(self.split_model, dataloader, columns, device)
+
+        return tasks_dict
+    def _split_by_aia(self, df):
+        """Split the dataset according to the attribute inference attack"""
+        columns = df.columns
+        dataset = AdultDataset(df)
+        attack_simulator = ModelDrivenAttributeInferenceAttack(model=self.split_model, dataset=dataset,
+                                                               device=self.device,
+                                                               sensitive_attribute_id=self.sensitive_attribute_id,
+                                                               sensitive_attribute_type="binary",
+                                                               initialization="normal",
+                                                               criterion= nn.BCEWithLogitsLoss(reduction="none").to(self.device),
+                                                               is_binary_classification=True,
+                                                               learning_rate=0.03,
+                                                               optimizer_name="sgd",
+                                                               success_metric=threshold_binary_accuracy
+                                                  )
+        df_dict = attack_simulator.execute_attack_and_split_data()
+        tasks_dict = dict()
+        df_dict["wrong_reconstructions"].columns = columns
+        df_dict["correct_reconstructions"].columns = columns
+        tasks_dict["0"] = df_dict["wrong_reconstructions"]
+        tasks_dict["1"] = df_dict["correct_reconstructions"]
+
+        return tasks_dict
 
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
@@ -455,13 +576,18 @@ class FederatedAdultDataset:
             'n_tasks': self._split_by_n_tasks,
             'n_tasks_labels': self._split_by_n_tasks_and_labels,
             'kmeans': self._split_by_kmeans,
-            'gmm': self._split_by_gmm
+            'gmm': self._split_by_gmm,
+            'prediction': self._split_by_prediction,
+            'aia': self._split_by_aia
         }
 
         if self.split_criterion in split_criterion_dict:
             if self.split_criterion in ['n_tasks', 'n_tasks_labels', 'kmeans', 'gmm'] and self.n_tasks is None:
                 raise ValueError(f"Number of tasks must be specified when using {', '.join(split_criterion_dict)}' "
                                  "split criteria.")
+
+            if self.split_criterion == 'aia' and self.sensitive_attribute_id is None:
+                raise ValueError(f"The sensitive attribute id must be specified when using the 'aia' split criterion.")
 
             if self.split_criterion == 'n_tasks_labels'and self.n_task_samples < 2:
                 raise ValueError(f"The number of samples for each task must be at least 2 when using the "
