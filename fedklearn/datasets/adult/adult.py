@@ -25,7 +25,7 @@ from fedklearn.models.linear import LinearLayer
 
 from .constants import *
 from ...metrics import binary_accuracy_with_sigmoid, threshold_binary_accuracy
-from ...trainer.trainer import Trainer
+from ...trainer.trainer import Trainer, DebugTrainer
 
 
 class FederatedAdultDataset:
@@ -63,6 +63,8 @@ class FederatedAdultDataset:
 
         binarize_marital_status (bool, optional): Whether to binarize the marital status. Default is `False`.
 
+        binarize_race (bool, optional): Whether to binarize the race. Default is `False`.
+
         device (str, optional): The device to use for training the model. Default is 'cpu'.
 
         sensitive_attribute_id (int, optional): The index of the sensitive attribute in the dataset. Default is `None`.
@@ -96,6 +98,9 @@ class FederatedAdultDataset:
             
         _transform_marital_status(x):
             A static method to transform the marital status.
+
+        _transform_race(x):
+            A static method to transform the race.
 
         _scale_features(self, df, scaler, mode="train"):
             Scale numerical features of the DataFrame.
@@ -159,14 +164,14 @@ class FederatedAdultDataset:
 
 
     Examples:
-        >>> federated_data = FederatedAdultDataset(cache_dir="./data", test_frac=0.2FederatedAdultDataset)
+        >>> federated_data = FederatedAdultDataset(cache_dir="./data", test_frac=0.2)
         >>> client_train_dataset = federated_data.get_task_dataset(task_id=0, mode="train")
         >>> client_test_dataset = federated_data.get_task_dataset(task_id=0, mode="test")
     """
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
             rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, binarize_marital_status=False, device='cpu', sensitive_attribute_id=None
+            seed=42, binarize_marital_status=False, binarize_race=False, device='cpu', sensitive_attribute_id=None
     ):
         """
         Raises:
@@ -183,7 +188,8 @@ class FederatedAdultDataset:
         self.n_task_samples = n_task_samples
         self.force_generation = force_generation
         self.seed = seed
-        self.binarize_marital_status = binarize_marital_status
+        self.binarize_marital_status = binarize_marital_status,
+        self.binarize_race = binarize_race
         self.device = device
         self.sensitive_attribute_id = sensitive_attribute_id
 
@@ -287,6 +293,14 @@ class FederatedAdultDataset:
 
 
     @staticmethod
+    def _transform_race(x):
+        if x == "White":
+            return 1
+        else:
+            return 0
+
+
+    @staticmethod
     def _scale_features(df, scaler, mode="train"):
         numerical_columns = df.select_dtypes(include=['number']).columns
 
@@ -313,6 +327,7 @@ class FederatedAdultDataset:
 
         return features_scaled
 
+
     def _train_splitting_model(self, train_loader, test_loader, device):
         """Train a model to split the data into tasks."""
 
@@ -322,14 +337,14 @@ class FederatedAdultDataset:
             linear_model = LinearLayer(input_dimension=36, output_dimension=1)
         else:
             linear_model = LinearLayer(input_dimension=41, output_dimension=1)
-        trainer = Trainer(model=linear_model,
+        trainer = DebugTrainer(model=linear_model,
                           criterion=torch.nn.BCEWithLogitsLoss(),
                           optimizer=torch.optim.SGD(linear_model.parameters(), lr=0.02),
                           device=device,
                           metric=binary_accuracy_with_sigmoid,
                           is_binary_classification=True
                           )
-        trainer.fit_epochs(loader=train_loader, n_epochs=200)
+        trainer.fit_epochs(loader=train_loader, n_epochs=100)
         train_loss, train_metric = trainer.evaluate_loader(train_loader)
         test_loss, test_metric = trainer.evaluate_loader(test_loader)
 
@@ -338,8 +353,8 @@ class FederatedAdultDataset:
 
         return linear_model
 
-    @staticmethod
-    def _get_model_split(linear_model, dataloader, columns, device):
+
+    def _get_model_split(self, linear_model, dataloader, columns, device):
         """Split the data based on the prediction of a linear model."""
         tasks_dict = dict()
         tasks_dict["0"] = pd.DataFrame(columns=columns)
@@ -357,10 +372,10 @@ class FederatedAdultDataset:
             tasks_data = torch.cat((x,y.unsqueeze(1), prediction_mask.unsqueeze(1)), dim=1).cpu().numpy()
             tasks_df = pd.DataFrame(tasks_data)
 
-            tasks_df_0 = tasks_df[tasks_df[-1] == 0].drop(-1, axis=1)
+            tasks_df_0 = tasks_df[columns[-1] == 0].drop(columns[-1], axis=1)
             tasks_df_0.columns = columns
 
-            tasks_df_1 = tasks_df[tasks_df[-1] == 1].drop(-1, axis=1)
+            tasks_df_1 = tasks_df[columns[-1] == 0].drop(columns[-1], axis=1)
             tasks_df_1.columns = columns
 
             # TODO: it is slow, check if there is a way to speed up
@@ -368,6 +383,7 @@ class FederatedAdultDataset:
             tasks_dict["1"] = pd.concat([tasks_dict["1"], tasks_df_1], axis=0)
 
         return tasks_dict
+
 
     def _split_by_age_education(self, df):
 
@@ -396,6 +412,7 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
+
     def _split_by_age(self, df):
         tasks_dict = dict()
         required_columns = {'age'}
@@ -419,6 +436,7 @@ class FederatedAdultDataset:
                 )
 
         return tasks_dict
+
 
     def _split_by_n_tasks(self, df):
         tasks_dict = dict()
@@ -449,6 +467,7 @@ class FederatedAdultDataset:
             start_index = end_index
 
         return tasks_dict
+
 
     def _split_by_n_tasks_and_labels(self, df):
         """Split the adult dataset according to the number of tasks, maintaining both the labels in the datasets."""
@@ -491,6 +510,7 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
+
     def _split_by_kmeans(self, df):
         """ Split the dataset using k-means"""
 
@@ -505,6 +525,7 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
+
     def _split_by_gmm(self, df):
         """ Split the dataset using Gaussian Mixture Model"""
 
@@ -518,6 +539,7 @@ class FederatedAdultDataset:
             tasks_dict[f"task_{i}"] = task_df
 
         return tasks_dict
+
 
     def _split_by_prediction(self, df):
         """Split the dataset according to the prediction of a Linear model"""
@@ -552,6 +574,7 @@ class FederatedAdultDataset:
         tasks_dict["1"] = df_dict["correct_reconstructions"]
 
         return tasks_dict
+
 
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
@@ -599,6 +622,7 @@ class FederatedAdultDataset:
                              f" Supported criteria are {', '.join(split_criterion_dict)}.")
 
         return tasks_dict
+
 
     def _save_task_mapping(self, metadata_dict):
         if os.path.exists(self._metadata_path):
@@ -709,6 +733,10 @@ class FederatedAdultDataset:
         if self.binarize_marital_status:
             df["marital-status"] = df["marital-status"].apply(self._transform_marital_status)
             CATEGORICAL_COLUMNS.remove('marital-status')
+
+        if self.binarize_race:
+            df["race"] = df.race.apply(self._transform_race)
+            CATEGORICAL_COLUMNS.remove('race')
 
         df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
 
