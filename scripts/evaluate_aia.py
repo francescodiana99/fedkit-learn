@@ -6,10 +6,6 @@ import pandas as pd
 
 import numpy as np
 
-import matplotlib.pyplot as plt
-
-import seaborn as sns
-
 from torch.utils.data import DataLoader
 
 from fedklearn.utils import get_param_tensor
@@ -377,21 +373,6 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         n_samples_list.append(len(dataset))
 
     return scores_per_client_dict, metrics_dict, n_samples_list
-
-def box_plot(all_losses_flip, all_losses_no_flip, model_name):
-    data = [all_losses_flip, all_losses_no_flip]
-
-    plt.figure(figsize=(16, 12))
-    labels = ['Flip', 'No Flip']
-    plt.xticks(range(len(labels)), labels)
-    plt.title(model_name)
-    sns.boxplot(data=data)
-
-    # Add labels and title
-    plt.ylabel('Loss')
-    # Show plot
-    plt.show()
-
 
 def log_metrics(trainer, path):
     for attacked_client_id in range(len(trainer)):
