@@ -50,6 +50,29 @@ def r2_score(y_true, y_pred):
     return r2
 
 
+def multiclass_accuracy_with_softmax(y_pred, y_true):
+    """
+    Calculate multiclass accuracy. Applies softmax before selecting the max y_pred.
+
+    Parameters:
+    - y_pred (torch.Tensor): Tensor containing predicted values.
+    - y_true (torch.Tensor): Tensor containing true labels.
+
+    Returns:
+    - float: Multiclass accuracy.
+    """
+    assert y_pred.shape[0] == y_true.shape[0], "Shapes of predictions and targets must match."
+
+    softmax  = nn.Softmax(dim=1)
+    predicted_labels = torch.argmax(softmax(y_pred), dim=1)
+
+    correct_predictions = (predicted_labels == y_true).float()
+
+    accuracy = correct_predictions.sum() / len(y_true)
+
+    return accuracy.item()
+
+
 def binary_accuracy_with_sigmoid(y_pred, y_true):
     """
     Calculate binary accuracy. Applies sigmoid activation to y_pred before rounding.
