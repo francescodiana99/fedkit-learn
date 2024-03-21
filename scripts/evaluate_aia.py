@@ -9,8 +9,6 @@ import numpy as np
 from torch.utils.data import DataLoader
 
 from fedklearn.utils import get_param_tensor
-
-from miscellaneous.aia_dataset import AIADataset
 from fedklearn.attacks.aia import AttributeInferenceAttack
 from utils import *
 from constants import *
@@ -191,16 +189,6 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def evaluate_on_aia_results(trainer, path):
-    """Evaluate the model on the clones' features with higher loss. Used for debugging purposes"""
-    df = pd.read_csv(path)
-    if 'Unnamed: 0' in df.columns:
-        df = df.drop(columns=['Unnamed: 0'])
-    dataset = AIADataset(df)
-    dataloader = DataLoader(dataset, batch_size=1)
-    loss, metric, all_losses = evaluate_trainer(trainer, dataloader)
-    return loss, metric, all_losses
-
 def evaluate_trainer(trainer, dataloader):
     evaluation_trainer = copy.deepcopy(trainer)
     if evaluation_trainer.is_binary_classification:
@@ -373,41 +361,6 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         n_samples_list.append(len(dataset))
 
     return scores_per_client_dict, metrics_dict, n_samples_list
-
-def log_metrics(trainer, path):
-    for attacked_client_id in range(len(trainer)):
-        flip_features_loss, flip_features_metric, all_losses_flip = evaluate_on_aia_results(
-            trainer[f"{attacked_client_id}"], path=os.path.join(path, f"{attacked_client_id}", "flipped_features.csv"))
-
-        wrong_aia_flip_loss, wrong_aia_flip_metric, wrong_aia_flip_all_losses = evaluate_on_aia_results(
-            trainer[f"{attacked_client_id}"], path=os.path.join(path,f"{attacked_client_id}", "recon_error_flipped_feature.csv"))
-        wrong_aia_correct_features_loss, wrong_aia_correct_features_metric, all_losses_wrong_aia_correct_features = (
-            evaluate_on_aia_results(
-            trainer[f"{attacked_client_id}"], path=os.path.join(path, f"{attacked_client_id}", "recon_error_initial_feature.csv")))
-
-        correct_predictions_loss, correct_predictions_metric, all_losses_correct_preds = evaluate_on_aia_results(
-            trainer[f"{attacked_client_id}"], path=os.path.join(path, f"{attacked_client_id}", "correct_reconstructions.csv"))
-
-        right_recon_flip_feature_loss, right_recon_flip_feature_metric, all_losses_right_recon_flip_feature =\
-            evaluate_on_aia_results(
-            trainer[f"{attacked_client_id}"], path=os.path.join(path, f"{attacked_client_id}", "correct_recon_flipped_feature.csv"))
-
-        logging.info(f"Model {attacked_client_id} loss all flip: {flip_features_loss:.3f},"
-                     f" accuracy: {flip_features_metric:.3f}")
-
-        logging.info(f" Model {attacked_client_id} loss Success/No Flip: "
-                     f"{correct_predictions_loss:.3f}, accuracy: "
-                     f"{correct_predictions_metric:.3f}")
-        logging.info(f" Model {attacked_client_id} loss Success/Flip: "
-                     f"{right_recon_flip_feature_loss:.3f}, "
-                     f"accuracy: {right_recon_flip_feature_metric:.3f}")
-        logging.info(
-            f" Model {attacked_client_id} loss on Fail/Flip: {wrong_aia_flip_loss:.3f}, "
-            f"accuracy: {wrong_aia_flip_metric:.3f}")
-        logging.info(f"Model {attacked_client_id} loss Fail/No Flip:"
-                     f" {wrong_aia_correct_features_loss:.3f}, "
-                     f"accuracy: {wrong_aia_correct_features_metric:.3f}")
-
 
 def main():
 
