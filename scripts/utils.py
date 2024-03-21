@@ -3,11 +3,13 @@ import json
 import logging
 from collections import defaultdict
 
+from tqdm import tqdm
+
 from fedklearn.metrics import *
 
 from fedklearn.models.linear import LinearLayer, TwoLinearLayers
 from fedklearn.models.sequential import SequentialNet
-from fedklearn.trainer.trainer import Trainer
+from fedklearn.trainer.trainer import Trainer, DebugTrainer
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
@@ -201,7 +203,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
         model = model_init_fn()
         model.load_state_dict(model_chkpts)
 
-        trainers_dict[client_id] = Trainer(
+        trainers_dict[client_id] = DebugTrainer(
             model=model,
             criterion=criterion,
             metric=metric,
@@ -270,6 +272,78 @@ def evaluate_aia(
         logging.info(f"{all_losses[:20].argmax(axis=1)}")
     return float(score)
 
+def split_data_by_aia(reference_trainers_dict, global_trainer, federated_dataset, sensitive_attribute,
+                      sensitive_attribute_type, initialization, device,criterion,
+                      is_binary_classification, learning_rate, optimizer_name, success_metric, data_path,
+                      rng=None, torch_rng=None, verbose=False):
+    """
+    Split data in multiple datasets based on the AIA results.
+    """
+    global_model = global_trainer.model
+    global_model.eval()
+    # df_dict = get_aia_split(model=global_model, dataset=dataset, sensitive_attribute_id=sensitive_attribute_id,
+    #                         sensitive_attribute_type=sensitive_attribute_type, initialization=initialization,
+    #                         device=device, criterion=criterion, is_binary_classification=is_binary_classification,
+    #                         learning_rate=learning_rate, optimizer_name=optimizer_name, success_metric=success_metric,
+    #                         rng=rng, torch_rng=torch_rng, verbose=verbose)
+
+    # for key in df_dict.keys():
+    #     df_dict[key].to_csv(f"{data_path}/global/{key}.csv", index=False)
+
+    num_clients = len(reference_trainers_dict)
+
+    for attacked_client_id in tqdm(range(num_clients)):
+        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode="train")
+        sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
+        attacked_model = reference_trainers_dict[f"{attacked_client_id}"].model
+        attacked_model.eval()
+        df_dict_global = get_aia_split(model=global_model, dataset=dataset, sensitive_attribute_id=sensitive_attribute_id,
+                                sensitive_attribute_type=sensitive_attribute_type, initialization=initialization,
+                                device=device, criterion=criterion, is_binary_classification=is_binary_classification,
+                                learning_rate=learning_rate, optimizer_name=optimizer_name,
+                                success_metric=success_metric,
+                                rng=rng, torch_rng=torch_rng, verbose=verbose)
+        df_dict = get_aia_split(model=attacked_model, dataset=dataset,
+                                sensitive_attribute_id=sensitive_attribute_id,
+                                sensitive_attribute_type=sensitive_attribute_type, initialization=initialization,
+                                device=device, criterion=criterion, is_binary_classification=is_binary_classification,
+                                learning_rate=learning_rate, optimizer_name=optimizer_name, success_metric=success_metric,
+                                rng=rng, torch_rng=torch_rng, verbose=verbose)
+        for key in df_dict.keys():
+            os.makedirs(os.path.join(data_path, f"{attacked_client_id}"), exist_ok=True)
+            df_dict[key].to_csv(f"{data_path}/{attacked_client_id}/{key}.csv", index=False)
+
+            # TODO: fix this
+        for key in df_dict_global.keys():
+            os.makedirs(os.path.join(data_path, "global", f"{attacked_client_id}",), exist_ok=True)
+            df_dict_global[key].to_csv(f"{data_path}/global/{attacked_client_id}/{key}.csv", index=False)
+
+
+def get_aia_split(model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device,
+                  criterion, is_binary_classification, learning_rate, optimizer_name,
+                  success_metric, rng=None, torch_rng=None, verbose=False
+                  ):
+
+    """
+    Split data according to the AIA.
+    """
+    attack_simulator = ModelDrivenAttributeInferenceAttack(
+        model=model,
+        dataset=dataset,
+        sensitive_attribute_id=sensitive_attribute_id,
+        sensitive_attribute_type=sensitive_attribute_type,
+        initialization=initialization,
+        device=device,
+        criterion=criterion,
+        is_binary_classification=is_binary_classification,
+        learning_rate=learning_rate,
+        optimizer_name=optimizer_name,
+        success_metric=success_metric,
+        rng=rng,
+        torch_rng=torch_rng
+    )
+
+    return attack_simulator.execute_attack_and_split_data(verbose=verbose)
 
 def weighted_average(scores, n_samples):
     if len(scores) != len(n_samples):
