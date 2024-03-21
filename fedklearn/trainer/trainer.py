@@ -1,7 +1,8 @@
+import logging
+
 import torch
 
 from ..utils import *
-
 
 class Trainer:
     """
@@ -336,7 +337,7 @@ class Trainer:
 
         return global_loss / n_samples, global_metric / n_samples
 
-    def evaluate_loader(self, loader):
+    def evaluate_loader(self, loader, output_losses=False):
         """
         Evaluate the Trainer on a provided data loader.
 
@@ -391,7 +392,7 @@ class Trainer:
 
                 n_samples += y.size(0)
 
-        return global_loss / n_samples, global_metric / n_samples
+            return global_loss / n_samples, global_metric / n_samples
 
     def fit_epochs(self, loader, n_epochs):
         """
@@ -525,3 +526,80 @@ class Trainer:
             param.require_grad = False
 
         self.model.eval()
+
+class DebugTrainer(Trainer):
+    """Trainer with additional debugging features."""
+    def __init__(self, model,criterion,metric,device,optimizer, model_name=None,lr_scheduler=None,
+                 is_binary_classification=False):
+        super(DebugTrainer, self).__init__(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=device,
+            optimizer=optimizer,
+            model_name=model_name,
+            lr_scheduler=lr_scheduler,
+            is_binary_classification=is_binary_classification
+        )
+        self.x_grad = None
+
+    def get_grad_by_layer(self):
+            for name, param in self.model.named_parameters():
+                print(f"Layer: {name}")
+                print(param.grad)
+                print(torch.nonzero(param.grad))
+                print("")
+
+    def fit_epoch(self, loader):
+        self.model.train()
+
+        global_loss = 0.
+        global_metric = 0.
+        n_samples = 0
+
+        for x, y in loader:
+            x = x.to(self.device).type(torch.float32)
+            x.requires_grad = True
+            y = y.to(self.device)
+
+            n_samples += y.size(0)
+
+            if self.is_binary_classification:
+                y = y.type(torch.float32)
+
+            self.optimizer.zero_grad()
+
+            y_pred = self.model(x)
+
+            if y_pred.shape[0] != 1:
+                y_pred = y_pred.squeeze()
+            else:
+                y_pred = y_pred.squeeze(dim=tuple(y_pred.shape[1:]))
+
+            loss = self.criterion(y_pred, y)
+
+            loss.backward()
+
+            self.x_grad = x.grad
+
+            self.optimizer.step()
+
+            global_loss += loss.item() * y.size(0)
+            global_metric += self.metric(y_pred, y) * y.size(0)
+
+        return global_loss / n_samples, global_metric / n_samples
+    def fit_epochs_check_gradient(self, loader, n_epochs, n_debug_epoch):
+        for step in range(n_epochs):
+            self.fit_epoch(loader)
+            if step % n_debug_epoch == 0:
+                self.get_grad_by_layer()
+
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
+
+    def fit_epochs(self, loader, n_epochs):
+        for step in range(n_epochs):
+            print(self.fit_epoch(loader))
+
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
