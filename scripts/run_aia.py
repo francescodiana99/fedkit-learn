@@ -32,8 +32,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification'.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase'.",
         required=True
     )
 
@@ -198,6 +198,9 @@ def main():
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
         is_binary_classification = False
+    elif args.task_name == "purchase":
+        criterion = nn.CrossEntropyLoss().to(args.device)
+        is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -220,7 +223,7 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        if args.task_name == "adult":
+        if args.task_name == "adult" or args.task_name == "purchase":
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
@@ -270,11 +273,13 @@ def main():
 
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
-    results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
-    load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
-                                 attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
 
-    logging.info(f"The results dictionary has been saved in {args.results_path}")
+    if args.task_name == "adult":
+        results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
+        load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+                                     attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
+
+        logging.info(f"The results dictionary has been saved in {args.results_path}")
 
 
 if __name__ == "__main__":

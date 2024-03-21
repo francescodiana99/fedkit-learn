@@ -174,10 +174,10 @@ class FederatedPurchaseDataset:
     def _download_data(self):
         tgzfile_path = os.path.join(self.raw_data_dir, TGZ_FILENAME)
         self._download_file(URL, tgzfile_path)
-        logging.debug(f"Data downloaded to {tgzfile_path}.")
+        logging.info(f"Data downloaded to {tgzfile_path}.")
 
         self._unzip_file(tgzfile_path, self.raw_data_dir)
-        logging.debug(f"Raw data unzipped to {self.raw_data_dir}.")
+        logging.info(f"Raw data unzipped to {self.raw_data_dir}.")
 
 
     def _save_task_mapping(self, metadata_dict):
@@ -233,7 +233,7 @@ class FederatedPurchaseDataset:
         bi = group_size * num_small_groups
         group_size += 1
         for i in range(num_big_groups):
-            test_tasks_dict[f"{i}"] = df.iloc[bi + group_size * i:bi + group_size * (i + 1)]
+            test_tasks_dict[f"{i + num_small_groups}"] = df.iloc[bi + group_size * i:bi + group_size * (i + 1)]
 
         return test_tasks_dict
 
@@ -271,6 +271,8 @@ class FederatedPurchaseDataset:
 
 
     def get_task_dataset(self, task_id, mode='train'):
+
+        task_id = str(task_id)
 
         if mode not in {'train', 'test'}:
             raise ValueError(f"Mode '{mode}' is not recognized.  Supported values are 'train' or 'test'.")

@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
+from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset
 from fedklearn.metrics import *
 
 from fedklearn.models.linear import LinearLayer, TwoLinearLayers
@@ -112,6 +113,22 @@ def load_dataset(task_name, data_dir, rng):
             split_criterion=split_criterion,
 
         )
+    elif task_name == "purchase":
+        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
+            split_dict = json.load(f)
+        split_criterion = split_dict["split_criterion"]
+        n_tasks = split_dict["n_tasks"]
+        n_task_samples = split_dict["n_task_samples"]
+        return FederatedPurchaseDataset(
+            cache_dir=data_dir,
+            download=False,
+            force_generation=False,
+            rng=rng,
+            split_criterion=split_criterion,
+            n_tasks=n_tasks,
+            n_task_samples=n_task_samples
+        )
+
     elif task_name == "toy_regression" or task_name == "toy_classification":
         return FederatedToyDataset(
             cache_dir=data_dir,
@@ -172,6 +189,11 @@ def get_trainer_parameters(task_name, device, model_config_path):
         criterion = nn.MSELoss(reduction="none").to(device)
         is_binary_classification = False
         metric = mean_squared_error
+    elif task_name == "purchase":
+        criterion = nn.CrossEntropyLoss(reduction="none").to(device)
+        is_binary_classification = False
+        metric = multiclass_accuracy_with_softmax
+
     else:
         raise NotImplementedError(
             f"Network initialization for task '{task_name}' is not implemented"

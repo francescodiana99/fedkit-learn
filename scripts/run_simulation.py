@@ -68,6 +68,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
+from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
@@ -94,8 +95,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification'.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase'.",
         required=True
     )
 
@@ -364,9 +365,9 @@ def initialize_dataset(args, rng):
     Returns:
         FederatedDataset: Initialized federated dataset.
     """
-    if args.task_name != "adult" and args.n_tasks is None:
+    if args.task_name in ['toy_classification', 'toy_classification', 'purchase'] and args.n_tasks is None:
         raise ValueError(
-            "The number of tasks should be specified for the toy dataset."
+            f"The number of tasks should be specified for {args.task_name} dataset."
         )
 
     if args.task_name == "adult":
@@ -420,6 +421,17 @@ def initialize_dataset(args, rng):
             cache_dir=args.data_dir,
             rng=rng
         )
+
+    elif args.task_name == "purchase":
+        return FederatedPurchaseDataset(
+            cache_dir=args.data_dir,
+            download=True,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            n_task_samples=args.n_task_samples,
+            rng=rng,
+            split_criterion=args.split_criterion
+        )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{args.task_name}' is not implemented."
@@ -456,6 +468,12 @@ def initialize_trainer(args):
         criterion = nn.MSELoss().to(args.device)
         metric = mean_squared_error
         is_binary_classification = False
+
+    elif args.task_name == "purchase":
+        criterion = nn.CrossEntropyLoss().to(args.device)
+        metric = multiclass_accuracy_with_softmax
+        is_binary_classification = False
+
     else:
         raise NotImplementedError(
             f"Trainer initialization for task '{args.task_name}' is not implemented."
