@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import logging
 import requests
 import tarfile
@@ -116,6 +117,11 @@ class FederatedPurchaseDataset:
                 f"Data is not found in {self.raw_data_dir}. Please set `download=True`."
             )
         else:
+
+            # remove the task folder if it exists to avoid inconsistencies
+            if os.path.exists(self.tasks_folder):
+                shutil.rmtree(self.tasks_folder)
+
             logging.info("Downloading raw data..")
             os.makedirs(self.raw_data_dir, exist_ok=True)
             self._download_data()
@@ -133,7 +139,7 @@ class FederatedPurchaseDataset:
 
             for mode, task_dict in zip(['train', 'test'], task_dicts):
                 for task_name, task_data in task_dict.items():
-                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', task_name)
+                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
                     os.makedirs(task_cache_dir, exist_ok=True)
 
                     file_path = os.path.join(task_cache_dir, f'{mode}.csv')
@@ -249,6 +255,28 @@ class FederatedPurchaseDataset:
         return train_tasks_dict, test_tasks_dict
 
 
+    def _class_tasks_split(self, df):
+
+        assert df['class'].nunique() == self.n_tasks, "Number of tasks must be equal to the number of classes."
+
+        min_n_samples = min(df['class'].value_counts())
+        if self.n_tasks_samples >= min_n_samples:
+            raise ValueError(f"Number of samples per task must be lower than {min_n_samples}.")
+
+        train_tasks_dict = dict()
+        test_task_dict = dict()
+
+        for label in sorted(df['class'].unique()):
+            task_dict = df[df['class'] == label]
+            train_tasks_dict[f"{label}"] = task_dict.sample(n=self.n_tasks_samples, random_state=self.rng)
+            test_task_dict[f"{label}"] = task_dict.drop(train_tasks_dict[f"{label}"].index)
+
+        return train_tasks_dict, test_task_dict
+
+
+
+
+
     def _split_data_into_tasks(self, all_data):
         if self.tasks_folder is not None:
             os.makedirs(self.tasks_folder, exist_ok=True)
@@ -260,10 +288,9 @@ class FederatedPurchaseDataset:
 
         if self.split_criterion == "random":
             train_tasks_dict, test_tasks_dict = self._random_tasks_split(all_data)
+        elif self.split_criterion == "class":
+            train_tasks_dict, test_tasks_dict = self._class_tasks_split(all_data)
 
-        # TODO implement stratified sampling
-        elif self.split_criterion == "stratified":
-            raise NotImplementedError("Stratified sampling is not yet implemented.")
         else:
             raise ValueError(f"Split criterion '{self.split_criterion}' is not recognized.")
 
@@ -278,7 +305,7 @@ class FederatedPurchaseDataset:
             raise ValueError(f"Mode '{mode}' is not recognized.  Supported values are 'train' or 'test'.")
 
         task_name = self.task_id_to_name[task_id]
-        task_cache_dir = os.path.join(self.cache_dir, 'tasks', task_name)
+        task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
         file_path = os.path.join(task_cache_dir, f'{mode}.csv')
         task_data = pd.read_csv(file_path)
 
@@ -316,17 +343,3 @@ class PurchaseDataset(Dataset):
             Tuple[torch.Tensor, torch.LongTensor]: A tuple containing input features and target value.
         """
         return torch.Tensor(self.features[idx]), int(self.targets[idx])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
