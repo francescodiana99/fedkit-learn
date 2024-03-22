@@ -430,7 +430,8 @@ def initialize_dataset(args, rng):
             n_tasks=args.n_tasks,
             n_task_samples=args.n_task_samples,
             rng=rng,
-            split_criterion=args.split_criterion
+            split_criterion=args.split_criterion,
+            test_frac=args.test_frac
         )
     else:
         raise NotImplementedError(
