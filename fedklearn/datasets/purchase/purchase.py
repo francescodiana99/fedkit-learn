@@ -4,6 +4,8 @@ import shutil
 import logging
 import requests
 import tarfile
+from sklearn.model_selection import train_test_split
+
 
 from .constants import *
 import torch
@@ -36,6 +38,8 @@ class FederatedPurchaseDataset:
 
          split_criterion (str): Criterion to use for splitting the data into tasks. Default is "random".
 
+            test_frac (float): Fraction of the data to use for testing. Default is None.
+
          Attributes:
 
              raw_data_dir (str): The directory path for the raw data.
@@ -64,6 +68,9 @@ class FederatedPurchaseDataset:
             force_generation (bool): Whether to force the generation of the dataset even if it already exists.
 
             cache_dir (str): The directory path for caching downloaded and preprocessed data. Default is "./".
+
+            test_frac (float): Fraction of the data to use for testing. Default is None.
+
 
         Methods:
 
@@ -94,12 +101,13 @@ class FederatedPurchaseDataset:
 
              """
     def __init__(self, cache_dir="./", download=True, rng=None, force_generation=True, n_tasks=4,
-                 n_task_samples=1000, split_criterion="random"):
+                 n_task_samples=1000, split_criterion="random", test_frac=None):
         self.cache_dir = cache_dir
         self.download = download
         self.force_generation = force_generation
         self.rng = rng if rng is not None else np.random.default_rng()
         self.split_criterion = split_criterion
+        self.test_frac = test_frac
 
         self.raw_data_dir = os.path.join(self.cache_dir, "raw")
         self.intermediate_data_dir = os.path.join(self.cache_dir, "intermediate")
@@ -268,14 +276,20 @@ class FederatedPurchaseDataset:
 
         for label in sorted(df['class'].unique()):
             task_dict = df[df['class'] == label]
-            train_tasks_dict[f"{label}"] = task_dict.sample(n=self.n_tasks_samples, random_state=self.rng)
-            test_task_dict[f"{label}"] = task_dict.drop(train_tasks_dict[f"{label}"].index)
+            if self.test_frac is not None and self.n_tasks_samples is not None:
+                logging.info("Both 'test_frac' and 'n_tasks_samples' are defined. Using 'test_frac' to split the data.")
+            if self.test_frac is not None:
+                train_tasks_dict[f"{label}"], test_task_dict[f"{label}"] = train_test_split(task_dict,
+                                                                                             test_size=self.test_frac,
+                                                                                             random_state=self.rng)
+            else:
+                if self.n_tasks_samples is None:
+                    raise ValueError("Number of samples or test fraction per task are not defined.")
+                else:
+                    train_tasks_dict[f"{label}"] = task_dict.sample(n=self.n_tasks_samples, random_state=self.rng)
+                    test_task_dict[f"{label}"] = task_dict.drop(train_tasks_dict[f"{label}"].index)
 
         return train_tasks_dict, test_task_dict
-
-
-
-
 
     def _split_data_into_tasks(self, all_data):
         if self.tasks_folder is not None:
