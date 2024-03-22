@@ -268,7 +268,7 @@ class FederatedPurchaseDataset:
         assert df['class'].nunique() == self.n_tasks, "Number of tasks must be equal to the number of classes."
 
         min_n_samples = min(df['class'].value_counts())
-        if self.n_tasks_samples >= min_n_samples:
+        if self.n_tasks_samples is not None and self.n_tasks_samples >= min_n_samples:
             raise ValueError(f"Number of samples per task must be lower than {min_n_samples}.")
 
         train_tasks_dict = dict()
@@ -279,9 +279,9 @@ class FederatedPurchaseDataset:
             if self.test_frac is not None and self.n_tasks_samples is not None:
                 logging.info("Both 'test_frac' and 'n_tasks_samples' are defined. Using 'test_frac' to split the data.")
             if self.test_frac is not None:
-                train_tasks_dict[f"{label}"], test_task_dict[f"{label}"] = train_test_split(task_dict,
-                                                                                             test_size=self.test_frac,
-                                                                                             random_state=self.rng)
+                train_tasks_dict[f"{label}"], test_task_dict[f"{label}"] = (
+                    train_test_split(task_dict,test_size=self.test_frac, random_state=self.rng.integers(low=0, high=1000))
+                )
             else:
                 if self.n_tasks_samples is None:
                     raise ValueError("Number of samples or test fraction per task are not defined.")
@@ -297,7 +297,7 @@ class FederatedPurchaseDataset:
         else:
             raise ValueError("Tasks folder is not defined.")
 
-        if self.n_tasks * self.n_tasks_samples > len(all_data):
+        if self.n_tasks_samples is not None and self.n_tasks * self.n_tasks_samples > len(all_data):
             raise ValueError("Number of tasks times number of samples per task exceeds the number of available samples.")
 
         if self.split_criterion == "random":

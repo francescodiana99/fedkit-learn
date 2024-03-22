@@ -743,7 +743,7 @@ class FederatedAdultDataset:
         if self.test_frac is None:
             train_df, test_df = df[:num_train], df[num_train:]
         else:
-            train_df, test_df = train_test_split(df, test_size=self.test_frac, random_state=self.rng)
+            train_df, test_df = train_test_split(df, test_size=self.test_frac, random_state=self.rng.integers(low=0, high=1000))
 
         train_df = train_df.dropna()
         test_df = test_df.dropna()
