@@ -303,20 +303,30 @@ def main():
     if args.task_name == "purchase":
         os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
         if not os.path.exists(results_history_path):
-            results_dict = defaultdict(lambda: defaultdict(dict))
+            results_dict = dict()
         else:
             with open(results_history_path, "r") as f:
                 try:
                     results_dict = json.load(f)
                 except json.JSONDecodeError:
-                    results_dict = defaultdict(lambda: defaultdict(dict))
+                    results_dict = dict()
 
         results_dict[f"{args.sensitive_attribute}"].setdefault(f"{args.keep_rounds_frac}", {})[
             f"{args.learning_rate}"] = avg_score
 
         if args.keep_first_rounds:
+            if f"{args.sensitive_attribute}" not in results_dict:
+                results_dict[f"{args.sensitive_attribute}"] = dict()
+
+            if f"{args.keep_rounds_frac}" not in results_dict[f"{args.sensitive_attribute}"]:
+                results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"] = dict()
             results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = avg_score
         else:
+            if f"{args.sensitive_attribute}" not in results_dict:
+                results_dict[f"{args.sensitive_attribute}"] = dict()
+            if "last_5" not in results_dict[f"{args.sensitive_attribute}"]:
+                results_dict[f"{args.sensitive_attribute}"]["last_5"] = dict()
+
             results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}"] = avg_score
 
         with open(results_history_path, "w") as f:
