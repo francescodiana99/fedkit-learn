@@ -380,14 +380,14 @@ def main():
 
         global_scores = list(scores_per_client_dict["global"].values())
         global_metric = list(metrics_dict["global"].values())
-        all_scores[iteration_id]["global"] = global_scores
+        all_scores[iteration_id]["global"] = {"scores": global_scores, "metrics": global_metric}
 
         avg_global_score = weighted_average(global_scores, n_samples_list)
         avg_global_metric = weighted_average(global_metric, n_samples_list)
 
         reference_scores = list(scores_per_client_dict["reference"].values())
         reference_metric = list(metrics_dict["reference"].values())
-        all_scores[iteration_id]["reference"] = reference_scores
+        all_scores[iteration_id]["reference"] = {"scores": reference_scores, "metrics": reference_metric}
 
         avg_reference_score = weighted_average(reference_scores, n_samples_list)
         avg_reference_metric = weighted_average(reference_metric, n_samples_list)
@@ -404,7 +404,7 @@ def main():
     scores_path = os.path.join(args.results_dir, f"lmra_aia.json")
     with open(scores_path, "w") as f:
         json.dump(all_scores, f)
-
+    logging.info(f"Scores saved in {scores_path}")
 
 if __name__ == "__main__":
     main()
