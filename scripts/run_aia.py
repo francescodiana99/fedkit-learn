@@ -229,6 +229,8 @@ def main():
 
     logging.info("Simulate Attacks..")
 
+    all_clients_scores = []
+
     for attacked_client_id in tqdm(range(num_clients)):
 
         logging.info("=" * 100)
@@ -280,11 +282,13 @@ def main():
         attack_simulator.execute_attack(num_iterations=args.num_rounds)
 
         score = attack_simulator.evaluate_attack()
-
+        all_clients_scores.append(score)
         logging.info(f"Score={score:.3f} for client {attacked_client_id}")
 
         scores_list.append(score)
         n_samples_list.append(len(dataset))
+
+    logging.info(f"Average score: {weighted_average(all_clients_scores, n_samples_list)}")
 
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
