@@ -303,13 +303,13 @@ def main():
     if args.task_name == "purchase":
         os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
         if not os.path.exists(results_history_path):
-            results_dict = defaultdict(lambda: defaultdict(dict))
+            results_dict = defaultdict(lambda: defaultdict(lambda: defaultdict()))
         else:
             with open(results_history_path, "r") as f:
                 try:
                     results_dict = json.load(f)
                 except json.JSONDecodeError:
-                    results_dict = defaultdict(lambda: defaultdict(dict))
+                    results_dict = defaultdict(lambda: defaultdict(lambda: defaultdict()))
         if args.keep_first_rounds:
             results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = avg_score
         else:
