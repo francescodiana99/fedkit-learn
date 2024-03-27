@@ -2,16 +2,10 @@ import argparse
 import copy
 import logging
 
-import pandas as pd
-
 import numpy as np
 
 from torch.utils.data import DataLoader
 
-from fedklearn.utils import get_param_tensor
-
-from miscellaneous.aia_dataset import AIADataset
-from fedklearn.attacks.aia import AttributeInferenceAttack
 from utils import *
 from constants import *
 
