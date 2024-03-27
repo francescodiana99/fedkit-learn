@@ -33,12 +33,12 @@ def parse_args(args_list=None):
         required=True
     )
 
-    parser.add_argument(
-        "--attacked_round",
-        type=int,
-        help="Round to test",
-        required=True
-    )
+    # parser.add_argument(
+    #     "--attacked_round",
+    #     type=int,
+    #     help="Round to test",
+    #     required=True
+    # )
 
     parser.add_argument(
         "--models_metadata_path",
