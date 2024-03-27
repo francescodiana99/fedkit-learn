@@ -288,15 +288,36 @@ def main():
         scores_list.append(score)
         n_samples_list.append(len(dataset))
 
-    logging.info(f"Average score: {weighted_average(all_clients_scores, n_samples_list)}")
+    avg_score = weighted_average(all_clients_scores, n_samples_list)
+    logging.info(f"Average score: {avg_score}")
 
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
+    results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
 
     if args.task_name == "adult":
-        results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
         load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
                                      attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
+
+    # TODO: remove later, used only to speed up testing
+    if args.task_name == "purchase":
+        os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
+        if not os.path.exists(results_history_path):
+            results_dict = defaultdict(lambda: defaultdict(dict))
+        else:
+            with open(results_history_path, "r") as f:
+                try:
+                    results_dict = json.load(f)
+                except json.JSONDecodeError:
+                    results_dict = defaultdict(lambda: defaultdict(dict))
+        if args.keep_first_rounds:
+            results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = avg_score
+        else:
+            results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}"] = avg_score
+
+        with open(results_history_path, "w") as f:
+            json.dump(results_dict, f)
+
 
         logging.info(f"The results dictionary has been saved in {args.results_path}")
 
