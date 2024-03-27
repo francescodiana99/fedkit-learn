@@ -310,6 +310,10 @@ def main():
                     results_dict = json.load(f)
                 except json.JSONDecodeError:
                     results_dict = defaultdict(lambda: defaultdict(dict))
+
+        results_dict[f"{args.sensitive_attribute}"].setdefault(f"{args.keep_rounds_frac}", {})[
+            f"{args.learning_rate}"] = avg_score
+
         if args.keep_first_rounds:
             results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = avg_score
         else:
