@@ -434,7 +434,8 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         assert mode in {"local", "global"}, f"`mode` should be 'local' or 'global', not {mode}"
 
-        model_chkpts = torch.load(self.messages_metadata[mode][round_id])["model_state_dict"]
+        model_chkpts = torch.load(self.messages_metadata[mode][round_id],
+                                  map_location=torch.device(self.device))["model_state_dict"]
         model = self.model_init_fn()
         model.load_state_dict(model_chkpts)
 
