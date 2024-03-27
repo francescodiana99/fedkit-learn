@@ -6,10 +6,6 @@ import pandas as pd
 
 import numpy as np
 
-import matplotlib.pyplot as plt
-
-import seaborn as sns
-
 from torch.utils.data import DataLoader
 
 from fedklearn.utils import get_param_tensor
