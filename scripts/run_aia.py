@@ -311,10 +311,9 @@ def main():
                 except json.JSONDecodeError:
                     results_dict = dict()
 
-        results_dict[f"{args.sensitive_attribute}"].setdefault(f"{args.keep_rounds_frac}", {})[
-            f"{args.learning_rate}"] = avg_score
-
         if args.keep_first_rounds:
+            if f"{args.sensitive_attribute}" not in results_dict:
+                results_dict[f"{args.sensitive_attribute}"] = dict()
             if f"{args.sensitive_attribute}" not in results_dict:
                 results_dict[f"{args.sensitive_attribute}"] = dict()
 
@@ -322,6 +321,8 @@ def main():
                 results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"] = dict()
             results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = avg_score
         else:
+            if f"{args.sensitive_attribute}" not in results_dict:
+                results_dict[f"{args.sensitive_attribute}"] = dict()
             if f"{args.sensitive_attribute}" not in results_dict:
                 results_dict[f"{args.sensitive_attribute}"] = dict()
             if "last_5" not in results_dict[f"{args.sensitive_attribute}"]:
