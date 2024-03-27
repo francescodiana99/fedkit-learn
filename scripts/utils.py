@@ -65,6 +65,8 @@ def get_task_type(task_name):
         task_type = "binary_classification"
     elif task_name == "toy_regression":
         task_type = "regression"
+    elif task_name == "purchase":
+        task_type = "classification"
     else:
         raise NotImplementedError(
             f"Network initialization for task '{task_name}' is not implemented"
@@ -155,12 +157,12 @@ def get_last_rounds(round_ids, keep_frac=0.):
       starting from the end of the list. Defaults to 0. (i.e., discarding all rounds, except the last).
 
     Returns:
-    - list of str: A subset of round_ids based on the specified keep_frac.
+    - set of str: A subset of round_ids based on the specified keep_frac.
 
     Example:
     >>> round_ids_list = ['1', '2', '3', '4', '5']
     >>> get_last_rounds(round_ids_list, keep_frac=0.2)
-    ['2', '3', '4', '5']
+    {'4', '5'}
 
     Note:
     - The round_ids are assumed to be sortable as strings.
@@ -174,6 +176,39 @@ def get_last_rounds(round_ids, keep_frac=0.):
     int_list = sorted(list(map(int, round_ids)))
 
     return set(map(str, int_list[start_index:]))
+
+def get_first_rounds(round_ids, keep_frac=0.):
+    """
+    Extracts a subset of the given round_ids, starting from a specific index.
+
+    Parameters:
+    - round_ids (list of str): A list of round identifiers.
+    - keep_frac (float, optional): Fraction of rounds to keep.
+      If set to 0.0, all rounds, except the first, will be discarded.
+      If set to 1.0, all rounds will be kept.
+      If set to a value between 0.0 and 1.0, it determines the fraction of rounds to keep
+      starting from the beginning of the list. Defaults to 0. (i.e., discarding all rounds, except the first).
+
+    Returns:
+    - list of str: A subset of round_ids based on the specified keep_frac.
+
+    Example:
+    >>> round_ids_list = ['1', '2', '3', '4', '5']
+    >>> get_first_rounds(round_ids_list, keep_frac=0.2)
+    {'1', '2'}
+
+        Note:
+        - The round_ids are assumed to be sortable as strings.
+        - The function ensures that at least one round is kept, even when keep_frac is 0.
+        """
+    assert 0 <= keep_frac <= 1, "keep_frac must be in the range (0, 1)"
+
+    n_rounds = len(round_ids)
+    end_index = int((n_rounds - 1) * keep_frac) + 1
+
+    int_list = sorted(list(map(int, round_ids)))
+
+    return set(map(str, int_list[:end_index]))
 
 def get_trainer_parameters(task_name, device, model_config_path):
     model_init_fn = lambda: initialize_model(model_config_path)

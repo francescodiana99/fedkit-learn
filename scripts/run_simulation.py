@@ -548,9 +548,13 @@ def compute_local_models(federated_dataset, args):
          args (argparse.Namespace): Parsed command-line arguments.
 
      Returns:
-         Dict:
-            dictionary mapping each client name to the path of its corresponding local model
+            Dict: Dictionary of local models paths.
+            Dict: Dictionary of local models training trajectories.
      """
+    models_trajectory_dict = dict()
+    for task_id in federated_dataset.task_id_to_name:
+        models_trajectory_dict[f"{task_id}"] = dict()
+
     models_dict = dict()
     for task_id in tqdm(federated_dataset.task_id_to_name):
         trainer = initialize_trainer(args)
@@ -561,7 +565,21 @@ def compute_local_models(federated_dataset, args):
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-        trainer.fit_epochs(loader=train_loader, n_epochs=args.num_rounds)
+        for step in range(args.num_rounds):
+            trainer.fit_epoch(train_loader)
+
+            if step % args.save_freq == 0:
+
+                os.makedirs(os.path.join(args.local_models_dir, task_id), exist_ok=True)
+
+                path = os.path.join(args.local_models_dir, task_id, f"{step}.pt")
+                path = os.path.abspath(path)
+                trainer.save_checkpoint(path)
+                models_trajectory_dict[f"{task_id}"][f"{step}"] = path
+
+            if trainer.lr_scheduler is not None:
+                trainer.lr_scheduler.step()
+
 
         train_loss, train_metric = trainer.evaluate_loader(train_loader)
         test_loss, test_metric = trainer.evaluate_loader(test_loader)
@@ -572,14 +590,12 @@ def compute_local_models(federated_dataset, args):
         logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
         logging.info("+" * 50)
 
-        path = os.path.join(args.local_models_dir, f"{task_id}.pt")
-        path = os.path.abspath(path)
-        trainer.save_checkpoint(path)
+        local_model_path = os.path.join(args.local_models_dir, task_id,  f"{args.num_rounds - 1}.pt")
+        local_model_path = os.path.abspath(local_model_path)
 
-        models_dict[f"{task_id}"] = path
+        models_dict[f"{task_id}"] = local_model_path
 
-
-    return models_dict
+    return models_dict, models_trajectory_dict
 
 
 def initialize_simulator(clients, args, rng):
@@ -670,13 +686,16 @@ def main():
         logging.info("=" * 100)
         logging.info("Compute local models..")
         os.makedirs(args.local_models_dir,  exist_ok=True)
-        local_models_dict = compute_local_models(federated_dataset, args)
+        local_models_dict, models_trajectory_dict = compute_local_models(federated_dataset, args)
 
         logging.info("Saving local models metadata..")
 
         local_models_metadata_path = os.path.join(args.metadata_dir, "local.json")
+        local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
         with open(local_models_metadata_path, "w") as f:
             json.dump(local_models_dict, f)
+        with open(local_models_trajectory_path, "w") as f:
+            json.dump(models_trajectory_dict, f)
 
     logging.info("=" * 100)
     logging.info("Initialize simulator..")

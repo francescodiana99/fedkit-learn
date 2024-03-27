@@ -56,7 +56,12 @@ def parse_args(args_list=None):
              "If set to 0.0, all rounds, except the last, will be discarded."
              "If set to 1.0, all rounds will be kept."
              "If set to a value between 0.0 and 1.0, it determines the fraction of rounds to keep "
-             "starting from the end of the list. Defaults to 0. (i.e., discarding all rounds, except the last).",
+             "starting from the end of the list. Defaults to 0. (i.e., discarding all rounds, except the last)."
+             "If '--keep_first_rounds' is set to True:"
+             "If set to 0.0, all rounds, except the first, will be discarded."
+             "If set to 1.0, all rounds will be kept."
+             "If set to a value between 0.0 and 1.0, it determines the fraction of rounds to keep "
+             "starting from the beginning of the list.",
         default=0.0
     )
 
@@ -166,6 +171,13 @@ def parse_args(args_list=None):
         default=0
     )
 
+    parser.add_argument(
+        "--keep_first_rounds",
+        default=False,
+        action="store_true",
+        help="If set, the fraction of round to keep will be determined "
+             "starting from the beginning of the list of rounds. Default is False.")
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -187,7 +199,10 @@ def main():
     with open(args.metadata_path, "r") as f:
         all_messages_metadata = json.load(f)
 
-    keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
+    if args.keep_first_rounds:
+        keep_round_ids = get_first_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
+    else:
+        keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
 
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)

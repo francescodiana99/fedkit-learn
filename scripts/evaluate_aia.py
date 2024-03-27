@@ -6,9 +6,15 @@ import pandas as pd
 
 import numpy as np
 
+import matplotlib.pyplot as plt
+
+import seaborn as sns
+
 from torch.utils.data import DataLoader
 
 from fedklearn.utils import get_param_tensor
+
+from miscellaneous.aia_dataset import AIADataset
 from fedklearn.attacks.aia import AttributeInferenceAttack
 from utils import *
 from constants import *
@@ -224,7 +230,7 @@ def initialize_metadata_dict_from_checkpoint(metadata_path, round):
 
 def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split,
     trainers_dict, reference_trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
-    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size, random_trainer):
+    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size):
 
     logging.info(f"Simulate AIA")
 
@@ -236,25 +242,19 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
     # DEBUG
     # global_model.fc.weight.data[:,39] = 0.0
 
-    random_model = random_trainer.model
-
     scores_per_client_dict = {
-        "client": dict(),
         "reference": dict(),
-        "global": dict(),
-        "random": dict()
+        "global": dict()
     }
 
     metrics_dict = {
-        "client": dict(),
         "reference": dict(),
-        "global": dict(),
-        "random": dict()
+        "global": dict()
     }
 
     for attacked_client_id in tqdm(range(num_clients)):
-        logging.info("=" * 100)
-        logging.info(f"Simulating attack for {attacked_client_id}...")
+        # logging.info("=" * 100)
+        # logging.info(f"Simulating attack for {attacked_client_id}...")
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
 
@@ -273,11 +273,6 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
         try:
-            client_model = trainers_dict[f"{attacked_client_id}"].model
-        except KeyError:
-            client_model = trainers_dict[attacked_client_id].model
-
-        try:
             reference_model = reference_trainers_dict[f"{attacked_client_id}"].model
             # DEBUG
             # reference_model.fc.weight.data[:,39] = 0.0
@@ -287,45 +282,28 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
             # DEBUG
             # reference_model.fc.weight.data[:,39] = 0.1
 
-        client_model.eval()
         reference_model.eval()
         global_model.eval()
-        random_model.eval()
 
         # Evaluate the models before the attack
         dataloader = DataLoader(dataset, batch_size=batch_size)
         global_loss, global_metric = evaluate_trainer(trainers_dict["global"], dataloader)
-        client_model_loss, client_model_metric = evaluate_trainer(trainers_dict[f"{attacked_client_id}"], dataloader)
         reference_model_loss, reference_model_metric = evaluate_trainer(reference_trainers_dict[f"{attacked_client_id}"], dataloader)
-        random_model_loss, random_model_metric = evaluate_trainer(random_trainer, dataloader)
 
-        logging.info(f"Global model {split} loss={global_loss:.3f},  {split} metric={global_metric:.3f}")
-        logging.info(f"client model {split} loss={client_model_loss:.3f},  {split} metric={client_model_metric:.3f}")
-        logging.info(f"reference model {split} loss={reference_model_loss:.3f},  {split} metric={reference_model_metric:.3f}")
-        logging.info(f"Random model {split} loss={random_model_loss:.3f},  {split} metric={random_model_metric:.3f}")
+        # logging.info(f"reference model {split} loss={reference_model_loss:.3f},  {split} metric={reference_model_metric:.3f}")
+        # logging.info(f"Global model {split} loss={global_loss:.3f},  {split} metric={global_metric:.3f}")
 
-        metrics_dict["client"][attacked_client_id] = client_model_metric
         metrics_dict["reference"][attacked_client_id] = reference_model_metric
         metrics_dict["global"][attacked_client_id] = global_metric
-        metrics_dict["random"][attacked_client_id] = random_model_metric
 
-        logging.info("Attack with the CLIENT model...")
-        aia_score_client = evaluate_aia(model=client_model, dataset=dataset,
-            sensitive_attribute_id=sensitive_attribute_id, sensitive_attribute_type=sensitive_attribute_type,
-            initialization=aia_initialization, device=device, num_iterations=aia_num_rounds, criterion=criterion,
-            is_binary_classification=is_binary_classification, learning_rate=learning_rate,
-            optimizer_name=optimizer_name, success_metric=success_metric, rng=rng, torch_rng=torch_rng,
-            output_predictions=True)
-
-        logging.info("Attack with the REFERENCE model...")
+        # logging.info("Attack with the REFERENCE model...")
         aia_score_reference = evaluate_aia(model=reference_model, dataset=dataset, num_iterations=aia_num_rounds,
             sensitive_attribute_id=sensitive_attribute_id, sensitive_attribute_type=sensitive_attribute_type,
             initialization=aia_initialization, device=device, criterion=criterion,
             is_binary_classification=is_binary_classification, learning_rate=learning_rate,
-            optimizer_name=optimizer_name, success_metric=success_metric, rng=rng, torch_rng=torch_rng,
-                                           output_predictions=True)
+            optimizer_name=optimizer_name, success_metric=success_metric, rng=rng, torch_rng=torch_rng)
 
-        logging.info("Attack with the GLOBAL model...")
+        # logging.info("Attack with the GLOBAL model...")
         aia_score_global = evaluate_aia(model=global_model, dataset=dataset,
                                         sensitive_attribute_id=sensitive_attribute_id,
                                         sensitive_attribute_type=sensitive_attribute_type,
@@ -333,30 +311,13 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                         criterion=criterion,
                                         is_binary_classification=is_binary_classification, learning_rate=learning_rate,
                                         optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
-                                        torch_rng=torch_rng, output_predictions=True)
+                                        torch_rng=torch_rng)
+        #
+        # logging.info(f"Score={aia_score_reference:.3f} for task {attacked_client_id} with reference model")
+        # logging.info(f"Score={aia_score_global:.3f} for task {attacked_client_id} with global model")
 
-        logging.info("Attack with the RANDOM model...")
-        aia_score_random = evaluate_aia(model=random_model, dataset=dataset,
-                                        sensitive_attribute_id=sensitive_attribute_id,
-                                        sensitive_attribute_type=sensitive_attribute_type,
-                                        initialization=aia_initialization, device=device, num_iterations=aia_num_rounds,
-                                        criterion=criterion,
-                                        is_binary_classification=is_binary_classification, learning_rate=learning_rate,
-                                        optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
-                                        torch_rng=torch_rng, output_predictions=True)
-
-        logging.info(f"global model parameters: {get_param_tensor(global_model)}")
-        logging.info(f"reference model parameters: {get_param_tensor(reference_model)}")
-
-        logging.info(f"Score={aia_score_client:.3f} for client {attacked_client_id} with client model")
-        logging.info(f"Score={aia_score_reference:.3f} for client {attacked_client_id} with reference model")
-        logging.info(f"Score={aia_score_global:.3f} for client {attacked_client_id} with global model")
-        logging.info(f"Score={aia_score_random:.3f} for client {attacked_client_id} with random model")
-
-        scores_per_client_dict["client"][attacked_client_id] = aia_score_client
         scores_per_client_dict["reference"][attacked_client_id] = aia_score_reference
         scores_per_client_dict["global"][attacked_client_id] = aia_score_global
-        scores_per_client_dict["random"][attacked_client_id] = aia_score_random
 
         n_samples_list.append(len(dataset))
 
@@ -372,78 +333,87 @@ def main():
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    all_scores = dict()
 
-    models_metadata_dict = initialize_metadata_dict_from_checkpoint(args.models_metadata_path, args.attacked_round)
+    # models_metadata_dict = initialize_metadata_dict_from_checkpoint(args.models_metadata_path, args.attacked_round)
+    with open(args.models_metadata_path, "r") as f:
+        all_models_metadata_dict = json.load(f)
+        all_models_metadata_dict = swap_dict_levels(all_models_metadata_dict)
 
     with open(args.models_config_metadata_path, "r") as f:
         model_config_metadata_dict = json.load(f)
 
     with open(args.reference_models_metadata_path, "r") as f:
-        reference_models_metadata_dict = json.load(f)
+        all_reference_models_metadata_dict = json.load(f)
+        all_reference_models_metadata_dict = swap_dict_levels(all_reference_models_metadata_dict)
 
-    criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
-        task_name=args.task_name, device=args.device,
-        model_config_path=model_config_metadata_dict["model_config"]
-    )
+    for iteration_id in all_models_metadata_dict:
 
-    trainers_dict = initialize_trainers_dict(
-        models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
-        is_binary_classification=is_binary_classification, metric=metric, device=args.device
-    )
+        all_scores[iteration_id] = dict()
 
-    reference_trainers_dict = initialize_trainers_dict(
-        reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
-        is_binary_classification=is_binary_classification, metric=metric, device=args.device
-    )
+        models_metadata_dict = all_models_metadata_dict[iteration_id]
+        reference_models_metadata_dict = all_reference_models_metadata_dict[iteration_id]
 
-    random_trainer = initialize_random_trainer(model=model_init_fn(), criterion=criterion, metric=metric,
-                                               is_binary_classification=is_binary_classification, optimizer=None,
-                                               device=args.device)
+        criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
+            task_name=args.task_name, device=args.device,
+            model_config_path=model_config_metadata_dict["model_config"]
+        )
 
-    scores_per_client_dict, metrics_dict, n_samples_list = compute_scores(
-        task_name=args.task_name,
-        federated_dataset=federated_dataset,
-        sensitive_attribute=args.sensitive_attribute,
-        sensitive_attribute_type=args.sensitive_attribute_type,
-        split=args.split,
-        batch_size=args.batch_size,
-        reference_trainers_dict=reference_trainers_dict,
-        trainers_dict=trainers_dict,
-        random_trainer=random_trainer,
-        criterion=criterion,
-        is_binary_classification=is_binary_classification,
-        learning_rate=args.learning_rate,
-        optimizer_name=args.optimizer,
-        aia_initialization=args.initialization,
-        aia_num_rounds=args.num_rounds,
-        device=args.device,
-        rng=rng, torch_rng=torch_rng
-    )
+        trainers_dict = initialize_trainers_dict(
+            models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
+            is_binary_classification=is_binary_classification, metric=metric, device=args.device
+        )
 
-    global_scores = list(scores_per_client_dict["global"].values())
-    global_metric = list(metrics_dict["global"].values())
-    avg_global_score = weighted_average(global_scores, n_samples_list)
-    avg_global_metric = weighted_average(global_metric, n_samples_list)
+        reference_trainers_dict = initialize_trainers_dict(
+            reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
+            is_binary_classification=is_binary_classification, metric=metric, device=args.device
+        )
 
-    random_scores = list(metrics_dict["random"].values())
-    random_metric = list(scores_per_client_dict["random"].values())
-    avg_random_score = weighted_average(random_scores, n_samples_list)
-    avg_random_metric = weighted_average(random_metric, n_samples_list)
+        scores_per_client_dict, metrics_dict, n_samples_list = compute_scores(
+            task_name=args.task_name,
+            federated_dataset=federated_dataset,
+            sensitive_attribute=args.sensitive_attribute,
+            sensitive_attribute_type=args.sensitive_attribute_type,
+            split=args.split,
+            batch_size=args.batch_size,
+            reference_trainers_dict=reference_trainers_dict,
+            trainers_dict=trainers_dict,
+            criterion=criterion,
+            is_binary_classification=is_binary_classification,
+            learning_rate=args.learning_rate,
+            optimizer_name=args.optimizer,
+            aia_initialization=args.initialization,
+            aia_num_rounds=args.num_rounds,
+            device=args.device,
+            rng=rng, torch_rng=torch_rng
+        )
 
-    reference_scores = list(scores_per_client_dict["reference"].values())
-    reference_metric = list(metrics_dict["reference"].values())
-    avg_reference_score = weighted_average(reference_scores, n_samples_list)
-    avg_reference_metric = weighted_average(reference_metric, n_samples_list)
+        global_scores = list(scores_per_client_dict["global"].values())
+        global_metric = list(metrics_dict["global"].values())
+        all_scores[iteration_id]["global"] = global_scores
 
+        avg_global_score = weighted_average(global_scores, n_samples_list)
+        avg_global_metric = weighted_average(global_metric, n_samples_list)
 
-    logging.info(f"Average metric for global model: {avg_global_metric:.3f}")
-    logging.info(f"Average metric for random model: {avg_random_metric:.3f}")
-    logging.info(f"Average metric for reference model: {avg_reference_metric:.3f}")
+        reference_scores = list(scores_per_client_dict["reference"].values())
+        reference_metric = list(metrics_dict["reference"].values())
+        all_scores[iteration_id]["reference"] = reference_scores
 
-    logging.info(f"Average score for global model: {avg_global_score:.3f}")
-    logging.info(f"Average score for random model: {avg_random_score:.3f}")
-    logging.info(f"Average score for reference model: {avg_reference_score:.3f}")
+        avg_reference_score = weighted_average(reference_scores, n_samples_list)
+        avg_reference_metric = weighted_average(reference_metric, n_samples_list)
 
+        logging.info(f"Scores for round {iteration_id}")
+        logging.info(f"Average metric for global model: {avg_global_metric:.3f}")
+        logging.info(f"Average metric for reference model: {avg_reference_metric:.3f}")
+
+        logging.info(f"Average score for global model: {avg_global_score:.3f}")
+        logging.info(f"Average score for reference model: {avg_reference_score:.3f}")
+
+    logging.info("Saving scores..")
+    os.makedirs(args.results_dir, exist_ok=True)
+    scores_path = os.path.join(args.results_dir, f"lmra_aia.json")
+    with open(scores_path, "w") as f:
+        json.dump(all_scores, f)
 
 
 if __name__ == "__main__":
