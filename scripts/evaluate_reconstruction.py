@@ -171,7 +171,7 @@ def compute_scores(
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-        if task_name == "adult":
+        if task_name == "adult" or task_name == "purchase":
             # TODO: hard-code sensitive attribute_id and type in the federated_dataset
             sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
             sensitive_attribute_type = sensitive_attribute_type
@@ -302,10 +302,15 @@ def main():
         results_path = os.path.join(args.results_dir, f"{attack_name}.json")
         save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=results_path)
 
-        results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
-        load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
-                                     attack_name=attack_name,n_samples_list=n_samples_list,
-                                     seed=args.seed)
+        # if args.task_name == "adult":
+        #     results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
+        #     load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+        #                                  attack_name=attack_name,n_samples_list=n_samples_list,
+        #                                  seed=args.seed)
+        #
+        # if args.task_name == "purchase":
+        #     results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
+
 
 
 
