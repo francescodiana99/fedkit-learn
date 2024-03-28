@@ -143,11 +143,56 @@ def parse_args(args_list=None):
         default=0
     )
 
+    # TODO: remove, this are just for testing
+    parser.add_argument(
+        '--hidden_layers',
+        type=int,
+        nargs='+',
+        default=[],
+        help='hidden neurons of the reconstructed model')
+
+    parser.add_argument(
+        '--estimation_learning_rate',
+        type=float,
+        default=0.2,
+        help='learning rate of the gradient estimator')
+
+    parser.add_argument(
+        '--reconstruction_learning_rate',
+        type=float,
+        default=0.01,
+        help='learning rate of the reconstructed model')
+
 
     if args_list is None:
         return parser.parse_args()
     else:
         return parser.parse_args(args_list)
+
+
+# TODO: remove, just for testing
+def save_reconstruction_history(reconstruction_history, results_path, args):
+    os.makedirs(os.path.dirname(results_path), exist_ok=True)
+    if os.path.exists(results_path):
+        with open(results_path, "r") as f:
+            results_history = json.load(f)
+    else:
+        results_history = dict()
+
+    if f"{args.batch_size}" not in results_history:
+        results_history[f"{args.batch_size}"] = dict()
+    if f"{args.hidden_layers}" not in results_history[f"{args.batch_size}"]:
+        results_history[f"{args.batch_size}"][f"{args.hidden_layers}"] = dict()
+    if f"{args.estimation_learning_rate}" not in (
+        results_history[f"{args.batch_size}"][f"{args.hidden_layers}"][f"{args.estimation_learning_rate}"]):
+
+        results_history[f"{args.batch_size}"][f"{args.hidden_layers}"][f"{args.estimation_learning_rate}"] = dict()
+
+    (results_history[f"{args.batch_size}"][f"{args.hidden_layers}"][f"{args.estimation_learning_rate}"]
+    [f"{args.reconstruction_learning_rate}"]) = reconstruction_history
+
+    with open(results_path, "w") as f:
+        json.dump(results_history, f)
 
 
 def compute_scores(
@@ -202,7 +247,12 @@ def compute_scores(
             attacked_client_id=attacked_client_id, dataloader=dataloader, trainers_dict=trainers_dict
         )
 
+        sia_reference_score = evaluate_sia(
+            attacked_client_id=attacked_client_id, dataloader=dataloader, trainers_dict=reference_trainers_dict
+        )
+
         logging.info(f"SIA Score={sia_score:.3f} for client {attacked_client_id}")
+        logging.info(f"SIA Reference Score={sia_reference_score:.3f} for client {attacked_client_id}")
 
         lmra_score = model_jsd(
             model, reference_model, dataloader=dataloader, task_type=task_type, device=device, epsilon=EPSILON
@@ -294,6 +344,7 @@ def main():
     logging.info("Saving scores..")
     os.makedirs(args.results_dir, exist_ok=True)
 
+    avg_scores_dict = dict()
     for attack_name in scores_per_attack_dict:
         logging.info(f"=" * 100)
         logging.info(f"Save scores for {attack_name}")
@@ -302,16 +353,20 @@ def main():
         results_path = os.path.join(args.results_dir, f"{attack_name}.json")
         save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=results_path)
 
-        # if args.task_name == "adult":
-        #     results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
-        #     load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
-        #                                  attack_name=attack_name,n_samples_list=n_samples_list,
-        #                                  seed=args.seed)
-        #
-        # if args.task_name == "purchase":
-        #     results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
+        avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
+        avg_scores_dict[attack_name] = avg_score
 
+        if args.task_name == "adult":
+            results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
+            load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+                                         attack_name=attack_name,n_samples_list=n_samples_list,
+                                         seed=args.seed)
 
+    if args.task_name == "purchase":
+        results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
+        save_reconstruction_history(reconstruction_history=avg_scores_dict, results_path=results_history_path,
+                                    args=args)
+        logging.info(f"Saved results history in {results_history_path}")
 
 
 if __name__ == "__main__":
