@@ -293,7 +293,7 @@ def main():
 
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
-    results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
+    results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history_aia.json")
 
     if args.task_name == "adult":
         load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
