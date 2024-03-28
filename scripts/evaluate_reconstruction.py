@@ -183,13 +183,12 @@ def save_reconstruction_history(reconstruction_history, results_path, args):
         results_history[f"{args.batch_size}"] = dict()
     if f"{args.hidden_layers}" not in results_history[f"{args.batch_size}"]:
         results_history[f"{args.batch_size}"][f"{args.hidden_layers}"] = dict()
-    if f"{args.estimation_learning_rate}" not in (
-        results_history[f"{args.batch_size}"][f"{args.hidden_layers}"][f"{args.estimation_learning_rate}"]):
-
+    if (f"{args.estimation_learning_rate} {args.reconstruction_learning_rate}" not in
+            results_history[f"{args.batch_size}"][f"{args.hidden_layers}"]):
         results_history[f"{args.batch_size}"][f"{args.hidden_layers}"][f"{args.estimation_learning_rate}"] = dict()
 
-    (results_history[f"{args.batch_size}"][f"{args.hidden_layers}"][f"{args.estimation_learning_rate}"]
-    [f"{args.reconstruction_learning_rate}"]) = reconstruction_history
+    (results_history[f"{args.batch_size}"][f"{args.hidden_layers}"]
+    [f"{args.estimation_learning_rate} {args.reconstruction_learning_rate}"])= reconstruction_history
 
     with open(results_path, "w") as f:
         json.dump(results_history, f)
