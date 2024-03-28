@@ -424,7 +424,7 @@ def save_scores(scores_list, n_samples_list, results_path):
         json.dump(results, f)
 
 
-def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion, seed):
+def save_avg_scores_adult(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion, seed):
 
     seed = str(seed)
     avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
@@ -446,6 +446,7 @@ def save_avg_scores(scores_list, attack_name, results_path, n_samples_list, n_ta
 
     logging.info(f"Average Score={avg_score:.3f}")
 
+
 def load_and_save_result_history(data_dir, scores_list, results_path, attack_name, n_samples_list,seed ):
     """Save average results for all the attacks in a json file."""
 
@@ -453,8 +454,8 @@ def load_and_save_result_history(data_dir, scores_list, results_path, attack_nam
         split_dict = json.load(f)
     split_criterion = split_dict["split_criterion"]
     n_tasks = split_dict["n_tasks"]
-    save_avg_scores(scores_list=scores_list, attack_name=attack_name, results_path=results_path,
-                    n_tasks=n_tasks, n_samples_list=n_samples_list, split_criterion=split_criterion, seed=seed)
+    save_avg_scores_adult(scores_list=scores_list, attack_name=attack_name, results_path=results_path,
+                          n_samples_list=n_samples_list, n_tasks=n_tasks, split_criterion=split_criterion, seed=seed)
 
 
 

@@ -188,13 +188,34 @@ def main():
         scores_list.append(score)
         n_samples_list.append(len(dataset))
 
+    avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
+
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
+    results_history_path = os.path.join(os.path.dirname(args.results_path), "sia_history.json")
+    if args.task_name == 'adult':
+        load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+                                     attack_name='sia', n_samples_list=n_samples_list, seed=args.seed)
+        logging.info(f"The results dictionary has been saved in {args.results_path}")
 
-    results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
-    load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
-                                 attack_name='sia', n_samples_list=n_samples_list, seed=args.seed)
-    logging.info(f"The results dictionary has been saved in {args.results_path}")
+    # TODO: remove, this is just for testing
+    if args.task_name == 'purchase':
+        os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
+        if not os.path.exists(results_history_path):
+            results_dict = dict()
+        else:
+            with open(results_history_path, "r") as f:
+                try:
+                    results_dict = json.load(f)
+                except json.JSONDecodeError:
+                    results_dict = dict()
+        if f"{args.batch_size}" not in results_dict:
+            results_dict[f"{args.batch_size}"] = dict()
+
+        results_dict[f"{args.batch_size}"][f"{args.use_oracle}"] = avg_score
+
+        with open(results_history_path, "w") as f:
+            json.dump(results_dict, f)
 
 
 if __name__ == "__main__":
