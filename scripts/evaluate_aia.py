@@ -242,6 +242,10 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         "global": dict()
     }
 
+    loss_dict = {
+        "reference": dict(),
+        "global": dict()}
+
     for attacked_client_id in tqdm(range(num_clients)):
         # logging.info("=" * 100)
         # logging.info(f"Simulating attack for {attacked_client_id}...")
@@ -285,6 +289,8 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         metrics_dict["reference"][attacked_client_id] = reference_model_metric
         metrics_dict["global"][attacked_client_id] = global_metric
+        loss_dict["reference"][attacked_client_id] = reference_model_loss
+        loss_dict["global"][attacked_client_id] = global_loss
 
         # logging.info("Attack with the REFERENCE model...")
         aia_score_reference = evaluate_aia(model=reference_model, dataset=dataset, num_iterations=aia_num_rounds,
@@ -311,7 +317,7 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         n_samples_list.append(len(dataset))
 
-    return scores_per_client_dict, metrics_dict, n_samples_list
+    return scores_per_client_dict, metrics_dict, loss_dict, n_samples_list
 
 def main():
 
@@ -359,7 +365,7 @@ def main():
             is_binary_classification=is_binary_classification, metric=metric, device=args.device
         )
 
-        scores_per_client_dict, metrics_dict, n_samples_list = compute_scores(
+        scores_per_client_dict, metrics_dict, loss_dict, n_samples_list = compute_scores(
             task_name=args.task_name,
             federated_dataset=federated_dataset,
             sensitive_attribute=args.sensitive_attribute,
@@ -380,21 +386,31 @@ def main():
 
         global_scores = list(scores_per_client_dict["global"].values())
         global_metric = list(metrics_dict["global"].values())
-        all_scores[iteration_id]["global"] = {"scores": global_scores, "metrics": global_metric}
+        global_losses = list(loss_dict["global"].values())
+
+        all_scores[iteration_id]["global"] = {"scores": global_scores, "metrics": global_metric, "losses": global_losses}
 
         avg_global_score = weighted_average(global_scores, n_samples_list)
         avg_global_metric = weighted_average(global_metric, n_samples_list)
+        avg_global_loss = weighted_average(global_losses, n_samples_list)
 
         reference_scores = list(scores_per_client_dict["reference"].values())
         reference_metric = list(metrics_dict["reference"].values())
-        all_scores[iteration_id]["reference"] = {"scores": reference_scores, "metrics": reference_metric}
+        reference_losses = list(loss_dict["reference"].values())
+
+        all_scores[iteration_id]["reference"] = {"scores": reference_scores, "metrics": reference_metric,
+                                                 "losses": reference_losses}
 
         avg_reference_score = weighted_average(reference_scores, n_samples_list)
         avg_reference_metric = weighted_average(reference_metric, n_samples_list)
+        avg_reference_loss = weighted_average(reference_losses, n_samples_list)
 
         logging.info(f"Scores for round {iteration_id}")
         logging.info(f"Average metric for global model: {avg_global_metric:.3f}")
         logging.info(f"Average metric for reference model: {avg_reference_metric:.3f}")
+
+        logging.info(f"Average loss for global model: {avg_global_loss:.3f}")
+        logging.info(f"Average loss for reference model: {avg_reference_loss:.3f}")
 
         logging.info(f"Average score for global model: {avg_global_score:.3f}")
         logging.info(f"Average score for reference model: {avg_reference_score:.3f}")
