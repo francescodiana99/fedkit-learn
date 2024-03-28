@@ -191,8 +191,7 @@ def parse_args(args_list=None):
     else:
         return parser.parse_args(args_list)
 
-# TODO: infer the number of parameters
-def initialize_gradient_prediction_trainer(args, federated_dataset, client_messages_metadata, local_model_init_fn):
+def initialize_gradient_prediction_trainer(args, client_messages_metadata, local_model_init_fn):
     local_model_chkpt = torch.load(client_messages_metadata['local']['0'])["model_state_dict"]
     local_model = local_model_init_fn()
     local_model.load_state_dict(local_model_chkpt)
@@ -253,6 +252,9 @@ def main():
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
         is_binary_classification = False
+    elif args.task_name == "purchase":
+        criterion = nn.CrossEntropyLoss().to(args.device)
+        is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -291,7 +293,6 @@ def main():
 
         gradient_prediction_trainer = (
             initialize_gradient_prediction_trainer(args,
-                                                   federated_dataset=federated_dataset,
                                                    client_messages_metadata=client_messages_metadata,
                                                    local_model_init_fn=model_init_fn)
         )
@@ -364,7 +365,9 @@ def main():
     # Saving results
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history.json")
-    load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+
+    if args.task_name == "adult":
+        load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
                                  attack_name='lmra', n_samples_list=n_samples_list, seed=args.seed)
 
     logging.info("=" * 100)
