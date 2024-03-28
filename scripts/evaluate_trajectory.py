@@ -181,7 +181,7 @@ def compute_scores(
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-        if task_name == "adult":
+        if task_name == "adult" or task_name == "purchase":
             # TODO: hard-code sensitive attribute_id and type in the federated_dataset
             sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
             sensitive_attribute_type = sensitive_attribute_type
