@@ -1,5 +1,7 @@
 import torch
 
+import torch.nn as nn
+
 from torch.overrides import has_torch_function_unary, handle_torch_function
 
 from copy import deepcopy
@@ -191,7 +193,7 @@ def jsd(p, q, distribution_type, epsilon=1e-10):
 
         m = 0.5 * (p + q)
 
-        m = torch.maximum(epsilon, m)
+        m = torch.maximum(torch.full_like(m, epsilon), m)
 
         kl_pm = torch.sum(p * torch.log(p / m), dim=-1)
 
@@ -247,8 +249,10 @@ def model_jsd(model_1, model_2, dataloader, task_type, device, epsilon=1e-10):
         distribution_type = 'bernoulli'
 
     elif task_type == "classification":
-        outputs_1 = torch.softmax(outputs_1)
-        outputs_2 = torch.softmax(outputs_2)
+        softmax = nn.Softmax(dim=1)
+
+        outputs_1 = softmax(outputs_1)
+        outputs_2 = softmax(outputs_2)
         distribution_type = 'multinomial'
 
     elif task_type == "regression":
