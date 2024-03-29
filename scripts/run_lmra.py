@@ -388,7 +388,11 @@ def main():
     logging.info("=" * 100)
     logging.info("Save trajectory of all reconstructed models metadata..")
 
-    all_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "trajectory.json")
+    # TODO: remove distinction
+    if args.use_oracle:
+        all_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "trajectory_oracle.json")
+    else:
+        all_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "trajectory.json")
     with open(all_reconstructed_models_metadata_path, "w") as f:
         json.dump(all_reconstructed_models_metadata_dict, f)
 
@@ -399,7 +403,11 @@ def main():
     logging.info("=" * 100)
     logging.info("Save final reconstructed models metadata..")
 
-    final_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "reconstructed.json")
+    # TODO: remove distinction
+    if args.use_oracle:
+        final_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "reconstructed_oracle.json")
+    else:
+        final_reconstructed_models_metadata_path = os.path.join(args.metadata_dir, "reconstructed.json")
     with open(final_reconstructed_models_metadata_path, "w") as f:
         json.dump(final_reconstructed_models_metadata_dict, f)
 
