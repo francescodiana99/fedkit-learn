@@ -226,11 +226,16 @@ class FederatedPurchaseDataset:
 
     def _iid_train_divide(self, df):
         task_dict = dict()
-        group_size = self.n_tasks_samples
-
-        for i in range(self.n_tasks):
-            task_dict[f"{i}"] = df.sample(n=group_size, random_state=self.rng)
-            df = df.drop(task_dict[f"{i}"].index)
+        if self.test_frac is  None:
+            group_size = self.n_tasks_samples
+            for i in range(self.n_tasks):
+                task_dict[f"{i}"] = df.sample(n=group_size, random_state=self.rng)
+                df = df.drop(task_dict[f"{i}"].index)
+        else:
+            train_size = int(len(df) / self.n_tasks * (1 - self.test_frac))
+            for i in range(self.n_tasks):
+                task_dict[f"{i}"] = df.sample(n=train_size, random_state=self.rng)
+                df = df.drop(task_dict[f"{i}"].index)
 
         return task_dict, df
 
