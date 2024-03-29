@@ -177,6 +177,12 @@ def parse_args(args_list=None):
         help="Path to save the data split based on the AIA"
     )
 
+    parser.add_argument(
+        "--compute_single_client",
+        action="store_true",
+        help="Compute the scores for a single client"
+    )
+
 
 
     if args_list is None:
@@ -220,7 +226,7 @@ def initialize_metadata_dict_from_checkpoint(metadata_path, round):
 
 def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split,
     trainers_dict, reference_trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
-    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size):
+    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size, compute_single_client):
 
     logging.info(f"Simulate AIA")
 
@@ -246,9 +252,9 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         "reference": dict(),
         "global": dict()}
 
-    for attacked_client_id in tqdm(range(num_clients)):
-        # logging.info("=" * 100)
-        # logging.info(f"Simulating attack for {attacked_client_id}...")
+    pbar = tqdm(range(num_clients))
+    attacked_client_id = 0
+    while attacked_client_id < num_clients:
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
 
@@ -316,6 +322,12 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         scores_per_client_dict["global"][attacked_client_id] = aia_score_global
 
         n_samples_list.append(len(dataset))
+        attacked_client_id += 1
+        pbar.update(1)
+        if compute_single_client:
+            attacked_client_id = num_clients
+
+    pbar.close()
 
     return scores_per_client_dict, metrics_dict, loss_dict, n_samples_list
 
@@ -381,7 +393,7 @@ def main():
             aia_initialization=args.initialization,
             aia_num_rounds=args.num_rounds,
             device=args.device,
-            rng=rng, torch_rng=torch_rng
+            rng=rng, torch_rng=torch_rng, compute_single_client= args.compute_single_client
         )
 
         global_scores = list(scores_per_client_dict["global"].values())
