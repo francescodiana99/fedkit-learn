@@ -143,6 +143,12 @@ def parse_args(args_list=None):
         default=0
     )
 
+    parser.add_argument(
+        '--compute_single_client',
+        action='store_true',
+        help='If chosen, the attacks will be computed for a single client'
+    )
+
     # TODO: remove, this are just for testing
     parser.add_argument(
         '--hidden_layers',
@@ -197,7 +203,7 @@ def save_reconstruction_history(reconstruction_history, results_path, args):
 def compute_scores(
         task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split, batch_size,
         reference_trainers_dict, trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
-        aia_initialization, aia_num_rounds, device, rng, torch_rng
+        aia_initialization, aia_num_rounds, device, rng, torch_rng, compute_single_client
 ):
     task_type = get_task_type(task_name)
 
@@ -208,7 +214,10 @@ def compute_scores(
 
     num_clients = len(trainers_dict)
 
-    for attacked_client_id in tqdm(range(num_clients)):
+    pbar = tqdm(range(num_clients))
+    attacked_client_id = 0
+
+    while attacked_client_id < num_clients:
         logging.info("=" * 100)
         logging.info(f"Simulating attacks for client {attacked_client_id}...")
 
@@ -282,6 +291,12 @@ def compute_scores(
         logging.info(f"AIA Reference Score={aia_reference_score:.3f} for client {attacked_client_id}")
 
         n_samples_list.append(len(dataset))
+        attacked_client_id += 1
+        pbar.update(1)
+        if compute_single_client:
+            attacked_client_id = num_clients
+
+    pbar.close()
 
     return scores_per_attack_dict, n_samples_list
 
@@ -337,7 +352,7 @@ def main():
         aia_initialization=args.initialization,
         aia_num_rounds=args.num_rounds,
         device=args.device,
-        rng=rng, torch_rng=torch_rng
+        rng=rng, torch_rng=torch_rng, compute_single_client=args.compute_single_client
     )
 
     logging.info("Saving scores..")

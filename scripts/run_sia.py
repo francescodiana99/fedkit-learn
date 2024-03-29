@@ -171,7 +171,9 @@ def main():
 
     logging.info("Simulate Attacks..")
 
-    for attacked_client_id in tqdm(range(num_clients)):
+    pbar = tqdm(range(num_clients))
+    attacked_client_id = 0
+    while attacked_client_id < num_clients:
 
         logging.info("=" * 100)
         logging.info(f"Simulating attack for {attacked_client_id}...")
@@ -187,6 +189,13 @@ def main():
 
         scores_list.append(score)
         n_samples_list.append(len(dataset))
+
+        attacked_client_id += 1
+        pbar.update(1)
+        if args.compute_single_client:
+            attacked_client_id = num_clients
+
+    pbar.close()
 
     avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
 

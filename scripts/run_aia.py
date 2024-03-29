@@ -178,6 +178,12 @@ def parse_args(args_list=None):
         help="If set, the fraction of round to keep will be determined "
              "starting from the beginning of the list of rounds. Default is False.")
 
+    parser.add_argument(
+        "--compute_single_client",
+        help="If set, the attack will be computed just for the first client.",
+        default=False,
+        action="store_true")
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -231,7 +237,10 @@ def main():
 
     all_clients_scores = []
 
-    for attacked_client_id in tqdm(range(num_clients)):
+    pbar = tqdm(range(num_clients))
+    attacked_client_id = 0
+
+    while attacked_client_id < num_clients:
 
         logging.info("=" * 100)
         logging.info(f"Simulating attack for {attacked_client_id}...")
@@ -287,6 +296,13 @@ def main():
 
         scores_list.append(score)
         n_samples_list.append(len(dataset))
+
+        attacked_client_id += 1
+        pbar.update(1)
+        if args.compute_single_client:
+            attacked_client_id = num_clients
+
+    pbar.close()
 
     avg_score = weighted_average(all_clients_scores, n_samples_list)
     logging.info(f"Average score: {avg_score}")
