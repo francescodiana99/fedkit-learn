@@ -417,7 +417,7 @@ def main():
 
     logging.info("Saving scores..")
     os.makedirs(args.results_dir, exist_ok=True)
-    scores_path = os.path.join(args.results_dir, f"lmra_aia.json")
+    scores_path = os.path.join(args.results_dir, f"lmra_aia_{args.sensitive_attribute}.json")
     with open(scores_path, "w") as f:
         json.dump(all_scores, f)
     logging.info(f"Scores saved in {scores_path}")
