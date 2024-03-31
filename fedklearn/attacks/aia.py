@@ -571,21 +571,26 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         return loss, metric
 
-    def execute_attack(self, num_iterations):
+    def execute_attack(self, num_iterations, output_losses=False):
         """
         Execute the federated learning attack on the provided dataset.
 
         Parameters:
         - num_iterations (int): The number of iterations to perform the attack.
         """
-
+        # TODO: remove all_losses, only for debug
+        all_losses = []
         for c_iteration in tqdm(range(num_iterations), leave=False):
             loss, metric = self._perform_iteration(c_iteration)
+            all_losses.append(loss.item())
 
             if c_iteration % self.log_freq == 0:
                 logging.info("+" * 50)
                 logging.info(f"Iteration {c_iteration}: Train Loss: {loss:.4f} | Metric: {metric:.4f} ")
                 logging.info("+" * 50)
+
+        if output_losses:
+            return all_losses
 
     def evaluate_attack(self):
         """
