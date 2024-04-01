@@ -50,7 +50,7 @@ def r2_score(y_true, y_pred):
     return r2
 
 
-def multiclass_accuracy_with_softmax(y_pred, y_true):
+def multiclass_accuracy(y_pred, y_true):
     """
     Calculate multiclass accuracy.
 

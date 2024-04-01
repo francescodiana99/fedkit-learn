@@ -472,7 +472,7 @@ def initialize_trainer(args):
 
     elif args.task_name == "purchase":
         criterion = nn.CrossEntropyLoss().to(args.device)
-        metric = multiclass_accuracy_with_softmax
+        metric = multiclass_accuracy
         is_binary_classification = False
 
     else:

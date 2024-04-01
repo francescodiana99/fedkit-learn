@@ -227,7 +227,7 @@ def get_trainer_parameters(task_name, device, model_config_path):
     elif task_name == "purchase":
         criterion = nn.CrossEntropyLoss(reduction="none").to(device)
         is_binary_classification = False
-        metric = multiclass_accuracy_with_softmax
+        metric = multiclass_accuracy
 
     else:
         raise NotImplementedError(
