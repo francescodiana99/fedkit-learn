@@ -236,6 +236,7 @@ def main():
     logging.info("Simulate Attacks..")
 
     all_clients_scores = []
+    all_clients_cos_dis = []
 
     pbar = tqdm(range(num_clients))
     attacked_client_id = 0
@@ -288,10 +289,11 @@ def main():
             torch_rng=torch_rng
         )
 
-        attack_simulator.execute_attack(num_iterations=args.num_rounds)
+        cos_dis = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)[-1]
 
         score = attack_simulator.evaluate_attack()
         all_clients_scores.append(score)
+        all_clients_cos_dis.append(cos_dis)
         logging.info(f"Score={score:.3f} for client {attacked_client_id}")
 
         scores_list.append(score)
@@ -305,6 +307,7 @@ def main():
     pbar.close()
 
     avg_score = weighted_average(all_clients_scores, n_samples_list)
+    avg_cos_dis = weighted_average(all_clients_cos_dis, n_samples_list)
     logging.info(f"Average score: {avg_score}")
 
     logging.info("Save scores..")
@@ -335,7 +338,12 @@ def main():
 
             if f"{args.keep_rounds_frac}" not in results_dict[f"{args.sensitive_attribute}"]:
                 results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"] = dict()
-            results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = avg_score
+
+            if f"{args.learning_rate}" not in results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"]:
+                results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = dict()
+            results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"]["score"] = avg_score
+            results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"]["cos_dis"] = avg_cos_dis
+
         else:
             if f"{args.sensitive_attribute}" not in results_dict:
                 results_dict[f"{args.sensitive_attribute}"] = dict()
@@ -343,15 +351,15 @@ def main():
                 results_dict[f"{args.sensitive_attribute}"] = dict()
             if "last_5" not in results_dict[f"{args.sensitive_attribute}"]:
                 results_dict[f"{args.sensitive_attribute}"]["last_5"] = dict()
+            if f"{args.learning_rate}" not in results_dict[f"{args.sensitive_attribute}"]["last_5"]:
+                results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}"] = dict()
 
-            results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}"] = avg_score
+            results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}" ]["score"] = avg_score
 
         with open(results_history_path, "w") as f:
             json.dump(results_dict, f)
 
-
         logging.info(f"The results dictionary has been saved in {args.results_path}")
-
 
 if __name__ == "__main__":
     main()
