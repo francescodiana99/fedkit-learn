@@ -313,7 +313,7 @@ def main():
     all_finetuned_models_metadata_dict = swap_dict_levels(all_finetuned_models_metadata_dict)
 
     trajectory_path = os.path.join(args.metadata_dir, "finetuning_trajectory.json")
-    with open(os.path.join(args.metadata_dir, "finetuned_models.json"), "w") as f:
+    with open(trajectory_path, "w") as f:
         json.dump(all_finetuned_models_metadata_dict, f)
 
     logging.info(f"The finetuned models have been saved successfully in {trajectory_path} .")
