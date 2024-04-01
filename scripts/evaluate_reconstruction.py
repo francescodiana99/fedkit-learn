@@ -372,14 +372,10 @@ def main():
                                          seed=args.seed)
 
     if args.task_name == "purchase":
-        if args.use_oracle:
-            results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history_w_oracle.json")
-            save_reconstruction_history(reconstruction_history=avg_scores_dict, results_path=results_history_path,
-                                        args=args)
-        else:
-            results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
-            save_reconstruction_history(reconstruction_history=avg_scores_dict, results_path=results_history_path,
-                                        args=args)
+
+        results_history_path = os.path.join(os.path.dirname(args.results_dir), "attacks_history.json")
+        save_reconstruction_history(reconstruction_history=avg_scores_dict, results_path=results_history_path,
+                                    args=args)
 
         logging.info(f"Saved results history in {results_history_path}")
 
