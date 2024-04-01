@@ -152,7 +152,7 @@ def parse_args(args_list=None):
     # TODO: remove, this are just for testing
 
     parser.add_argument(
-        '--learning_rate',
+        '--save_learning_rate',
         type=float,
         default=0.2,
         help='learning rate of the gradient estimator')
@@ -184,12 +184,12 @@ def save_reconstruction_history(reconstruction_history, results_path, args):
         results_history[f"{args.sensitive_attribute}"] = dict()
     if f"{args.finetune_round}" not in results_history[f"{args.sensitive_attribute}"]:
         results_history[f"{args.sensitive_attribute}"][f"{args.finetune_round}"] = dict()
-    if (f"{args.learning_rate}" not in
+    if (f"{args.save_learning_rate}" not in
             results_history[f"{args.sensitive_attribute}"][f"{args.finetune_round}"]):
-        results_history[f"{args.sensitive_attribute}"][f"{args.finetune_round}"][f"{args.learning_rate}"] = dict()
+        results_history[f"{args.sensitive_attribute}"][f"{args.finetune_round}"][f"{args.save_learning_rate}"] = dict()
 
     (results_history[f"{args.sensitive_attribute}"][f"{args.finetune_round}"]
-    [f"{args.learning_rate}"])= reconstruction_history
+    [f"{args.save_learning_rate}"])= reconstruction_history
 
     with open(results_path, "w") as f:
         json.dump(results_history, f)
