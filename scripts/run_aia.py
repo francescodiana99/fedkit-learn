@@ -309,6 +309,7 @@ def main():
     avg_score = weighted_average(all_clients_scores, n_samples_list)
     avg_cos_dis = weighted_average(all_clients_cos_dis, n_samples_list)
     logging.info(f"Average score: {avg_score}")
+    logging.info(f"Average cosine dissimilarity: {avg_cos_dis}")
 
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
