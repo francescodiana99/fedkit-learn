@@ -293,7 +293,7 @@ def main():
 
         score = attack_simulator.evaluate_attack()
         all_clients_scores.append(score)
-        all_clients_cos_dis.append(cos_dis)
+        all_clients_cos_dis.append(cos_dis/ len(keep_round_ids))
         logging.info(f"Score={score:.3f} for client {attacked_client_id}")
 
         scores_list.append(score)

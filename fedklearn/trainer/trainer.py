@@ -308,7 +308,7 @@ class Trainer:
         n_samples = 0
 
         for x, y in loader:
-            x = x.to(self.device).type(torch.float32)
+            x = x.to(self.device)
             y = y.to(self.device)
 
             n_samples += y.size(0)
