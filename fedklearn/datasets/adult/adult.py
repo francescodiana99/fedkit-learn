@@ -188,7 +188,7 @@ class FederatedAdultDataset:
         self.n_task_samples = n_task_samples
         self.force_generation = force_generation
         self.seed = seed
-        self.binarize_marital_status = binarize_marital_status,
+        self.binarize_marital_status = binarize_marital_status
         self.binarize_race = binarize_race
         self.device = device
         self.sensitive_attribute_id = sensitive_attribute_id
