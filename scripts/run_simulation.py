@@ -314,6 +314,12 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        '--download',
+        action='store_true',
+        help='Force data downloading'
+    )
+
+    parser.add_argument(
         '-v', '--verbose',
         help='Increase verbosity level. Repeat for more detailed log messages.',
         action='count',
@@ -380,7 +386,7 @@ def initialize_dataset(args, rng):
             split_criterion=args.split_criterion,
             n_tasks=args.n_tasks,
             n_task_samples=args.n_task_samples,
-            download=True,
+            download=args.download,
             force_generation=args.force_generation,
             seed=args.seed,
             binarize_marital_status=args.binarize_marital_status,
@@ -425,7 +431,7 @@ def initialize_dataset(args, rng):
     elif args.task_name == "purchase":
         return FederatedPurchaseDataset(
             cache_dir=args.data_dir,
-            download=True,
+            download=args.download,
             force_generation=args.force_generation,
             n_tasks=args.n_tasks,
             n_task_samples=args.n_task_samples,
