@@ -315,12 +315,12 @@ def main():
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history_aia.json")
 
-    if args.task_name == "adult":
-        load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
-                                     attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
+    # if args.task_name == "adult":
+    #     load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
+    #                                  attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
 
     # TODO: remove later, used only to speed up testing
-    if args.task_name == "purchase":
+    if args.task_name == "purchase" or args.task_name == "adult":
         os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
         if not os.path.exists(results_history_path):
             results_dict = dict()
