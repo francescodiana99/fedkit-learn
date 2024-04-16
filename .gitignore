@@ -83,4 +83,4 @@ docs/_build/
 target/
 
 # Exclude .json files in the config directory
-config/*.json
+configs/*.json
