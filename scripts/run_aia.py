@@ -32,8 +32,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase'.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary.",
         required=True
     )
 
@@ -222,6 +222,9 @@ def main():
     elif args.task_name == "purchase":
         criterion = nn.CrossEntropyLoss().to(args.device)
         is_binary_classification = False
+    elif args.task_name == "purchase_binary":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+        is_binary_classification = True
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -250,7 +253,7 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        if args.task_name == "adult" or args.task_name == "purchase":
+        if args.task_name == "adult" or args.task_name == "purchase" or args.task_name == "purchase_binary":
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
@@ -315,7 +318,7 @@ def main():
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history_aia.json")
 
-    # if args.task_name == "adult":
+    # if args. ,_name == "adult":
     #     load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
     #                                  attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
 

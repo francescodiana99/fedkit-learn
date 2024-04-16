@@ -68,7 +68,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
-from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset
+from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
@@ -95,7 +95,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase'],
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase'.",
         required=True
     )
@@ -349,9 +349,35 @@ def parse_args(args_list=None):
 
     parser.add_argument(
         "--sensitive_attribute_id",
-        type=int,
+        type=str,
         default=0,
         help="Sensitive attribute id"
+    )
+
+    parser.add_argument(
+        "--is_binary_classification",
+        action="store_true",
+        help="Flag for binary classification",
+        default=False
+    )
+
+    parser.add_argument(
+        "--target_item",
+        default=None,
+        help="Target item for binary classification with Purchase"
+    )
+
+    parser.add_argument(
+        "--n_features",
+        type=int,
+        default=20,
+        help="Number of features for binary classification with Purchase"
+    )
+
+    parser.add_argument(
+        "--features_correlation_path",
+        type=str,
+        default=None
     )
 
     if args_list is None:
@@ -439,6 +465,22 @@ def initialize_dataset(args, rng):
             split_criterion=args.split_criterion,
             test_frac=args.test_frac
         )
+
+    elif args.task_name == "purchase_binary":
+        return FederatedPurchaseBinaryClassificationDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            n_task_samples=args.n_task_samples,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            test_frac=args.test_frac,
+            target_item=args.target_item,
+            n_features=args.n_features,
+            sensitive_attribute=args.sensitive_attribute_id,
+            feature_correlation_path=args.features_correlation_path
+        )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{args.task_name}' is not implemented."
@@ -480,6 +522,11 @@ def initialize_trainer(args):
         criterion = nn.CrossEntropyLoss().to(args.device)
         metric = multiclass_accuracy
         is_binary_classification = False
+
+    elif args.task_name == "purchase_binary":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+        metric = binary_accuracy_with_sigmoid
+        is_binary_classification = True
 
     else:
         raise NotImplementedError(

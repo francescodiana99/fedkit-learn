@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
-from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset
+from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.metrics import *
 
 from fedklearn.models.linear import LinearLayer, TwoLinearLayers
@@ -106,7 +106,7 @@ def load_dataset(task_name, data_dir, rng):
                 rng=rng,
                 split_criterion=split_criterion,
                 n_tasks=n_tasks,
-                n_task_samples=n_task_samples
+                n_task_samples=n_task_samples,
             )
         return FederatedAdultDataset(
             cache_dir=data_dir,
@@ -129,6 +129,21 @@ def load_dataset(task_name, data_dir, rng):
             split_criterion=split_criterion,
             n_tasks=n_tasks,
             n_task_samples=n_task_samples
+        )
+
+    elif task_name == "purchase_binary":
+        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
+            split_dict = json.load(f)
+        split_criterion = split_dict["split_criterion"]
+        test_frac = split_dict["test_frac"]
+        return FederatedPurchaseBinaryClassificationDataset(
+            cache_dir=data_dir,
+            download=False,
+            force_generation=False,
+            rng=rng,
+            split_criterion=split_criterion,
+            test_frac=test_frac,
+            target_item='130'
         )
 
     elif task_name == "toy_regression" or task_name == "toy_classification":
@@ -228,6 +243,10 @@ def get_trainer_parameters(task_name, device, model_config_path):
         criterion = nn.CrossEntropyLoss(reduction="none").to(device)
         is_binary_classification = False
         metric = multiclass_accuracy
+    elif task_name == "purchase_binary":
+        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
+        is_binary_classification = True
+        metric = binary_accuracy_with_sigmoid
 
     else:
         raise NotImplementedError(
