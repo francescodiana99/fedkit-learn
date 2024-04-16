@@ -521,7 +521,44 @@ class FederatedPurchaseBinaryClassificationDataset(FederatedPurchaseDataset):
 
         self._save_split_criterion()
 
+    def _same_tasks_divide(self, df):
+        """
+        Split a dataframe into a dictionary of dataframes.
+        Args:
+            df(pd.DataFrame): DataFrame to split into tasks.
+
+        Returns:
+            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
+
+        """
+        num_elems = len(df)
+        group_size = int(len(df) // self.n_tasks - 1)
+        num_big_groups = num_elems - (self.n_tasks - 1) * group_size
+        num_small_groups = (self.n_tasks - 1) - num_big_groups
+        tasks_dict = dict()
+
+        for i in range(num_small_groups):
+            tasks_dict[f"{i}"] = df.iloc[group_size * i: group_size * (i + 1)]
+        bi = group_size * num_small_groups
+        group_size += 1
+        for i in range(num_big_groups):
+            tasks_dict[f"{i + num_small_groups}"] = df.iloc[bi + group_size * i:bi + group_size * (i + 1)]
+
+        return tasks_dict
     def _label_tasks_split(self, df):
+
+        """
+        Splits the data into tasks using the class labels and the sensitive attribute. If n_tasks is 2, splits the data
+        into two tasks based on the sensitive attribute, create one task with the same sensitive attribute and target
+        item and one task with different sensitive attribute and target item. If n_tasks > 2, one task will have different
+        sensitive attribute and target item and the rest will have the same sensitive attribute and target item.
+        Args:
+            df(pd.DataFrame): The DataFrame containing the data to split.
+
+        Returns (Tuple[Dict[str, pd.DataFrame], Dict[str, pd.DataFrame]]):
+        A tuple containing the training and test dictionaries.
+
+        """
 
         train_tasks_dict = dict()
         test_tasks_dict = dict()
@@ -537,11 +574,19 @@ class FederatedPurchaseBinaryClassificationDataset(FederatedPurchaseDataset):
             train_df_same_size = int(len(df_same) * (1 - self.test_frac))
             train_df_diff_size = int(len(df_diff) * (1 - self.test_frac))
 
-        train_tasks_dict["0"] = df_same.iloc[:train_df_same_size, :]
-        train_tasks_dict["1"] = df_diff.iloc[:train_df_diff_size, :]
+        if self.n_tasks == 2:
+            train_tasks_dict["0"] = df_same.iloc[:train_df_same_size, :]
+            train_tasks_dict["1"] = df_diff.iloc[:train_df_diff_size, :]
 
-        test_tasks_dict["0"] = df_same.iloc[train_df_same_size:, :]
-        test_tasks_dict["1"] = df_diff.iloc[train_df_diff_size:, :]
+            test_tasks_dict["0"] = df_same.iloc[train_df_same_size:, :]
+            test_tasks_dict["1"] = df_diff.iloc[train_df_diff_size:, :]
+
+        else:
+            train_tasks_dict = self._same_tasks_divide(df_same.iloc[:train_df_same_size, :])
+            test_tasks_dict = self._same_tasks_divide(df_same.iloc[train_df_same_size:, :])
+
+            train_tasks_dict[f"{self.n_tasks - 1}"] = df_diff.iloc[:train_df_diff_size, :]
+            test_tasks_dict[f"{self.n_tasks - 1}"] = df_diff.iloc[train_df_diff_size:, :]
 
         return train_tasks_dict, test_tasks_dict
 

@@ -323,7 +323,7 @@ def main():
     #                                  attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
 
     # TODO: remove later, used only to speed up testing
-    if args.task_name == "purchase" or args.task_name == "adult":
+    if args.task_name == "purchase" or args.task_name == "adult" or args.task_name == "purchase_binary":
         os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
         if not os.path.exists(results_history_path):
             results_dict = dict()
