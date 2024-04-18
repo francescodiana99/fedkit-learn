@@ -607,10 +607,6 @@ class FederatedAdultDataset:
 
         lower_bound = min(df['sex_Male'])
         upper_bound = max(df['sex_Male'])
-        if self.n_tasks * self.n_task_samples > len(df):
-            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
-                             f"which has size {len(df)}."
-                             "Please reduce the number of tasks or the number of samples per task.")
 
         df_rich_man_poor_woman = df[((df['income'] == 1) & (df['sex_Male'] == upper_bound) |
                                     (df['income'] == 0) & (df['sex_Male'] == lower_bound))]
@@ -620,6 +616,11 @@ class FederatedAdultDataset:
         if self.n_task_samples is None:
             tasks_dict = self._iid_tasks_divide(df_poor_man_rich_woman)
             tasks_dict[f"{self.n_tasks - 1}"] = df_rich_man_poor_woman
+
+        elif self.n_tasks * self.n_task_samples > len(df):
+            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
+                             f"which has size {len(df)}."
+                             "Please reduce the number of tasks or the number of samples per task.")
         else:
             tasks_dict = dict()
             for i in range(self.n_tasks - 1):
