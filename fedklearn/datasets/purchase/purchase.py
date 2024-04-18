@@ -532,9 +532,9 @@ class FederatedPurchaseBinaryClassificationDataset(FederatedPurchaseDataset):
 
         """
         num_elems = len(df)
-        group_size = int(len(df) // self.n_tasks - 1)
-        num_big_groups = num_elems - (self.n_tasks - 1) * group_size
-        num_small_groups = (self.n_tasks - 1) - num_big_groups
+        group_size = int(len(df) // (self.n_tasks - 1))
+        num_big_groups = num_elems - ((self.n_tasks - 1) * group_size)
+        num_small_groups = self.n_tasks - 1 - num_big_groups
         tasks_dict = dict()
 
         for i in range(num_small_groups):
@@ -545,7 +545,7 @@ class FederatedPurchaseBinaryClassificationDataset(FederatedPurchaseDataset):
             tasks_dict[f"{i + num_small_groups}"] = df.iloc[bi + group_size * i:bi + group_size * (i + 1)]
 
         return tasks_dict
-    def _label_tasks_split(self, df):
+    def _corr_tasks_split(self, df):
 
         """
         Splits the data into tasks using the class labels and the sensitive attribute. If n_tasks is 2, splits the data
@@ -562,8 +562,6 @@ class FederatedPurchaseBinaryClassificationDataset(FederatedPurchaseDataset):
 
         train_tasks_dict = dict()
         test_tasks_dict = dict()
-        if self.n_tasks != 2:
-            raise NotImplementedError("Binary classification tasks are only supported for 2 tasks.")
 
         df_same = df[df[self.sensitive_attribute]  == df[self.target_item]]
         df_diff = df[df[self.sensitive_attribute]  != df[self.target_item]]
@@ -611,8 +609,8 @@ class FederatedPurchaseBinaryClassificationDataset(FederatedPurchaseDataset):
         if self.target_item is None or self.n_features is None or self.sensitive_attribute is None:
             raise ValueError("Target item, number of features and sensitive attribute"
                              " must be defined for binary classification tasks.")
-        if self.split_criterion == "label":
-            train_tasks_dict, test_tasks_dict = self._label_tasks_split(all_data)
+        if self.split_criterion == "correlation":
+            train_tasks_dict, test_tasks_dict = self._corr_tasks_split(all_data)
         else:
             raise NotImplementedError(f"Split criterion '{self.split_criterion}' is not implemented for binary"
                                       f"classification tasks.")
