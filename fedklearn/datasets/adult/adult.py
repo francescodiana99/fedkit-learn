@@ -15,7 +15,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 
-from  fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
+from fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -95,7 +95,7 @@ class FederatedAdultDataset:
 
         _transform_education_level(x):
             A static method to transform the education level.
-            
+
         _transform_marital_status(x):
             A static method to transform the marital status.
 
@@ -168,6 +168,7 @@ class FederatedAdultDataset:
         >>> client_train_dataset = federated_data.get_task_dataset(task_id=0, mode="train")
         >>> client_test_dataset = federated_data.get_task_dataset(task_id=0, mode="test")
     """
+
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
             rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False,
@@ -188,7 +189,7 @@ class FederatedAdultDataset:
         self.n_task_samples = n_task_samples
         self.force_generation = force_generation
         self.seed = seed
-        self.binarize_marital_status = binarize_marital_status
+        self.binarize_marital_status = binarize_marital_status,
         self.binarize_race = binarize_race
         self.device = device
         self.sensitive_attribute_id = sensitive_attribute_id
@@ -209,6 +210,11 @@ class FederatedAdultDataset:
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
 
+        elif os.path.exists(os.path.join(self.cache_dir, 'intermediate')) and  self.force_generation and not self.download:
+            train_df = pd.read_csv(os.path.join(self.cache_dir, 'intermediate', 'train.csv'))
+            test_df = pd.read_csv(os.path.join(self.cache_dir, 'intermediate', 'test.csv'))
+            self._generate_tasks_mapping(train_df, test_df)
+
 
         elif not self.download:
             raise FileNotFoundError(
@@ -225,40 +231,44 @@ class FederatedAdultDataset:
 
             train_df, test_df = self._download_and_preprocess()
 
-            if self.split_criterion in ['prediction', 'aia']:
+            self._generate_tasks_mapping(train_df, test_df)
 
-                train_df = train_df.drop(['education', 'age'], axis=1)
-                test_df = test_df.drop(['education', 'age'], axis=1)
 
-                train_dataset = AdultDataset(train_df)
-                test_dataset = AdultDataset(test_df)
+    def _generate_tasks_mapping(self, train_df, test_df):
+        """Generate the tasks mapping based on the split criterion."""
+        if self.split_criterion in ['prediction', 'aia']:
+            train_df = train_df.drop(['education', 'age'], axis=1)
+            test_df = test_df.drop(['education', 'age'], axis=1)
 
-                train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=True)
-                test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=True)
+            train_dataset = AdultDataset(train_df)
+            test_dataset = AdultDataset(test_df)
 
-                self.split_model = self._train_splitting_model(train_loader=train_loader, test_loader=test_loader,
-                                                               device=self.device)
+            train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=True)
+            test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=True)
 
-            train_tasks_dict = self._split_data_into_tasks(train_df)
-            test_tasks_dict = self._split_data_into_tasks(test_df)
+            self.split_model = self._train_splitting_model(train_loader=train_loader, test_loader=test_loader,
+                                                           device=self.device)
 
-            task_dicts = [train_tasks_dict, test_tasks_dict]
+        train_tasks_dict = self._split_data_into_tasks(train_df)
+        test_tasks_dict = self._split_data_into_tasks(test_df)
 
-            self.task_id_to_name = {f"{i}": task_name for i, task_name in enumerate(train_tasks_dict.keys())}
+        task_dicts = [train_tasks_dict, test_tasks_dict]
 
-            for mode, task_dict in zip(['train', 'test'], task_dicts):
-                for task_name, task_data in task_dict.items():
-                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
-                    os.makedirs(task_cache_dir, exist_ok=True)
+        self.task_id_to_name = {f"{i}": task_name for i, task_name in enumerate(train_tasks_dict.keys())}
 
-                    file_path = os.path.join(task_cache_dir, f'{mode}.csv')
-                    task_data.to_csv(file_path, index=False)
+        for mode, task_dict in zip(['train', 'test'], task_dicts):
+            for task_name, task_data in task_dict.items():
+                task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
+                os.makedirs(task_cache_dir, exist_ok=True)
 
-                    logging.debug(f"{mode.capitalize()} data for task '{task_name}' cached at: {file_path}")
+                file_path = os.path.join(task_cache_dir, f'{mode}.csv')
+                task_data.to_csv(file_path, index=False)
 
-            self._save_task_mapping(self.task_id_to_name)
+                logging.debug(f"{mode.capitalize()} data for task '{task_name}' cached at: {file_path}")
 
-            self._save_split_criterion()
+        self._save_task_mapping(self.task_id_to_name)
+
+        self._save_split_criterion()
 
 
     @staticmethod
@@ -283,7 +293,6 @@ class FederatedAdultDataset:
         else:
             return x
 
-
     @staticmethod
     def _transform_marital_status(x):
         if x in {'Married-civ-spouse', 'Married-AF-spouse', 'Married-spouse-absent'}:
@@ -291,14 +300,12 @@ class FederatedAdultDataset:
         else:
             return 0
 
-
     @staticmethod
     def _transform_race(x):
         if x == "White":
             return 1
         else:
             return 0
-
 
     @staticmethod
     def _scale_features(df, scaler, mode="train"):
@@ -327,7 +334,6 @@ class FederatedAdultDataset:
 
         return features_scaled
 
-
     def _train_splitting_model(self, train_loader, test_loader, device):
         """Train a model to split the data into tasks."""
 
@@ -338,12 +344,12 @@ class FederatedAdultDataset:
         else:
             linear_model = LinearLayer(input_dimension=41, output_dimension=1)
         trainer = DebugTrainer(model=linear_model,
-                          criterion=torch.nn.BCEWithLogitsLoss(),
-                          optimizer=torch.optim.SGD(linear_model.parameters(), lr=0.02),
-                          device=device,
-                          metric=binary_accuracy_with_sigmoid,
-                          is_binary_classification=True
-                          )
+                               criterion=torch.nn.BCEWithLogitsLoss(),
+                               optimizer=torch.optim.SGD(linear_model.parameters(), lr=0.02),
+                               device=device,
+                               metric=binary_accuracy_with_sigmoid,
+                               is_binary_classification=True
+                               )
         trainer.fit_epochs(loader=train_loader, n_epochs=100)
         train_loss, train_metric = trainer.evaluate_loader(train_loader)
         test_loss, test_metric = trainer.evaluate_loader(test_loader)
@@ -352,7 +358,6 @@ class FederatedAdultDataset:
         logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
 
         return linear_model
-
 
     def _get_model_split(self, linear_model, dataloader, columns, device):
         """Split the data based on the prediction of a linear model."""
@@ -369,7 +374,7 @@ class FederatedAdultDataset:
             y_pred = y_pred.squeeze()
 
             prediction_mask = torch.eq(y_pred, y).type(torch.float32)
-            tasks_data = torch.cat((x,y.unsqueeze(1), prediction_mask.unsqueeze(1)), dim=1).cpu().numpy()
+            tasks_data = torch.cat((x, y.unsqueeze(1), prediction_mask.unsqueeze(1)), dim=1).cpu().numpy()
             tasks_df = pd.DataFrame(tasks_data)
 
             tasks_df_0 = tasks_df[columns[-1] == 0].drop(columns[-1], axis=1)
@@ -383,7 +388,6 @@ class FederatedAdultDataset:
             tasks_dict["1"] = pd.concat([tasks_dict["1"], tasks_df_1], axis=0)
 
         return tasks_dict
-
 
     def _split_by_age_education(self, df):
 
@@ -412,7 +416,6 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-
     def _split_by_age(self, df):
         tasks_dict = dict()
         required_columns = {'age'}
@@ -437,15 +440,14 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-
     def _split_by_n_tasks(self, df):
         tasks_dict = dict()
         num_samples = len(df)
         if self.n_task_samples is None:
             n_samples_per_task = num_samples // self.n_tasks
-            remaining_samples =  num_samples % self.n_tasks
+            remaining_samples = num_samples % self.n_tasks
         else:
-            n_samples_per_task =  self.n_task_samples
+            n_samples_per_task = self.n_task_samples
             remaining_samples = 0
 
         start_index = 0
@@ -468,7 +470,6 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-
     def _split_by_n_tasks_and_labels(self, df):
         """Split the adult dataset according to the number of tasks, maintaining both the labels in the datasets."""
         tasks_dict = dict()
@@ -484,12 +485,11 @@ class FederatedAdultDataset:
                              "Please reduce the number of tasks or the number of samples per task.")
 
         if self.n_task_samples is None:
-            n_samples_per_label =  min(n_samples_0, n_samples_1) // self.n_tasks
-            remaining_samples =  len(df) - (2 * min(n_samples_0, n_samples_1))
+            n_samples_per_label = min(n_samples_0, n_samples_1) // self.n_tasks
+            remaining_samples = len(df) - (2 * min(n_samples_0, n_samples_1))
         else:
-            n_samples_per_label =  self.n_task_samples // 2
+            n_samples_per_label = self.n_task_samples // 2
             remaining_samples = self.n_task_samples % 2
-
 
         start_index = 0
         remain_index = 0
@@ -499,7 +499,7 @@ class FederatedAdultDataset:
             task_df = pd.concat([df_0.iloc[start_index:end_index], df_1.iloc[start_index:end_index]])
 
             if remaining_samples > 0:
-                task_df = pd.concat([task_df, remaining_df.iloc[remain_index:remain_index+1]])
+                task_df = pd.concat([task_df, remaining_df.iloc[remain_index:remain_index + 1]])
                 remaining_samples -= 1
                 remain_index += 1
 
@@ -509,7 +509,6 @@ class FederatedAdultDataset:
             start_index = end_index
 
         return tasks_dict
-
 
     def _split_by_kmeans(self, df):
         """ Split the dataset using k-means"""
@@ -525,7 +524,6 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-
     def _split_by_gmm(self, df):
         """ Split the dataset using Gaussian Mixture Model"""
 
@@ -540,7 +538,6 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-
     def _split_by_prediction(self, df):
         """Split the dataset according to the prediction of a Linear model"""
 
@@ -551,6 +548,7 @@ class FederatedAdultDataset:
         tasks_dict = self._get_model_split(self.split_model, dataloader, columns, device)
 
         return tasks_dict
+
     def _split_by_aia(self, df):
         """Split the dataset according to the attribute inference attack"""
         columns = df.columns
@@ -560,12 +558,13 @@ class FederatedAdultDataset:
                                                                sensitive_attribute_id=self.sensitive_attribute_id,
                                                                sensitive_attribute_type="binary",
                                                                initialization="normal",
-                                                               criterion= nn.BCEWithLogitsLoss(reduction="none").to(self.device),
+                                                               criterion=nn.BCEWithLogitsLoss(reduction="none").to(
+                                                                   self.device),
                                                                is_binary_classification=True,
                                                                learning_rate=0.03,
                                                                optimizer_name="sgd",
                                                                success_metric=threshold_binary_accuracy
-                                                  )
+                                                               )
         df_dict = attack_simulator.execute_attack_and_split_data()
         tasks_dict = dict()
         df_dict["wrong_reconstructions"].columns = columns
@@ -575,6 +574,59 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
+    def _iid_tasks_divide(self, df):
+        """
+        Split a dataframe into a dictionary of dataframes.
+        Args:
+            df(pd.DataFrame): DataFrame to split into tasks.
+
+        Returns:
+            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
+
+        """
+        num_elems = len(df)
+        group_size = int(len(df) // (self.n_tasks - 1))
+        num_big_groups = num_elems - ((self.n_tasks - 1) * group_size)
+        num_small_groups = self.n_tasks - 1 - num_big_groups
+        tasks_dict = dict()
+
+        for i in range(num_small_groups):
+            tasks_dict[f"{i}"] = df.iloc[group_size * i: group_size * (i + 1)]
+        bi = group_size * num_small_groups
+        group_size += 1
+        for i in range(num_big_groups):
+            tasks_dict[f"{i + num_small_groups}"] = df.iloc[bi + group_size * i:bi + group_size * (i + 1)]
+
+
+        return tasks_dict
+
+    def _split_by_correlation(self, df):
+        """Split the dataset according to the correlation of the sex and label"""
+
+        df = df.drop(['education', 'age'], axis=1)
+
+        lower_bound = min(df['sex_Male'])
+        upper_bound = max(df['sex_Male'])
+        if self.n_tasks * self.n_task_samples > len(df):
+            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
+                             f"which has size {len(df)}."
+                             "Please reduce the number of tasks or the number of samples per task.")
+
+        df_rich_man_poor_woman = df[((df['income'] == 1) & (df['sex_Male'] == upper_bound) |
+                                    (df['income'] == 0) & (df['sex_Male'] == lower_bound))]
+
+        df_poor_man_rich_woman = df.drop(df_rich_man_poor_woman.index)
+
+        if self.n_task_samples is None:
+            tasks_dict = self._iid_tasks_divide(df_poor_man_rich_woman)
+            tasks_dict[f"{self.n_tasks - 1}"] = df_rich_man_poor_woman
+        else:
+            tasks_dict = dict()
+            for i in range(self.n_tasks - 1):
+                tasks_dict[f"{i}"] = df_poor_man_rich_woman.iloc[i * self.n_task_samples:(i + 1) * self.n_task_samples]
+            tasks_dict[f"{self.n_tasks - 1}"] = df_rich_man_poor_woman
+
+        return tasks_dict
 
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
@@ -601,7 +653,8 @@ class FederatedAdultDataset:
             'kmeans': self._split_by_kmeans,
             'gmm': self._split_by_gmm,
             'prediction': self._split_by_prediction,
-            'aia': self._split_by_aia
+            'aia': self._split_by_aia,
+            'correlation': self._split_by_correlation
         }
 
         if self.split_criterion in split_criterion_dict:
@@ -612,7 +665,7 @@ class FederatedAdultDataset:
             if self.split_criterion == 'aia' and self.sensitive_attribute_id is None:
                 raise ValueError(f"The sensitive attribute id must be specified when using the 'aia' split criterion.")
 
-            if self.split_criterion == 'n_tasks_labels'and self.n_task_samples < 2:
+            if self.split_criterion == 'n_tasks_labels' and self.n_task_samples < 2:
                 raise ValueError(f"The number of samples for each task must be at least 2 when using the "
                                  "'n_tasks_labels' split criterion.")
 
@@ -622,7 +675,6 @@ class FederatedAdultDataset:
                              f" Supported criteria are {', '.join(split_criterion_dict)}.")
 
         return tasks_dict
-
 
     def _save_task_mapping(self, metadata_dict):
         if os.path.exists(self._metadata_path):
@@ -635,7 +687,6 @@ class FederatedAdultDataset:
             with open(self._metadata_path, "w") as f:
                 metadata = {self.split_criterion: metadata_dict}
                 json.dump(metadata, f)
-
 
     def _load_task_mapping(self):
         with (open(self._metadata_path, "r") as f):
@@ -727,14 +778,13 @@ class FederatedAdultDataset:
 
         df['income'] = df['income'].replace('<=50K', 0).replace('>50K', 1)
         df['income'] = df['income'].replace('<=50K.', 0).replace('>50K.', 1)
-
         df["education"] = df["education"].apply(self._transform_education_level)
 
-        if self.binarize_marital_status:
+        if self.binarize_marital_status is True:
             df["marital-status"] = df["marital-status"].apply(self._transform_marital_status)
             CATEGORICAL_COLUMNS.remove('marital-status')
 
-        if self.binarize_race:
+        if self.binarize_race is True:
             df["race"] = df.race.apply(self._transform_race)
             CATEGORICAL_COLUMNS.remove('race')
 
@@ -743,7 +793,8 @@ class FederatedAdultDataset:
         if self.test_frac is None:
             train_df, test_df = df[:num_train], df[num_train:]
         else:
-            train_df, test_df = train_test_split(df, test_size=self.test_frac, random_state=self.rng.integers(low=0, high=1000))
+            train_df, test_df = train_test_split(df, test_size=self.test_frac,
+                                                 random_state=self.rng.integers(low=0, high=1000))
 
         train_df = train_df.dropna()
         test_df = test_df.dropna()
@@ -827,6 +878,7 @@ class AdultDataset(Dataset):
          __getitem__(idx): Returns a tuple representing the idx-th sample in the dataset.
 
      """
+
     def __init__(self, dataframe, name=None):
         """
         Initializes the AdultDataset.
