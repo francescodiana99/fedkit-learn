@@ -574,7 +574,7 @@ class FederatedAdultDataset:
 
         return tasks_dict
 
-    def _iid_tasks_divide(self, df):
+    def _iid_tasks_divide(self, df, n_tasks):
         """
         Split a dataframe into a dictionary of dataframes.
         Args:
@@ -585,9 +585,9 @@ class FederatedAdultDataset:
 
         """
         num_elems = len(df)
-        group_size = int(len(df) // (self.n_tasks - 1))
-        num_big_groups = num_elems - ((self.n_tasks - 1) * group_size)
-        num_small_groups = self.n_tasks - 1 - num_big_groups
+        group_size = int(len(df) // n_tasks)
+        num_big_groups = num_elems - (n_tasks * group_size)
+        num_small_groups = n_tasks - num_big_groups
         tasks_dict = dict()
 
         for i in range(num_small_groups):
@@ -614,18 +614,34 @@ class FederatedAdultDataset:
         df_poor_man_rich_woman = df.drop(df_rich_man_poor_woman.index)
 
         if self.n_task_samples is None:
-            tasks_dict = self._iid_tasks_divide(df_poor_man_rich_woman)
-            tasks_dict[f"{self.n_tasks - 1}"] = df_rich_man_poor_woman
+            tasks_dict_poor_man = self._iid_tasks_divide(df_poor_man_rich_woman, self.n_tasks // 2)
+            if self.n_tasks % 2 != 0:
+                tasks_dict_rich_man = self._iid_tasks_divide(df_rich_man_poor_woman, self.n_tasks // 2 + 1)
+            else:
+                tasks_dict_rich_man = self._iid_tasks_divide(df_rich_man_poor_woman, self.n_tasks // 2)
+
+            tasks_dict_rich_man = {str(int(k) + self.n_tasks // 2): v for k, v in tasks_dict_rich_man.items()}
+            tasks_dict = {**tasks_dict_poor_man, **tasks_dict_rich_man}
+
 
         elif self.n_tasks * self.n_task_samples > len(df):
             raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
                              "Please reduce the number of tasks or the number of samples per task.")
         else:
-            tasks_dict = dict()
-            for i in range(self.n_tasks - 1):
-                tasks_dict[f"{i}"] = df_poor_man_rich_woman.iloc[i * self.n_task_samples:(i + 1) * self.n_task_samples]
-            tasks_dict[f"{self.n_tasks - 1}"] = df_rich_man_poor_woman
+            tasks_dict_rich_man = dict()
+            tasks_dict_poor_man = dict()
+            for i in range(self.n_tasks // 2):
+                tasks_dict_poor_man[f"{i}"] = df_poor_man_rich_woman.iloc[i * self.n_task_samples:(i + 1) * self.n_task_samples]
+                tasks_dict_rich_man[f"{i}"] = df_rich_man_poor_woman[i * self.n_task_samples:(i + 1) * self.n_task_samples]
+
+            if self.n_tasks % 2 != 0:
+                tasks_dict_rich_man[f"{self.n_tasks // 2}"] = df_rich_man_poor_woman[self.n_tasks // 2 * self.n_task_samples:
+                                                                           self.n_tasks // 2 * self.n_task_samples +
+                                                                           self.n_task_samples]
+            tasks_dict_rich_man = {str(int(k) + self.n_tasks // 2): v for k, v in tasks_dict_rich_man.items()}
+
+            tasks_dict = {**tasks_dict_poor_man, **tasks_dict_rich_man}
 
         return tasks_dict
 

@@ -183,6 +183,12 @@ def parse_args(args_list=None):
         help="Compute the scores for a single client"
     )
 
+    parser.add_argument("--attacked_rounds",
+        nargs="+",
+        help="Rounds to test",
+        type=str
+    )
+
 
 
     if args_list is None:
@@ -354,6 +360,9 @@ def main():
     with open(args.reference_models_metadata_path, "r") as f:
         all_reference_models_metadata_dict = json.load(f)
         all_reference_models_metadata_dict = swap_dict_levels(all_reference_models_metadata_dict)
+
+    if args.attacked_rounds:
+        all_models_metadata_dict = {k: v for k, v in all_models_metadata_dict.items() if k in args.attacked_rounds}
 
     for iteration_id in all_models_metadata_dict:
 
