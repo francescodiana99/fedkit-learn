@@ -210,7 +210,7 @@ class FederatedAdultDataset:
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_task_mapping()
 
-        elif os.path.exists(os.path.join(self.cache_dir, 'intermediate')) and  self.force_generation and not self.download:
+        elif os.path.exists(os.path.join(self.cache_dir, 'intermediate')) and self.force_generation and not self.download:
             train_df = pd.read_csv(os.path.join(self.cache_dir, 'intermediate', 'train.csv'))
             test_df = pd.read_csv(os.path.join(self.cache_dir, 'intermediate', 'test.csv'))
             self._generate_tasks_mapping(train_df, test_df)
@@ -236,6 +236,12 @@ class FederatedAdultDataset:
 
     def _generate_tasks_mapping(self, train_df, test_df):
         """Generate the tasks mapping based on the split criterion."""
+        logging.info("Forcing data generation....")
+        # remove the task folder if it exists to avoid inconsistencies
+        tasks_folder = os.path.join(self.cache_dir, 'tasks', self.split_criterion)
+        if os.path.exists(tasks_folder):
+            shutil.rmtree(tasks_folder)
+
         if self.split_criterion in ['prediction', 'aia']:
             train_df = train_df.drop(['education', 'age'], axis=1)
             test_df = test_df.drop(['education', 'age'], axis=1)
@@ -623,7 +629,6 @@ class FederatedAdultDataset:
             tasks_dict_rich_man = {str(int(k) + self.n_tasks // 2): v for k, v in tasks_dict_rich_man.items()}
             tasks_dict = {**tasks_dict_poor_man, **tasks_dict_rich_man}
 
-
         elif self.n_tasks * self.n_task_samples > len(df):
             raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
@@ -713,7 +718,7 @@ class FederatedAdultDataset:
     def _save_split_criterion(self):
         with open(self._split_criterion_path, "w") as f:
             criterion_dict = {'split_criterion': self.split_criterion, 'n_tasks': self.n_tasks}
-            if self.split_criterion in ['n_tasks', 'n_tasks_labels']:
+            if self.split_criterion in ['n_tasks', 'n_tasks_labels', 'correlation']:
                 criterion_dict['n_task_samples'] = self.n_task_samples
             json.dump(criterion_dict, f)
 
