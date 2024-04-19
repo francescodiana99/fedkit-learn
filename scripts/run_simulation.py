@@ -570,6 +570,7 @@ def initialize_clients(federated_dataset, args):
     for task_id in federated_dataset.task_id_to_name:
         trainer = initialize_trainer(args)
 
+        logging.info('initialize client datasets')
         train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
         test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
 
@@ -578,6 +579,7 @@ def initialize_clients(federated_dataset, args):
 
         logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
 
+        logging.info('initialize client instance')
         client = Client(
             trainer=trainer,
             train_loader=train_loader,
@@ -726,7 +728,7 @@ def main():
     logging.info("=" * 100)
     logging.info("Initialize clients..")
     clients = initialize_clients(federated_dataset, args)
-
+    logging.info('clients initialized')
     os.makedirs(args.metadata_dir, exist_ok=True)
 
     logging.info("=" * 100)
