@@ -458,6 +458,8 @@ def save_avg_scores_adult(scores_list, attack_name, results_path, n_samples_list
 
     if split_criterion not in results[seed]:
         results[seed][split_criterion] = dict()
+    if n_tasks not in results[seed][split_criterion]:
+        results[seed][split_criterion][str(n_tasks)] = dict()
 
     if split_criterion == ["n_task_samples"]:
         results[seed][split_criterion][str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
