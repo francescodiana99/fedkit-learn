@@ -226,6 +226,9 @@ def main():
     elif args.task_name == "purchase":
         criterion = nn.CrossEntropyLoss().to(args.device)
         is_binary_classification = False
+    elif args.task_name == "purchase_binary":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+        is_binary_classification = True
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -233,8 +236,6 @@ def main():
     with open(os.path.join(args.metadata_dir, "model_config.json"), "r") as f:
         model_config_path = json.load(f)
     model_init_fn = lambda: initialize_model(model_config_path["model_config"])
-
-    task_type = get_task_type(args.task_name)
 
     logging.info("Simulate Attacks..")
 
@@ -261,6 +262,10 @@ def main():
 
         if args.task_name == "purchase":
             metric = multiclass_accuracy
+        elif args.task_name == "adult":
+            metric = binary_accuracy_with_sigmoid
+        elif args.task_name == "purchase_binary":
+            metric = binary_accuracy_with_sigmoid
         else:
             raise NotImplementedError(
                 f"Metric for task '{args.task_name}' is not implemented"
