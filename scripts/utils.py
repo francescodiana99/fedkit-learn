@@ -108,13 +108,22 @@ def load_dataset(task_name, data_dir, rng):
                 n_tasks=n_tasks,
                 n_task_samples=n_task_samples,
             )
-        return FederatedAdultDataset(
-            cache_dir=data_dir,
-            download=False,
-            rng=rng,
-            split_criterion=split_criterion,
-
-        )
+        elif split_criterion == "correlation":
+            mixing_coefficient = split_dict["mixing_coefficient"]
+            return FederatedAdultDataset(
+                cache_dir=data_dir,
+                download=False,
+                rng=rng,
+                split_criterion=split_criterion,
+                mixing_coefficient=mixing_coefficient,
+            )
+        else:
+            return FederatedAdultDataset(
+                cache_dir=data_dir,
+                download=False,
+                rng=rng,
+                split_criterion=split_criterion,
+            )
     elif task_name == "purchase":
         with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
             split_dict = json.load(f)

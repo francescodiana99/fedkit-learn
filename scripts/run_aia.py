@@ -363,7 +363,7 @@ def main():
         with open(results_history_path, "w") as f:
             json.dump(results_dict, f)
 
-        logging.info(f"The results dictionary has been saved in {args.results_path}")
+        logging.info(f"The results dictionary has been saved in {results_history_path}")
 
 if __name__ == "__main__":
     main()

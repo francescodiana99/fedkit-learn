@@ -380,6 +380,13 @@ def parse_args(args_list=None):
         default=None
     )
 
+    parser.add_argument(
+        "--mixing_coefficient",
+        type=float,
+        default=0,
+        help="Mixing coefficient for the mixing sample distribution in Adult dataset"
+    )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -417,7 +424,8 @@ def initialize_dataset(args, rng):
             seed=args.seed,
             binarize_marital_status=args.binarize_marital_status,
             sensitive_attribute_id=args.sensitive_attribute_id,
-            device=args.device
+            device=args.device,
+            mixing_coefficient=args.mixing_coefficient
         )
     elif args.task_name == "toy_regression":
         return FederatedToyDataset(

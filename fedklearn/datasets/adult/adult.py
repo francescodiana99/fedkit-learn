@@ -172,7 +172,8 @@ class FederatedAdultDataset:
     def __init__(
             self, cache_dir="./", test_frac=None, drop_nationality=True, scaler_name="standard", download=True,
             rng=None, split_criterion='age_education', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, binarize_marital_status=False, binarize_race=False, device='cpu', sensitive_attribute_id=None
+            seed=42, binarize_marital_status=False, binarize_race=False, device='cpu', sensitive_attribute_id=None,
+            mixing_coefficient=0.
     ):
         """
         Raises:
@@ -193,6 +194,7 @@ class FederatedAdultDataset:
         self.binarize_race = binarize_race
         self.device = device
         self.sensitive_attribute_id = sensitive_attribute_id
+        self.mixing_coefficient = mixing_coefficient
 
         if rng is None:
             rng = np.random.default_rng()
@@ -264,7 +266,11 @@ class FederatedAdultDataset:
 
         for mode, task_dict in zip(['train', 'test'], task_dicts):
             for task_name, task_data in task_dict.items():
-                task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
+                if self.split_criterion == 'correlation':
+                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion,
+                                                  f'{int(self.mixing_coefficient * 100)}',task_name)
+                else:
+                    task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
                 os.makedirs(task_cache_dir, exist_ok=True)
 
                 file_path = os.path.join(task_cache_dir, f'{mode}.csv')
@@ -619,6 +625,25 @@ class FederatedAdultDataset:
 
         df_poor_man_rich_woman = df.drop(df_rich_man_poor_woman.index)
 
+        if self.mixing_coefficient < 0 or self.mixing_coefficient > 1:
+            raise ValueError("The mixing coefficient must be between 0 and 1.")
+
+        if self.mixing_coefficient > 0:
+            n_mix_samples_rmpw = int(self.mixing_coefficient * len(df_rich_man_poor_woman))
+            n_mix_samples_pmrw = int(self.mixing_coefficient * len(df_poor_man_rich_woman))
+            mix_sample_rich_man_poor_woman = df_rich_man_poor_woman.sample(n=n_mix_samples_pmrw)
+            mix_sample_poor_man_rich_woman = df_poor_man_rich_woman.sample(n=n_mix_samples_rmpw)
+
+            df_rich_man_poor_woman = df_rich_man_poor_woman[n_mix_samples_rmpw:]
+            df_poor_man_rich_woman = df_poor_man_rich_woman[n_mix_samples_pmrw:]
+
+            df_rich_man_poor_woman = pd.concat([df_rich_man_poor_woman, mix_sample_poor_man_rich_woman], axis=0)
+            df_poor_man_rich_woman = pd.concat([df_poor_man_rich_woman, mix_sample_rich_man_poor_woman], axis=0)
+
+            # shuffle the data
+            df_rich_man_poor_woman = df_rich_man_poor_woman.sample(frac=1)
+            df_poor_man_rich_woman = df_poor_man_rich_woman.sample(frac=1)
+
         if self.n_task_samples is None:
             tasks_dict_poor_man = self._iid_tasks_divide(df_poor_man_rich_woman, self.n_tasks // 2)
             if self.n_tasks % 2 != 0:
@@ -720,6 +745,8 @@ class FederatedAdultDataset:
             criterion_dict = {'split_criterion': self.split_criterion, 'n_tasks': self.n_tasks}
             if self.split_criterion in ['n_tasks', 'n_tasks_labels', 'correlation']:
                 criterion_dict['n_task_samples'] = self.n_task_samples
+            if self.split_criterion == 'correlation':
+                criterion_dict['mixing_coefficient'] = self.mixing_coefficient
             json.dump(criterion_dict, f)
 
     def _download_and_preprocess(self):
@@ -852,7 +879,11 @@ class FederatedAdultDataset:
         task_id = str(task_id)
 
         task_name = self.task_id_to_name[task_id]
-        task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
+        if self.split_criterion == 'correlation':
+            task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion,
+                                          f'{int(self.mixing_coefficient * 100)}', task_name)
+        else:
+            task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
         file_path = os.path.join(task_cache_dir, f'{mode}.csv')
         task_data = pd.read_csv(file_path)
 
