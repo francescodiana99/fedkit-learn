@@ -173,7 +173,8 @@ def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn,
     Initialize the trainer for finetuning.
 
     """
-    global_model_chkpt = torch.load(client_messages_metadata['global'][f"{args.finetune_round}"])["model_state_dict"]
+    global_model_chkpt = torch.load(client_messages_metadata['global'][f"{args.finetune_round}"],
+                                    map_location=args.device)["model_state_dict"]
     finetuning_model = model_init_fn()
     finetuning_model.load_state_dict(global_model_chkpt)
 
