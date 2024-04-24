@@ -279,7 +279,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
         model = model_init_fn()
         model.load_state_dict(model_chkpts)
 
-        trainers_dict[client_id] = DebugTrainer(
+        trainers_dict[client_id] = Trainer(
             model=model,
             criterion=criterion,
             metric=metric,
