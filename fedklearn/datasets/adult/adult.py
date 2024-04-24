@@ -641,8 +641,8 @@ class FederatedAdultDataset:
             df_poor_man_rich_woman = pd.concat([df_poor_man_rich_woman, mix_sample_rich_man_poor_woman], axis=0)
 
             # shuffle the data
-            df_rich_man_poor_woman = df_rich_man_poor_woman.sample(frac=1)
-            df_poor_man_rich_woman = df_poor_man_rich_woman.sample(frac=1)
+            df_rich_man_poor_woman = df_rich_man_poor_woman.sample(frac=1, random_state=self.seed)
+            df_poor_man_rich_woman = df_poor_man_rich_woman.sample(frac=1, random_state=self.seed)
 
         if self.n_task_samples is None:
             tasks_dict_poor_man = self._iid_tasks_divide(df_poor_man_rich_woman, self.n_tasks // 2)
