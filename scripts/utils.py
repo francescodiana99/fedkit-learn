@@ -275,7 +275,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
 
     trainers_dict = dict()
     for client_id in models_metadata_dict:
-        model_chkpts = torch.load(models_metadata_dict[client_id])["model_state_dict"]
+        model_chkpts = torch.load(models_metadata_dict[client_id], map_location=device)["model_state_dict"]
         model = model_init_fn()
         model.load_state_dict(model_chkpts)
 
