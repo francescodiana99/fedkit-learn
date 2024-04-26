@@ -32,8 +32,9 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary, "
+             "'medical_cost'.",
         required=True
     )
 
@@ -225,6 +226,10 @@ def main():
     elif args.task_name == "purchase_binary":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
+    elif args.task_name == "medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        # TODO: fix, it is not a binary classification but we need the shape transformation
+        is_binary_classification = True
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -253,7 +258,7 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        if args.task_name == "adult" or args.task_name == "purchase" or args.task_name == "purchase_binary":
+        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost"] :
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
@@ -323,7 +328,7 @@ def main():
     #                                  attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
 
     # TODO: remove later, used only to speed up testing
-    if args.task_name == "purchase" or args.task_name == "adult" or args.task_name == "purchase_binary":
+    if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost"]:
         os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
         if not os.path.exists(results_history_path):
             results_dict = dict()
