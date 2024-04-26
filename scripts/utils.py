@@ -270,7 +270,7 @@ def get_trainer_parameters(task_name, device, model_config_path):
         metric = binary_accuracy_with_sigmoid
     elif task_name == "medical_cost":
         criterion = nn.MSELoss(reduction="none").to(device)
-        # TODO: need this for output shape and type
+        # TODO: need this for output shape and type, fix_later
         is_binary_classification = True
         metric = mean_squared_error
 

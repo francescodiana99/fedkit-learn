@@ -388,6 +388,10 @@ def parse_args(args_list=None):
         help="Mixing coefficient for the mixing sample distribution in Adult dataset"
     )
 
+    parser.add_argument("--scale_target",
+        action="store_true",
+        help="Flag for scaling the target variable in the medical cost dataset")
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -499,7 +503,8 @@ def initialize_dataset(args, rng):
             rng=rng,
             split_criterion=args.split_criterion,
             test_frac=args.test_frac,
-            scaler=args.scaler_name
+            scaler=args.scaler_name,
+            scale_target=args.scale_target
         )
     else:
         raise NotImplementedError(
