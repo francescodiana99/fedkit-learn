@@ -226,8 +226,9 @@ class FederatedAdultDataset:
         else:
             logging.info("Forcing data generation....")
             # remove the task folder if it exists to avoid inconsistencies
-            if os.path.exists(tasks_folder):
-                shutil.rmtree(tasks_folder)
+            if self.split_criterion != 'correlation':
+                if os.path.exists(tasks_folder):
+                    shutil.rmtree(tasks_folder)
 
             self.scaler = self.set_scaler(self.scaler_name)
 
@@ -241,8 +242,9 @@ class FederatedAdultDataset:
         logging.info("Forcing data generation....")
         # remove the task folder if it exists to avoid inconsistencies
         tasks_folder = os.path.join(self.cache_dir, 'tasks', self.split_criterion)
-        if os.path.exists(tasks_folder):
-            shutil.rmtree(tasks_folder)
+        if self.split_criterion != 'correlation':
+            if os.path.exists(tasks_folder):
+                shutil.rmtree(tasks_folder)
 
         if self.split_criterion in ['prediction', 'aia']:
             train_df = train_df.drop(['education', 'age'], axis=1)
