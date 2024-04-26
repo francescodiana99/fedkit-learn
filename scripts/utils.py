@@ -6,6 +6,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
+from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
 from fedklearn.metrics import *
 
 from fedklearn.models.linear import LinearLayer, TwoLinearLayers
@@ -59,20 +60,20 @@ def configure_logging(args):
     logging.basicConfig(level=logging.INFO - (args.verbose - args.quiet) * 10)
 
 def get_task_type(task_name):
-    if task_name == "adult":
-        task_type = "binary_classification"
-    elif task_name == "toy_classification":
-        task_type = "binary_classification"
-    elif task_name == "toy_regression":
-        task_type = "regression"
-    elif task_name == "purchase":
-        task_type = "classification"
-    else:
+    task_types = {
+        "adult": "binary_classification",
+        "toy_classification": "binary_classification",
+        "toy_regression": "regression",
+        "purchase": "classification",
+        "purchase_binary": "binary_classification",
+        "medical_cost": "regression",
+    }
+    if task_name not in task_types.keys():
         raise NotImplementedError(
             f"Network initialization for task '{task_name}' is not implemented"
         )
 
-    return task_type
+    return task_types[task_name]
 
 def load_dataset(task_name, data_dir, rng):
     """
@@ -161,6 +162,17 @@ def load_dataset(task_name, data_dir, rng):
             allow_generation=False,
             force_generation=False,
             rng=rng
+        )
+    elif task_name == "medical_cost":
+        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
+            split_dict = json.load(f)
+        split_criterion = split_dict["split_criterion"]
+        return FederatedMedicalCostDataset(
+            cache_dir=data_dir,
+            download=False,
+            force_generation=False,
+            rng=rng,
+            split_criterion=split_criterion,
         )
     else:
         raise NotImplementedError(
@@ -256,6 +268,11 @@ def get_trainer_parameters(task_name, device, model_config_path):
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
         is_binary_classification = True
         metric = binary_accuracy_with_sigmoid
+    elif task_name == "medical_cost":
+        criterion = nn.MSELoss(reduction="none").to(device)
+        # TODO: need this for output shape and type
+        is_binary_classification = True
+        metric = mean_squared_error
 
     else:
         raise NotImplementedError(

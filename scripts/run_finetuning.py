@@ -15,7 +15,7 @@ from fedklearn.metrics import multiclass_accuracy
 
 from tqdm import tqdm
 
-
+from fedklearn.utils import get_param_tensor
 from utils import *
 
 def parse_args(args_list=None):
@@ -39,9 +39,11 @@ def parse_args(args_list=None):
 
     parser.add_argument(
         '--task_name',
-                        type=str,
-                        help="Task name. Possible are 'adult'and 'purchase",
-                        required=True)
+        type=str,
+        choices=['adult', 'purchase', 'toy_classification', 'toy_regression', 'purchase_binary', 'medical_cost'],
+        help="Task name. Possible choices are 'adult', 'purchase', 'toy_classification', "
+             "'toy_regression', 'purchase_binary', 'medical_cost'",
+        required=True)
 
     parser.add_argument(
         '--split',
@@ -160,6 +162,12 @@ def parse_args(args_list=None):
     action="store_true",
     )
 
+    parser.add_argument(
+        "--noise_factor",
+        type=float,
+        default=None,
+        help="Noise factor to simulate server update")
+
 
     if args_list is None:
         return parser.parse_args()
@@ -200,6 +208,18 @@ def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn,
 
     )
 
+def add_noise(model, noise_model, noise_factor):
+    """
+    Add noise to the model weights.
+
+    """
+    for layer1, layer2 in zip(model.layers, noise_model.layers):
+        if isinstance(layer1, torch.nn.Linear) and isinstance(layer2, torch.nn.Linear):
+            assert layer1.weight.shape == layer2.weight.shape, "Model layers must have the same shape"
+            layer1.weight.data += (layer2.weight.data * noise_factor)
+            layer1.bias.data += (layer2.bias.data * noise_factor)
+
+    return model
 
 def main():
     args = parse_args()
@@ -230,6 +250,9 @@ def main():
     elif args.task_name == "purchase_binary":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
+    elif args.task_name == "medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        is_binary_classification = False
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -267,6 +290,8 @@ def main():
             metric = binary_accuracy_with_sigmoid
         elif args.task_name == "purchase_binary":
             metric = binary_accuracy_with_sigmoid
+        elif args.task_name == "medical_cost":
+            metric = mean_squared_error
         else:
             raise NotImplementedError(
                 f"Metric for task '{args.task_name}' is not implemented"
@@ -278,10 +303,20 @@ def main():
             model_init_fn=model_init_fn,
             criterion=criterion,
             metric=metric,
-            is_binary_classification=is_binary_classification
+            is_binary_classification=is_binary_classification,
         )
 
         for step in range(args.num_epochs):
+            # TODO: this should be integrated in run_simulation.py
+
+            if args.noise_factor is not None:
+                noise_model = model_init_fn().to(args.device)
+                if args.verbose:
+                    noise_norm = torch.linalg.norm(get_param_tensor(noise_model) * args.noise_factor)
+                    model_norm = torch.linalg.norm(finetuning_trainer.get_param_tensor())
+                    logging.info(f'Norm of the noise {noise_norm}')
+                    logging.info(f'Norm of the model {model_norm}')
+                finetuning_trainer.model = add_noise(finetuning_trainer.model, noise_model, args.noise_factor)
 
             loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
 

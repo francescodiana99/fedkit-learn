@@ -18,8 +18,9 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary'.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary',"
+             "'medical_cost'.",
         required=True
     )
 
@@ -199,10 +200,14 @@ def parse_args(args_list=None):
 
 def evaluate_trainer(trainer, dataloader):
     evaluation_trainer = copy.deepcopy(trainer)
-    if evaluation_trainer.is_binary_classification:
+    if trainer.criterion.__class__.__name__ == "BCEWithLogitsLoss":
         evaluation_trainer.criterion = nn.BCEWithLogitsLoss(reduction='mean')
-    else:
+    elif trainer.criterion.__class__.__name__ == "CrossEntropyLoss":
         evaluation_trainer.criterion = nn.CrossEntropyLoss(reduction='mean')
+    elif trainer.criterion.__class__.__name__ == "MSELoss":
+        evaluation_trainer.criterion = nn.MSELoss()
+    else:
+        raise NotImplementedError(f"Criterion {trainer.criterion.__class__.__name__} is not implemented.")
     avg_loss, metric = evaluation_trainer.evaluate_loader(dataloader, output_losses=False)
     return avg_loss, metric
 
@@ -271,6 +276,9 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         elif task_name == "toy_classification" or task_name == "toy_regression":
             sensitive_attribute_id = federated_dataset.sensitive_attribute_id
             sensitive_attribute_type = federated_dataset.sensitive_attribute_type
+        elif task_name == "medical_cost":
+            sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
+            sensitive_attribute_type = sensitive_attribute_type
         else:
             raise NotImplementedError(
                 f"Dataset initialization for task '{task_name}' is not implemented."

@@ -684,7 +684,6 @@ class FederatedAdultDataset:
 
         Args:
          - df (pd.DataFrame):  Input DataFrame containing the columns "age" and "education".
-         - split_criterion (str, optional): The criterion used to split the data into tasks. Default is 'age_education'.
 
         Raises:
             ValueError: If the input DataFrame does not contain the required columns ('age' and 'education').

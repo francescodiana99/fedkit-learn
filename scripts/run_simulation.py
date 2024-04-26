@@ -68,6 +68,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
+from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
@@ -95,8 +96,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase'.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost'.",
         required=True
     )
 
@@ -489,6 +490,17 @@ def initialize_dataset(args, rng):
             sensitive_attribute=args.sensitive_attribute_id,
             feature_correlation_path=args.features_correlation_path
         )
+    elif args.task_name =="medical_cost":
+        return FederatedMedicalCostDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            test_frac=args.test_frac,
+            scaler=args.scaler_name
+        )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{args.task_name}' is not implemented."
@@ -535,6 +547,11 @@ def initialize_trainer(args):
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         metric = binary_accuracy_with_sigmoid
         is_binary_classification = True
+
+    elif args.task_name == "medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
 
     else:
         raise NotImplementedError(
