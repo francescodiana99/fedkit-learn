@@ -75,7 +75,8 @@ def get_task_type(task_name):
 
     return task_types[task_name]
 
-def load_dataset(task_name, data_dir, rng):
+#TODO: find a better way to load Adult dataset with correlation-based split
+def load_dataset(task_name, data_dir, rng, mixing_coefficient=None):
     """
     Load a federated dataset based on the specified task name.
 
@@ -83,7 +84,7 @@ def load_dataset(task_name, data_dir, rng):
         task_name (str): Name of the task for which the dataset is to be loaded.
         data_dir (str): Directory where the dataset should be stored or loaded from.
         rng (RandomState): NumPy random number generator for reproducibility.
-        split_criterion (str): The split criterion to be used for the task data separation.
+        mixing_coefficient (str, opt): Mix coefficient for correlation split in Adult dataset.
 
     Returns:
         FederatedDataset: Initialized federated dataset.
@@ -110,7 +111,7 @@ def load_dataset(task_name, data_dir, rng):
                 n_task_samples=n_task_samples,
             )
         elif split_criterion == "correlation":
-            mixing_coefficient = split_dict["mixing_coefficient"]
+            mixing_coefficient = mixing_coefficient
             return FederatedAdultDataset(
                 cache_dir=data_dir,
                 download=False,

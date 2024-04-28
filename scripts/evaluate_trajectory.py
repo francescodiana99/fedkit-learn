@@ -155,6 +155,11 @@ def parse_args(args_list=None):
         default=0
     )
 
+    parser.add_argument('--mixing_coefficient',
+                        type=float,
+                        default=None,
+                        help='Mixing coefficient for the correlation-based split in Adult dataset')
+
 
     if args_list is None:
         return parser.parse_args()
@@ -250,7 +255,8 @@ def main():
     rng = np.random.default_rng(seed=args.seed)
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
+                                     mixing_coefficient=args.mixing_coefficient)
 
     with open(args.models_metadata_path, "r") as f:
         all_reconstructed_models_metadata_dict = json.load(f)

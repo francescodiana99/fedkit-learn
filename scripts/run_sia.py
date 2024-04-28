@@ -104,6 +104,10 @@ def parse_args(args_list=None):
         default=0
     )
 
+    parser.add_argument('--mixing_coefficient',
+                        type=float,
+                        default=None,
+                        help='Mixing coefficient for the correlation-based split in Adult dataset')
 
     if args_list is None:
         return parser.parse_args()
@@ -147,7 +151,8 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
+                                     mixing_coefficient=args.mixing_coefficient)
 
     num_clients = len(federated_dataset.task_id_to_name)
 

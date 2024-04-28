@@ -190,6 +190,12 @@ def parse_args(args_list=None):
         type=str
     )
 
+    parser.add_argument("--mixing_coefficient",
+        type=float,
+        help="Mixing coefficient for the synthetic dataset",
+        default=0.5
+    )
+
 
 
     if args_list is None:
@@ -354,7 +360,8 @@ def main():
     rng = np.random.default_rng(seed=args.seed)
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
+                                     mixing_coefficient=args.mixing_coefficient)
     all_scores = dict()
 
     # models_metadata_dict = initialize_metadata_dict_from_checkpoint(args.models_metadata_path, args.attacked_round)
