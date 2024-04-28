@@ -170,7 +170,7 @@ def parse_args(args_list=None):
 def compute_scores(
         task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split, batch_size,
         reference_trainers_dict, trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
-        aia_initialization, aia_num_rounds, device, rng, torch_rng
+        aia_initialization, aia_num_rounds, device, rng, torch_rng, mixing_coefficient=None
 ):
     task_type = get_task_type(task_name)
 
@@ -185,7 +185,8 @@ def compute_scores(
         logging.info("=" * 100)
         logging.info(f"Simulating attacks for client {attacked_client_id}...")
 
-        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
+        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split,
+                                                     mixing_coefficient=mixing_coefficient)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
         if task_name in ["adult", "medical_cost", "purchase", "purchase_binary"]:
@@ -305,7 +306,7 @@ def main():
             aia_initialization=args.initialization,
             aia_num_rounds=args.num_rounds,
             device=args.device,
-            rng=rng, torch_rng=torch_rng
+            rng=rng, torch_rng=torch_rng, mixing_coefficient=args.mixing_coefficient
         )
 
         all_scores_dict[f"{iteration_id}"] = scores_per_attack_dict
