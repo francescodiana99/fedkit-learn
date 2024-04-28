@@ -170,7 +170,7 @@ def parse_args(args_list=None):
 def compute_scores(
         task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split, batch_size,
         reference_trainers_dict, trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
-        aia_initialization, aia_num_rounds, device, rng, torch_rng, mixing_coefficient=None
+        aia_initialization, aia_num_rounds, device, rng, torch_rng
 ):
     task_type = get_task_type(task_name)
 

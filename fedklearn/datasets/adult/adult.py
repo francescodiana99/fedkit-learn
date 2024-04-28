@@ -888,8 +888,6 @@ class FederatedAdultDataset:
         file_path = os.path.join(task_cache_dir, f'{mode}.csv')
         task_data = pd.read_csv(file_path)
 
-        logging.info(f"Loading {mode} data for task '{task_name}' from: {file_path}")
-
         return AdultDataset(task_data, name=task_name)
 
     def get_pooled_data(self, mode="train"):
