@@ -880,9 +880,13 @@ class FederatedAdultDataset:
         task_id = str(task_id)
 
         task_name = self.task_id_to_name[task_id]
+        # TODO: fix. This should raise an error. Normally if there is no mixing coefficient, mix_coeff should be 0
         if self.split_criterion == 'correlation':
-            task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion,
-                                          f'{int(self.mixing_coefficient * 100)}', task_name)
+            if self.mixing_coefficient is not None:
+                task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion,
+                                              f'{int(self.mixing_coefficient * 100)}', task_name)
+            else:
+                task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
         else:
             task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, task_name)
         file_path = os.path.join(task_cache_dir, f'{mode}.csv')

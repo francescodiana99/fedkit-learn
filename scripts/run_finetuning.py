@@ -317,10 +317,10 @@ def main():
             if args.noise_factor is not None:
                 noise_model = model_init_fn().to(args.device)
                 if args.verbose:
-                    noise_norm = torch.linalg.norm(get_param_tensor(noise_model) * args.noise_factor)
                     model_norm = torch.linalg.norm(finetuning_trainer.get_param_tensor())
-                    logging.info(f'Norm of the noise {noise_norm}')
                     logging.info(f'Norm of the model {model_norm}')
+                    noise_norm = torch.linalg.norm(get_param_tensor(noise_model) * args.noise_factor)
+                    logging.info(f'Norm of the noise {noise_norm}')
                 finetuning_trainer.model = add_noise(finetuning_trainer.model, noise_model, args.noise_factor)
 
             loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
