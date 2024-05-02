@@ -540,7 +540,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
 
         # TODO: remove this line ABSOLUTELY********************************
-        self.predicted_features = self.true_features.clone()
+        self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
 
         loss = torch.tensor(0.)
         for round_id in self.round_ids:
