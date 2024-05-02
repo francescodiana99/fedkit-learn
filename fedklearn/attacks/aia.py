@@ -536,7 +536,11 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.optimizer.zero_grad()
 
         self.sensitive_attribute = self._sample_sensitive_attribute(deterministic=False, hard=True)
+        # plug here the true value for the feature
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
+
+        # TODO: remove this line ABSOLUTELY********************************
+        self.predicted_features = self.true_features.clone()
 
         loss = torch.tensor(0.)
         for round_id in self.round_ids:
@@ -545,7 +549,9 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
             global_model = self.global_models_dict[round_id]
             global_model.zero_grad()
 
+            # plug the sensitive attribute in virtual grad
             virtual_grad = self._compute_virtual_gradient(global_model=global_model)
+
 
             # TODO: move to cosine dissimilarity
             round_loss = F.cosine_similarity(virtual_grad, pseudo_grad, dim=0)
