@@ -329,7 +329,7 @@ def main():
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     # TODO: remove later
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
-                results_path=args.results_path.replace(".json", "_cos_dis.json")
+                results_path=args.results_path.replace(".json", "_cos_dis.json"))
 
     results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history_aia.json")
 
