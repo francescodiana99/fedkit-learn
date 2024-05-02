@@ -313,7 +313,6 @@ def main():
 
         for step in range(args.num_epochs):
             # TODO: this should be integrated in run_simulation.py
-
             if args.noise_factor is not None:
                 noise_model = model_init_fn().to(args.device)
                 if args.verbose:

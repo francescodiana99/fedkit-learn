@@ -145,6 +145,7 @@ class BaseAttributeInferenceAttack(ABC):
 
         return num_classes
 
+    # TODO: note that this method require both the values to be in the dataset, and this could not happen in some splits
     def _get_sensitive_attribute_interval(self):
         """
         Calculate the interval of the sensitive attribute values in the dataset.
@@ -630,121 +631,6 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         self.model = model
         self.model.eval()
-
-    def execute_attack_and_split_data(self, verbose=False):
-        """
-        Execute the attribute inference attack and split the data according to the attack results.
-
-        Parameters:
-        - verbose (bool): If True, activate verbose mode.
-        Returns:
-            df_dict: A dictionary containing the dataframes of the different splits.
-        """
-
-        df_dict = {}
-        recon_error_flipped_feature = []
-        recon_error_initial_feature = []
-        correct_reconstructions = []
-        wrong_reconstructions = []
-        true_data = torch.cat((self.true_features, self.true_labels), 1).cpu().numpy()
-
-        c_error_man = 0
-        c_error_woman = 0
-
-        c_correct_man = 0
-        c_correct_woman = 0
-
-        if self.sensitive_attribute_type == "binary":
-            for idx, (_, label) in enumerate(zip(self.true_features, self.true_labels)):
-                with torch.no_grad():
-
-                    clone_1 = self.true_features[idx].clone()
-                    clone_1[self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
-
-                    clone_0 = self.true_features[idx].clone()
-                    clone_0[self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
-
-                    loss_1 = self.criterion(self.model(clone_1), label)
-                    loss_0 = self.criterion(self.model(clone_0), label)
-
-                    # TODO: correct with self.sensitive_attribute_interval
-                    if loss_1 < loss_0 and self.true_features[idx, self.sensitive_attribute_id].item() < 0:
-                        c_error_man += 1
-
-                        self.predicted_features[idx, self.sensitive_attribute_id] = \
-                            self.sensitive_attribute_interval[1]
-
-                        clone_to_save_flip = self.predicted_features[idx].clone()
-                        clone_to_save_flip[self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
-
-                        clone_to_save_initial = self.predicted_features[idx].clone()
-                        clone_to_save_initial[self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
-
-                        recon_error_flipped_feature.append((torch.cat((clone_to_save_flip, label), 0).cpu().numpy()))
-                        recon_error_initial_feature.append((torch.cat((clone_to_save_initial, label),
-                                                                               0).cpu().numpy()))
-
-                    elif loss_0 <= loss_1 and self.true_features[idx, self.sensitive_attribute_id].item() > 0:
-                        c_error_woman += 1
-
-                        self.predicted_features[idx, self.sensitive_attribute_id] = \
-                            self.sensitive_attribute_interval[0]
-
-                        clone_to_save_flip = self.predicted_features[idx].clone()
-                        clone_to_save_flip[self.sensitive_attribute_id] = self.sensitive_attribute_interval[0]
-
-                        clone_to_save_initial = self.predicted_features[idx].clone()
-                        clone_to_save_initial[self.sensitive_attribute_id] = self.sensitive_attribute_interval[1]
-
-                        recon_error_flipped_feature.append((torch.cat((clone_to_save_flip, label), 0).cpu().numpy()))
-                        recon_error_initial_feature.append((torch.cat((clone_to_save_initial, label),
-                                                                               0).cpu().numpy()))
-                    else:
-                        if loss_0 <= loss_1:
-                            self.predicted_features[idx, self.sensitive_attribute_id] = \
-                            self.sensitive_attribute_interval[0]
-                            c_correct_woman += 1
-                        else:
-                            self.predicted_features[idx, self.sensitive_attribute_id] = \
-                            self.sensitive_attribute_interval[1]
-                            c_correct_man += 1
-
-                    if torch.equal(self.true_features[idx], self.predicted_features[idx]):
-                        correct_reconstructions.append((torch.cat((self.predicted_features[idx], label),
-                                                                  0).cpu().numpy()))
-                    else:
-                        wrong_reconstructions.append((torch.cat((self.true_features[idx], label),
-                                                                  0).cpu().numpy()))
-
-
-        else:
-            raise NotImplementedError(
-                "Method 'execute_attack_and_split_data' is not yet implemented for categorical and numerical variables."
-            )
-
-        if verbose:
-            logging.info(f"Number of wrong reconstructions: {c_error_woman + c_error_man}")
-            logging.info(f"Number of samples incorrectly predicted as women: {c_error_woman}")
-            logging.info(f"Number of samples incorrectly predicted as men: {c_error_man}")
-            logging.info(f" Number of correctly classified man {c_correct_man}")
-            logging.info(f" Number of correctly classified women {c_correct_woman}")
-            logging.info(f"Total number of samples: {self.n_samples}")
-
-        df_dict["recon_error_flipped_feature"] = pd.DataFrame(recon_error_flipped_feature)
-        df_dict["recon_error_initial_feature"] = pd.DataFrame(recon_error_initial_feature)
-        df_dict["correct_reconstructions"] = pd.DataFrame(correct_reconstructions)
-        df_dict["wrong_reconstructions"] = pd.DataFrame(wrong_reconstructions)
-
-        df_correct_recon_flip_feature = df_dict["correct_reconstructions"].copy()
-        df_correct_recon_flip_feature[self.sensitive_attribute_id] = (
-                1 - df_dict["correct_reconstructions"][self.sensitive_attribute_id])
-        df_dict["correct_recon_flipped_feature"] = pd.DataFrame(df_correct_recon_flip_feature)
-
-        flipped_features = true_data.copy()
-        flipped_features[:, self.sensitive_attribute_id] = 1 - true_data[:, self.sensitive_attribute_id]
-        df_dict["flipped_features"] = pd.DataFrame(flipped_features)
-
-        return df_dict
 
     def _init_sensitive_attribute(self):
         """

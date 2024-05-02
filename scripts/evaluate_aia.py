@@ -214,7 +214,7 @@ def evaluate_trainer(trainer, dataloader):
         evaluation_trainer.criterion = nn.MSELoss()
     else:
         raise NotImplementedError(f"Criterion {trainer.criterion.__class__.__name__} is not implemented.")
-    avg_loss, metric = evaluation_trainer.evaluate_loader(dataloader, output_losses=False)
+    avg_loss, metric = evaluation_trainer.evaluate_loader(dataloader)
     return avg_loss, metric
 
 def initialize_random_trainer(model, criterion, optimizer, is_binary_classification, metric, device):
@@ -451,12 +451,12 @@ def main():
         logging.info(f"Average score for global model: {avg_global_score:.3f}")
         logging.info(f"Average score for reference model: {avg_reference_score:.3f}")
 
-    logging.info("Saving scores..")
-    os.makedirs(args.results_dir, exist_ok=True)
-    scores_path = os.path.join(args.results_dir, f"lmra_aia_{args.sensitive_attribute}.json")
-    with open(scores_path, "w") as f:
-        json.dump(all_scores, f)
-    logging.info(f"Scores saved in {scores_path}")
+    # logging.info("Saving scores..")
+    # os.makedirs(args.results_dir, exist_ok=True)
+    # scores_path = os.path.join(args.results_dir, f"lmra_aia_{args.sensitive_attribute}.json")
+    # with open(scores_path, "w") as f:
+    #     json.dump(all_scores, f)
+    # logging.info(f"Scores saved in {scores_path}")
 
 if __name__ == "__main__":
     main()

@@ -570,6 +570,14 @@ def initialize_trainer(args):
             momentum=args.momentum,
             weight_decay=args.weight_decay,
         )
+    elif args.optimizer == "adam":
+        optimizer = optim.Adam(
+            [param for param in model.parameters() if param.requires_grad],
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay,
+
+
+        )
     else:
         raise NotImplementedError(
             f"Optimizer '{args.optimizer}' is not implemented."

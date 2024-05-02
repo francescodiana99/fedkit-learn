@@ -337,7 +337,7 @@ class Trainer:
 
         return global_loss / n_samples, global_metric / n_samples
 
-    def evaluate_loader(self, loader, output_losses=False):
+    def evaluate_loader(self, loader):
         """
         Evaluate the Trainer on a provided data loader.
 
@@ -588,6 +588,40 @@ class DebugTrainer(Trainer):
             global_metric += self.metric(y_pred, y) * y.size(0)
 
         return global_loss / n_samples, global_metric / n_samples
+
+    def evaluate_loader(self, loader):
+        self.model.eval()
+
+        global_loss = 0.
+        global_metric = 0.
+        n_samples = 0
+        y_pred_sum = 0
+
+
+        with torch.no_grad():
+            for x, y in loader:
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                if self.is_binary_classification:
+                    y = y.type(torch.float32)
+
+                y_pred = self.model(x)
+
+                if y_pred.shape[0] != 1:
+                    y_pred = y_pred.squeeze()
+                else:
+                    y_pred = y_pred.squeeze(dim=tuple(y_pred.shape[1:]))
+
+                y_pred_sum += y_pred.sum()
+
+                global_loss += self.criterion(y_pred, y).item() * y.size(0)
+                global_metric += self.metric(y_pred, y) * y.size(0)
+
+                n_samples += y.size(0)
+
+            return global_loss / n_samples, global_metric / n_samples, y_pred_sum / n_samples
+
     def fit_epochs_check_gradient(self, loader, n_epochs, n_debug_epoch):
         for step in range(n_epochs):
             self.fit_epoch(loader)
