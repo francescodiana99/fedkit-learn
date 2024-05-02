@@ -206,8 +206,6 @@ class FederatedMedicalCostDataset:
             pd.DataFrame: The DataFrame containing the scaled features and target columns.
 
         """
-        numerical_columns = df.select_dtypes(include=['number']).columns
-
         numerical_columns = df.select_dtypes(include=[np.number]).columns
         numerical_columns = numerical_columns[numerical_columns != 'charges']
         charges_column = df['charges']
@@ -303,11 +301,72 @@ class FederatedMedicalCostDataset:
 
         """
 
-        if self.split_criterion == "random":
-            tasks_dict = self._iid_divide(df)
+        split_criterion_dict = {
+            "random": self._iid_divide,
+            "correlation": self._correlation_divide,
+            "bmi": self._bmi_divide,
+        }
+        if self.split_criterion in split_criterion_dict:
+            tasks_dict = split_criterion_dict[self.split_criterion](df)
         else:
-            raise ValueError(f"Invalid split criterion: {self.split_criterion}. Available criteria are 'random'.")
+            raise ValueError(f"Invalid split criterion: {self.split_criterion}. Available criteria are "
+                             f"'random', 'correlation', 'bmi'.")
         return tasks_dict
+
+
+    def _bmi_divide(self, df):
+        """
+        Split a dataframe into a dictionary of dataframes based on the BMI feature.
+        Args:
+            df(pd.DataFrame): DataFrame to split into tasks.
+
+        Returns:
+            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
+        """
+        task_dict = dict()
+        num_elems = len(df)
+        min_bmi = min(df['bmi'])
+        max_bmi = max(df['bmi'])
+
+        interval_size = (max_bmi - min_bmi) / self.n_tasks
+        i = min_bmi
+        j = i + interval_size
+
+        for task_id in range(self.n_tasks):
+            task_dict[f"{task_id}"] = df[(df['bmi'] >= i) & (df['bmi'] < j)]
+            i = j
+            j = i + interval_size
+        return task_dict
+
+    def _correlation_divide(self, df):
+        """
+        Split a dataframe into a dictionary of dataframes based on the correlation between 'smoker_yes' and 'charges'.
+        Args:
+            df(pd.DataFrame): DataFrame to split into tasks.
+
+        Returns:
+            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
+        """
+        task_dict = dict()
+        num_elems = len(df)
+
+        no_smoker = min(df['smoker_yes'])
+        smoker = max(df['smoker_yes'])
+
+        if self.n_tasks == 2:
+            mean_charges = df[(df['smoker_yes'] == smoker)]['charges'].mean()
+
+            task_dict['0'] = df[(df['smoker_yes'] == no_smoker) & (df['charges'] <= mean_charges)]
+            task_dict['0'] = pd.concat([task_dict['0'],
+                                        df[(df['smoker_yes'] == smoker) & (df['charges'] > mean_charges)]])
+
+            task_dict['1'] = df[(df['smoker_yes'] == no_smoker) & (df['charges'] > mean_charges)]
+            task_dict['1'] = pd.concat([task_dict['1'],
+                                        df[(df['smoker_yes'] == smoker) & (df['charges'] <= mean_charges)]])
+        else:
+            raise ValueError("Correlation-based split is only supported for 2 tasks.")
+
+        return task_dict
 
 
     def _iid_divide(self, df):
