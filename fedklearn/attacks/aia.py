@@ -266,7 +266,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
     def __init__(
             self, messages_metadata, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization,
             device, model_init_fn, criterion, is_binary_classification, learning_rate, optimizer_name, success_metric,
-            logger, log_freq, gumbel_temperature=1.0, gumbel_threshold=0.5, rng=None, torch_rng=None
+            logger, log_freq, gumbel_temperature=1.0, gumbel_threshold=0.5, rng=None, torch_rng=None, flip_percentage=0
     ):
         """
         Initialize the AttributeInferenceAttack.
@@ -326,6 +326,8 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.global_models_dict = self._get_models_dict(mode="global")
 
         self.pseudo_gradients_dict = self._compute_pseudo_gradients_dict()
+
+        self.flip_percentage = flip_percentage
 
     def _get_round_ids(self):
         """
@@ -539,10 +541,17 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         # plug here the true value for the feature
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
 
-        # TODO: remove this line ABSOLUTELY********************************
+        # TODO: remove this lines ABSOLUTELY********************************
         self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
+        n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
+        self.predicted_features[:n_flip, self.sensitive_attribute_id] = \
+            torch.where(self.predicted_features[:n_flip, self.sensitive_attribute_id] == \
+                        self.sensitive_attribute_interval[0],
+                        self.sensitive_attribute_interval[1],
+                        self.sensitive_attribute_interval[0])
 
         loss = torch.tensor(0.)
+
         for round_id in self.round_ids:
             pseudo_grad = self.pseudo_gradients_dict[round_id]
 

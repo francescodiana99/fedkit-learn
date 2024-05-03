@@ -190,6 +190,11 @@ def parse_args(args_list=None):
                         default=None,
                         help='Mixing coefficient for the correlation-based split in Adult dataset')
 
+    parser.add_argument('--flip_percentage',
+                        type=float,
+                        default=0.0,
+                        help='Percentage of the sensitive attribute to flip')
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -300,7 +305,8 @@ def main():
             logger=logger,
             log_freq=args.log_freq,
             rng=rng,
-            torch_rng=torch_rng
+            torch_rng=torch_rng,
+            flip_percentage=args.flip_percentage
         )
 
         cos_dis = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)[-1]
