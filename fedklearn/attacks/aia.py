@@ -544,8 +544,9 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         # TODO: remove this lines ABSOLUTELY********************************
         self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
         n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
-        self.predicted_features[:n_flip, self.sensitive_attribute_id] = \
-            torch.where(self.predicted_features[:n_flip, self.sensitive_attribute_id] == \
+        random_idx = torch.randperm(self.predicted_features.shape[0], generator=self.torch_rng)[:n_flip]
+        self.predicted_features[random_idx, self.sensitive_attribute_id] = \
+            torch.where(self.predicted_features[random_idx, self.sensitive_attribute_id] == \
                         self.sensitive_attribute_interval[0],
                         self.sensitive_attribute_interval[1],
                         self.sensitive_attribute_interval[0])
