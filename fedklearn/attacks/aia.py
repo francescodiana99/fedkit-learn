@@ -542,13 +542,13 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
 
         # TODO: remove this lines ABSOLUTELY********************************
-        # self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
-        # n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
-        # self.predicted_features[:n_flip, self.sensitive_attribute_id] = \
-        #     torch.where(self.predicted_features[:n_flip, self.sensitive_attribute_id] == \
-        #                 self.sensitive_attribute_interval[0],
-        #                 self.sensitive_attribute_interval[1],
-        #                 self.sensitive_attribute_interval[0])
+        self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
+        n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
+        self.predicted_features[:n_flip, self.sensitive_attribute_id] = \
+            torch.where(self.predicted_features[:n_flip, self.sensitive_attribute_id] == \
+                        self.sensitive_attribute_interval[0],
+                        self.sensitive_attribute_interval[1],
+                        self.sensitive_attribute_interval[0])
 
         loss = torch.tensor(0.)
 
