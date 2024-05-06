@@ -94,7 +94,7 @@ def binary_accuracy_with_sigmoid(y_pred, y_true):
     return accuracy.item()
 
 
-def threshold_binary_accuracy(y_pred, y_true, threshold=1e-12):
+def threshold_binary_accuracy(y_pred, y_true, threshold=1e-5):
     """
     Calculate accuracy based on the difference between elements and a given threshold.
 
