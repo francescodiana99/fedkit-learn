@@ -348,7 +348,6 @@ class FederatedMedicalCostDataset:
             tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
         """
         task_dict = dict()
-        num_elems = len(df)
 
         no_smoker = min(df['smoker_yes'])
         smoker = max(df['smoker_yes'])

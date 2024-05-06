@@ -122,7 +122,7 @@ class FederatedToyDataset:
 
             self.rng = rng if rng is not None else np.random.default_rng()
 
-            self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
+            self.task_id_to_name = {f"{i}": f"{i}" for i in range(self.n_tasks)}
 
             self.sensitive_attribute_id = self._get_sensitive_attribute_id()
 
@@ -250,7 +250,7 @@ class FederatedToyDataset:
         binary_data = self.rng.integers(low=0, high=2, size=(self.n_samples, self.n_binary_features))
         binary_data = 2. * binary_data - 1.
 
-        features = np.concatenate((numerical_data, binary_data.astype(float)), axis=1)
+        features = np.concatenate((numerical_data, binary_data.astype(float)), axis=1).astype(np.float32)
 
         logits = np.dot(features, self.weights) + self.bias
 
