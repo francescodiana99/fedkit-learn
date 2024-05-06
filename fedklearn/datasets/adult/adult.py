@@ -691,7 +691,7 @@ class FederatedAdultDataset:
         df_poor_women = df[((df['income'] == 0) & (df['sex_Male'] == lower_bound))]
         df_rich_women = df[((df['income'] == 1) & (df['sex_Male'] == lower_bound))]
 
-        min_len = min([len(df_poor_men), len(df_rich_men), len(df_poor_women), len(df_rich_women)])
+        min_len = int(min([len(df_poor_men), len(df_rich_men), len(df_poor_women), len(df_rich_women)]) / 2)
 
         tasks_dict = dict()
 
@@ -703,19 +703,14 @@ class FederatedAdultDataset:
         if self.mixing_coefficient < 0 or self.mixing_coefficient > 1:
             raise ValueError("The mixing coefficient must be between 0 and 1.")
 
-        if self.mixing_coefficient > 0:
-            n_mix_samples = int(self.mixing_coefficient  * min_len)
+        if self.mixing_coefficient >= 0:
+            n_mix_samples_men = int(self.mixing_coefficient * min_len)
+            n_mix_samples_women = int((1 - self.mixing_coefficient) * min_len)
 
-            mix_samples_pm = poor_men_sample.sample(n=n_mix_samples)
-            mix_samples_pw = poor_women_sample.sample(n=n_mix_samples)
-            mix_samples_rm = rich_men_sample.sample(n=n_mix_samples)
-            mix_samples_rw = rich_women_sample.sample(n=n_mix_samples)
-
-            poor_men_sample = pd.concat([poor_men_sample[n_mix_samples:], mix_samples_rm], axis=0)
-            poor_women_sample = pd.concat([poor_women_sample[n_mix_samples:], mix_samples_rw], axis=0)
-            rich_men_sample = pd.concat([rich_men_sample[n_mix_samples:], mix_samples_pm], axis=0)
-            rich_women_sample = pd.concat([rich_women_sample[n_mix_samples:], mix_samples_pw], axis=0)
-
+            poor_men_sample = poor_men_sample.sample(n=n_mix_samples_men)
+            poor_women_sample = poor_women_sample.sample(n=n_mix_samples_women)
+            rich_men_sample = rich_men_sample.sample(n=n_mix_samples_men)
+            rich_women_sample = rich_women_sample.sample(n=n_mix_samples_women)
 
         tasks_dict["0"] = pd.concat([poor_men_sample, rich_women_sample], axis=0)
         tasks_dict["1"] = pd.concat([rich_men_sample, poor_women_sample], axis=0)
