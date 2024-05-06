@@ -226,7 +226,7 @@ class FederatedAdultDataset:
         else:
             logging.info("Forcing data generation....")
             # remove the task folder if it exists to avoid inconsistencies
-            if self.split_criterion != 'correlation':
+            if self.split_criterion != 'correlation' or self.split_criterion != 'flip':
                 if os.path.exists(tasks_folder):
                     shutil.rmtree(tasks_folder)
 
@@ -242,7 +242,7 @@ class FederatedAdultDataset:
         logging.info("Forcing data generation....")
         # remove the task folder if it exists to avoid inconsistencies
         tasks_folder = os.path.join(self.cache_dir, 'tasks', self.split_criterion)
-        if self.split_criterion != 'correlation':
+        if self.split_criterion != 'correlation' or self.split_criterion != 'flip':
             if os.path.exists(tasks_folder):
                 shutil.rmtree(tasks_folder)
 
@@ -268,7 +268,7 @@ class FederatedAdultDataset:
 
         for mode, task_dict in zip(['train', 'test'], task_dicts):
             for task_name, task_data in task_dict.items():
-                if self.split_criterion == 'correlation':
+                if self.split_criterion == 'correlation' or self.split_criterion == 'flip':
                     task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion,
                                                   f'{int(self.mixing_coefficient * 100)}',task_name)
                 else:
@@ -657,7 +657,7 @@ class FederatedAdultDataset:
             tasks_dict = {**tasks_dict_poor_man, **tasks_dict_rich_man}
 
         elif self.n_tasks * self.n_task_samples > len(df):
-            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
+                raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
                              "Please reduce the number of tasks or the number of samples per task.")
         else:
@@ -676,6 +676,52 @@ class FederatedAdultDataset:
             tasks_dict = {**tasks_dict_poor_man, **tasks_dict_rich_man}
 
         return tasks_dict
+
+    # TODO: remove, only for testing purposes
+    def _split_by_flip(self, df):
+        """Split the dataset according to the correlation and the less represented class"""
+
+        df = df.drop(['education', 'age'], axis=1)
+
+        lower_bound = min(df['sex_Male'])
+        upper_bound = max(df['sex_Male'])
+
+        df_poor_men = df[((df['income'] == 0) & (df['sex_Male'] == upper_bound))]
+        df_rich_men = df[((df['income'] == 1) & (df['sex_Male'] == upper_bound))]
+        df_poor_women = df[((df['income'] == 0) & (df['sex_Male'] == lower_bound))]
+        df_rich_women = df[((df['income'] == 1) & (df['sex_Male'] == lower_bound))]
+
+        min_len = min([len(df_poor_men), len(df_rich_men), len(df_poor_women), len(df_rich_women)])
+
+        tasks_dict = dict()
+
+        poor_men_sample = df_poor_men.sample(n=min_len, random_state=self.seed)
+        rich_men_sample = df_rich_men.sample(n=min_len, random_state=self.seed)
+        poor_women_sample = df_poor_women.sample(n=min_len, random_state=self.seed)
+        rich_women_sample = df_rich_women.sample(n=min_len, random_state=self.seed)
+
+        if self.mixing_coefficient < 0 or self.mixing_coefficient > 1:
+            raise ValueError("The mixing coefficient must be between 0 and 1.")
+
+        if self.mixing_coefficient > 0:
+            n_mix_samples = int(self.mixing_coefficient  * min_len)
+
+            mix_samples_pm = poor_men_sample.sample(n=n_mix_samples)
+            mix_samples_pw = poor_women_sample.sample(n=n_mix_samples)
+            mix_samples_rm = rich_men_sample.sample(n=n_mix_samples)
+            mix_samples_rw = rich_women_sample.sample(n=n_mix_samples)
+
+            poor_men_sample = pd.concat([poor_men_sample[n_mix_samples:], mix_samples_rm], axis=0)
+            poor_women_sample = pd.concat([poor_women_sample[n_mix_samples:], mix_samples_rw], axis=0)
+            rich_men_sample = pd.concat([rich_men_sample[n_mix_samples:], mix_samples_pm], axis=0)
+            rich_women_sample = pd.concat([rich_women_sample[n_mix_samples:], mix_samples_pw], axis=0)
+
+
+        tasks_dict["0"] = pd.concat([poor_men_sample, rich_women_sample], axis=0)
+        tasks_dict["1"] = pd.concat([rich_men_sample, poor_women_sample], axis=0)
+
+        return tasks_dict
+
 
     def _split_data_into_tasks(self, df):
         """ Split the adult dataset across multiple clients based on specified criteria.
@@ -702,7 +748,8 @@ class FederatedAdultDataset:
             'gmm': self._split_by_gmm,
             'prediction': self._split_by_prediction,
             'aia': self._split_by_aia,
-            'correlation': self._split_by_correlation
+            'correlation': self._split_by_correlation,
+            'flip': self._split_by_flip,
         }
 
         if self.split_criterion in split_criterion_dict:
@@ -746,7 +793,7 @@ class FederatedAdultDataset:
             criterion_dict = {'split_criterion': self.split_criterion, 'n_tasks': self.n_tasks}
             if self.split_criterion in ['n_tasks', 'n_tasks_labels', 'correlation']:
                 criterion_dict['n_task_samples'] = self.n_task_samples
-            if self.split_criterion == 'correlation':
+            if self.split_criterion == 'correlation' or self.split_criterion == 'flip':
                 criterion_dict['mixing_coefficient'] = self.mixing_coefficient
             json.dump(criterion_dict, f)
 
@@ -881,7 +928,7 @@ class FederatedAdultDataset:
 
         task_name = self.task_id_to_name[task_id]
         # TODO: fix. This should raise an error. Normally if there is no mixing coefficient, mix_coeff should be 0
-        if self.split_criterion == 'correlation':
+        if self.split_criterion == 'correlation' or self.split_criterion == 'flip':
             if self.mixing_coefficient is not None:
                 task_cache_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion,
                                               f'{int(self.mixing_coefficient * 100)}', task_name)

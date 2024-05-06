@@ -110,7 +110,7 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None):
                 n_tasks=n_tasks,
                 n_task_samples=n_task_samples,
             )
-        elif split_criterion == "correlation":
+        elif split_criterion == "correlation" or split_criterion == 'flip':
             mixing_coefficient = mixing_coefficient
             return FederatedAdultDataset(
                 cache_dir=data_dir,
