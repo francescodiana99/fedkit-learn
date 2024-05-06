@@ -226,7 +226,7 @@ class FederatedAdultDataset:
         else:
             logging.info("Forcing data generation....")
             # remove the task folder if it exists to avoid inconsistencies
-            if self.split_criterion != 'correlation' or self.split_criterion != 'flip':
+            if self.split_criterion != 'correlation' and self.split_criterion != 'flip':
                 if os.path.exists(tasks_folder):
                     shutil.rmtree(tasks_folder)
 
@@ -242,7 +242,7 @@ class FederatedAdultDataset:
         logging.info("Forcing data generation....")
         # remove the task folder if it exists to avoid inconsistencies
         tasks_folder = os.path.join(self.cache_dir, 'tasks', self.split_criterion)
-        if self.split_criterion != 'correlation' or self.split_criterion != 'flip':
+        if self.split_criterion != 'correlation' and self.split_criterion != 'flip':
             if os.path.exists(tasks_folder):
                 shutil.rmtree(tasks_folder)
 
