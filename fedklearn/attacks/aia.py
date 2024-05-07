@@ -77,7 +77,7 @@ class BaseAttributeInferenceAttack(ABC):
         self.dataset = dataset
         self.device = device
         self.rng = rng if rng is not None else np.random.default_rng()
-        self.torch_rng = torch_rng if torch is not None else torch.Generator()
+        self.torch_rng = torch_rng if torch is not None else torch.Generator(device)
 
         self.sensitive_attribute_id = sensitive_attribute_id
 
@@ -350,7 +350,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         - torch.Tensor: A tensor representing the initialized logits of the sensitive attribute with gradients enabled.
         """
         if self.initialization == "normal":
-            logits = torch.randn(size=(self.n_samples, self.num_classes), generator=self.torch_rng)
+            logits = torch.randn(size=(self.n_samples, self.num_classes), device=self.device, generator=self.torch_rng)
         else:
             raise NotImplementedError(
                 f"{self.initialization} is not a valid initialization strategy. "
@@ -441,6 +441,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
                                   map_location=torch.device(self.device))["model_state_dict"]
         model = self.model_init_fn()
         model.load_state_dict(model_chkpts)
+        model = model.to(self.device)
 
         return model
 
@@ -542,16 +543,16 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
 
         # TODO: remove this lines ABSOLUTELY********************************
-        self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
-        n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
-        random_idx = torch.randperm(self.predicted_features.shape[0], generator=self.torch_rng)[:n_flip]
-        self.predicted_features[random_idx, self.sensitive_attribute_id] = \
-            torch.where(self.predicted_features[random_idx, self.sensitive_attribute_id] == \
-                        self.sensitive_attribute_interval[0],
-                        self.sensitive_attribute_interval[1],
-                        self.sensitive_attribute_interval[0])
+        # self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
+        # n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
+        # random_idx = torch.randperm(self.predicted_features.shape[0], generator=self.torch_rng)[:n_flip]
+        # self.predicted_features[random_idx, self.sensitive_attribute_id] = \
+        #     torch.where(self.predicted_features[random_idx, self.sensitive_attribute_id] == \
+        #                 self.sensitive_attribute_interval[0],
+        #                 self.sensitive_attribute_interval[1],
+        #                 self.sensitive_attribute_interval[0])
 
-        loss = torch.tensor(0.)
+        loss = torch.tensor(0., device=self.device)
 
         for round_id in self.round_ids:
             pseudo_grad = self.pseudo_gradients_dict[round_id]
