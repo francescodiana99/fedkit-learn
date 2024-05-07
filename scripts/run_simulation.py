@@ -177,7 +177,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--split_criterion",
         type=str,
-        required=True,
+        help="Criterion for splitting the dataset",
     )
     parser.add_argument(
         "--sensitive_attribute_weight",
