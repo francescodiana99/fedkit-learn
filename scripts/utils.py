@@ -291,7 +291,7 @@ def get_trainer_parameters(task_name, device, model_config_path):
     elif task_name == "income":
         criterion = nn.MSELoss(reduction="none").to(device)
         # TODO: need this for output shape and type, fix_later
-        is_binary_classification = False
+        is_binary_classification = True
         metric = mean_squared_error
 
     else:
