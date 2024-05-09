@@ -30,7 +30,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=["adult", "medical_cost", "purchase", "purchase_binary, toy_classification", "toy_regression, 'income'"],
+        choices=["adult", "medical_cost", "purchase", "purchase_binary, toy_classification", "toy_regression", "income"],
         help="Task name. Possible are 'adult', 'medical_cost', 'purchase', 'purchase_binary, 'toy_classification',"
              "'toy_regression', 'income'.",
         required=True
