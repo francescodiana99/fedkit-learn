@@ -206,6 +206,12 @@ def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn,
             momentum=args.momentum,
             weight_decay=args.weight_decay
         )
+    elif args.optimizer == "adam":
+        optimizer = optim.Adam(
+            [param for param in finetuning_model.parameters() if param.requires_grad],
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay
+        )
     else:
         raise NotImplementedError(
             f"Optimizer '{args.optimizer}' is not implemented"
