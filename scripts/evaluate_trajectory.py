@@ -167,6 +167,7 @@ def parse_args(args_list=None):
         type=str,
         default=None,
         help="USA state to select Income dataset subset"
+    )
 
 
     if args_list is None:
