@@ -55,6 +55,7 @@ Options:
 import argparse
 import logging
 import os
+import pathlib
 import shutil
 
 import numpy as np
@@ -67,6 +68,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from fedklearn.datasets.income.income import FederatedIncomeDataset
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
@@ -96,8 +98,10 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost'.",
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
+                 'income'],
+        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
+             " 'income'.",
         required=True
     )
 
@@ -382,6 +386,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--state",
+        type=str,
+        default=None,
+        help="USA state to extract in Income dataset"
+    )
+
+    parser.add_argument(
         "--mixing_coefficient",
         type=float,
         default=0,
@@ -409,7 +420,7 @@ def initialize_dataset(args, rng):
     Returns:
         FederatedDataset: Initialized federated dataset.
     """
-    if args.task_name in ['toy_classification', 'toy_classification', 'purchase'] and args.n_tasks is None:
+    if args.task_name in ['toy_classification', 'toy_classification', 'purchase', 'income'] and args.n_tasks is None:
         raise ValueError(
             f"The number of tasks should be specified for {args.task_name} dataset."
         )
@@ -506,6 +517,22 @@ def initialize_dataset(args, rng):
             scaler=args.scaler_name,
             scale_target=args.scale_target
         )
+    if args.task_name == "income":
+        return FederatedIncomeDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            test_frac=args.test_frac,
+            scaler_name=args.scaler_name,
+            drop_nationality=not args.use_nationality,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            n_task_samples=args.n_task_samples,
+            seed=args.seed,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            state=args.state,
+            mixing_coefficient=args.mixing_coefficient
+        )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{args.task_name}' is not implemented."
@@ -522,9 +549,9 @@ def initialize_trainer(args):
     Returns:
         Trainer: Initialized trainer.
     """
-    model_config_dir = os.path.join("../fedklearn/configs", args.task_name)
+    model_config_dir = pathlib.Path("../fedklearn/configs")
 
-    if os.path.dirname(args.model_config_path) != model_config_dir:
+    if model_config_dir not in pathlib.Path(args.model_config_path).parents:
         raise ValueError(f"Model configuration file should be placed in {model_config_dir}")
     else:
         model = initialize_model(args.model_config_path)
@@ -554,6 +581,11 @@ def initialize_trainer(args):
         is_binary_classification = True
 
     elif args.task_name == "medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
+    elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
         is_binary_classification = False

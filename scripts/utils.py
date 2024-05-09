@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
+from fedklearn.datasets.income.income import FederatedIncomeDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
 from fedklearn.metrics import *
@@ -76,7 +77,7 @@ def get_task_type(task_name):
     return task_types[task_name]
 
 #TODO: find a better way to load Adult dataset with correlation-based split
-def load_dataset(task_name, data_dir, rng, mixing_coefficient=None):
+def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
     """
     Load a federated dataset based on the specified task name.
 
@@ -126,6 +127,17 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None):
                 rng=rng,
                 split_criterion=split_criterion,
             )
+    elif task_name == "income":
+        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
+            split_dict = json.load(f)
+        split_criterion = split_dict["split_criterion"]
+        return FederatedIncomeDataset(
+            cache_dir=data_dir,
+            download=False,
+            split_criterion=split_criterion,
+            mixing_coefficient=mixing_coefficient,
+            state=state
+        )
     elif task_name == "purchase":
         with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
             split_dict = json.load(f)
@@ -273,6 +285,12 @@ def get_trainer_parameters(task_name, device, model_config_path):
         criterion = nn.MSELoss(reduction="none").to(device)
         # TODO: need this for output shape and type, fix_later
         is_binary_classification = True
+        metric = mean_squared_error
+
+    elif task_name == "income":
+        criterion = nn.MSELoss(reduction="none").to(device)
+        # TODO: need this for output shape and type, fix_later
+        is_binary_classification = False
         metric = mean_squared_error
 
     else:

@@ -32,9 +32,10 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost'],
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
+                 'income'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary, "
-             "'medical_cost'.",
+             "'medical_cost', 'income'.",
         required=True
     )
 
@@ -173,6 +174,7 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+
         "--keep_first_rounds",
         default=False,
         action="store_true",
@@ -180,24 +182,35 @@ def parse_args(args_list=None):
              "starting from the beginning of the list of rounds. Default is False.")
 
     parser.add_argument(
+
         "--compute_single_client",
         help="If set, the attack will be computed just for the first client.",
         default=False,
         action="store_true")
 
-    parser.add_argument('--mixing_coefficient',
+    parser.add_argument(
+        '--mixing_coefficient',
         type=float,
         default=None,
         help='Mixing coefficient for the correlation-based split in Adult dataset')
 
-    parser.add_argument('--flip_percentage',
+    parser.add_argument(
+        '--flip_percentage',
         type=float,
         default=0.0,
         help='Percentage of the sensitive attribute to flip')
 
-    parser.add_argument('--test',
+    parser.add_argument(
+        '--test',
         default=False,
         action="store_true")
+
+    parser.add_argument(
+        '--state',
+        type=str,
+        default=None,
+        help='State dataset to load for Income dataset'
+                        )
 
     if args_list is None:
         return parser.parse_args()
@@ -214,7 +227,7 @@ def main():
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
-                                     mixing_coefficient=args.mixing_coefficient)
+                                     mixing_coefficient=args.mixing_coefficient, state=args.state)
 
     num_clients = len(federated_dataset.task_id_to_name)
 
@@ -226,6 +239,7 @@ def main():
     else:
         keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
 
+    # TODO: fix, it is not a binary classification but we need the shape transformation
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
@@ -234,7 +248,7 @@ def main():
         is_binary_classification = True
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = False
+        is_binary_classification = True
     elif args.task_name == "purchase":
         criterion = nn.CrossEntropyLoss().to(args.device)
         is_binary_classification = False
@@ -243,7 +257,9 @@ def main():
         is_binary_classification = True
     elif args.task_name == "medical_cost":
         criterion = nn.MSELoss().to(args.device)
-        # TODO: fix, it is not a binary classification but we need the shape transformation
+        is_binary_classification = True
+    elif args.task_name == "income":
+        criterion = nn.MSELoss().to(args.device)
         is_binary_classification = True
     else:
         raise NotImplementedError(
@@ -273,7 +289,7 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost"] :
+        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income"] :
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
