@@ -68,6 +68,7 @@ def get_task_type(task_name):
         "purchase": "classification",
         "purchase_binary": "binary_classification",
         "medical_cost": "regression",
+        "income": "regression"
     }
     if task_name not in task_types.keys():
         raise NotImplementedError(

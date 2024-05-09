@@ -30,9 +30,9 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=["adult", "medical_cost", "purchase", "purchase_binary, toy_classification", "toy_regression"],
+        choices=["adult", "medical_cost", "purchase", "purchase_binary, toy_classification", "toy_regression, 'income'"],
         help="Task name. Possible are 'adult', 'medical_cost', 'purchase', 'purchase_binary, 'toy_classification',"
-             "'toy_regression'.",
+             "'toy_regression', 'income'.",
         required=True
     )
     parser.add_argument(
@@ -188,7 +188,7 @@ def compute_scores(
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-        if task_name in ["adult", "medical_cost", "purchase", "purchase_binary"]:
+        if task_name in ["adult", "medical_cost", "purchase", "purchase_binary", "income"]:
             # TODO: hard-code sensitive attribute_id and type in the federated_dataset
             sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
             sensitive_attribute_type = sensitive_attribute_type

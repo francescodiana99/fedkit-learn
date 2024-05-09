@@ -40,9 +40,10 @@ def parse_args(args_list=None):
     parser.add_argument(
         '--task_name',
         type=str,
-        choices=['adult', 'purchase', 'toy_classification', 'toy_regression', 'purchase_binary', 'medical_cost'],
+        choices=['adult', 'purchase', 'toy_classification', 'toy_regression', 'purchase_binary', 'medical_cost',
+                 'income'],
         help="Task name. Possible choices are 'adult', 'purchase', 'toy_classification', "
-             "'toy_regression', 'purchase_binary', 'medical_cost'",
+             "'toy_regression', 'purchase_binary', 'medical_cost', 'income'",
         required=True)
 
     parser.add_argument(
@@ -240,6 +241,7 @@ def main():
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         all_messages_metadata = json.load(f)
 
+    # TODO : fix is_binary_classification for regression tasks
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
@@ -248,7 +250,7 @@ def main():
         is_binary_classification = True
     elif args.task_name == "toy_regression":
         criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = False
+        is_binary_classification = True
     elif args.task_name == "purchase":
         criterion = nn.CrossEntropyLoss().to(args.device)
         is_binary_classification = False
@@ -257,7 +259,10 @@ def main():
         is_binary_classification = True
     elif args.task_name == "medical_cost":
         criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = False
+        is_binary_classification = True
+    elif args.task_name == "income":
+        criterion = nn.MSELoss().to(args.device)
+        is_binary_classification = True
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -282,7 +287,7 @@ def main():
 
 
         dataset = federated_dataset.get_task_dataset(task_id=finetuned_client_id, mode=args.split)
-        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],
@@ -296,6 +301,8 @@ def main():
         elif args.task_name == "purchase_binary":
             metric = binary_accuracy_with_sigmoid
         elif args.task_name == "medical_cost":
+            metric = mean_squared_error
+        elif args.task_name == "income":
             metric = mean_squared_error
         else:
             raise NotImplementedError(
