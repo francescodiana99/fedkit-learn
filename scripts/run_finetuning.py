@@ -244,18 +244,6 @@ def add_noise(model, noise_model, noise_factor):
 
     return model
 
-def fit_batches(trainer, dataloader, n_steps):
-    train_iterator = iter(dataloader)
-    for _ in range(n_steps):
-        try:
-            batch = next(train_iterator)
-        except StopIteration:
-            train_iterator = iter(dataloader)
-            batch = next(train_iterator)
-
-        loss, metric = trainer.fit_batch(batch)
-
-    return loss, metric
 
 def main():
     args = parse_args()
