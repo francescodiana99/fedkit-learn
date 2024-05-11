@@ -318,6 +318,8 @@ def main():
             metric = mean_squared_error
         elif args.task_name == "income":
             metric = mean_squared_error
+        elif args.task_name == "toy_regression":
+            metric = mean_squared_error
         else:
             raise NotImplementedError(
                 f"Metric for task '{args.task_name}' is not implemented"
