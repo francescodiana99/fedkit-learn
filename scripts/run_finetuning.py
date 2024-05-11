@@ -94,6 +94,10 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--by_epoch",
+        action="store_true",
+        help="Training with epochs instead of batches")
+    parser.add_argument(
         "--num_epochs",
         type=int,
         default=20,
@@ -240,6 +244,19 @@ def add_noise(model, noise_model, noise_factor):
 
     return model
 
+def fit_batches(trainer, dataloader, n_steps):
+    train_iterator = iter(dataloader)
+    for _ in range(n_steps):
+        try:
+            batch = next(train_iterator)
+        except StopIteration:
+            train_iterator = iter(dataloader)
+            batch = next(train_iterator)
+
+        loss, metric = trainer.fit_batch(batch)
+
+    return loss, metric
+
 def main():
     args = parse_args()
 
@@ -334,18 +351,30 @@ def main():
             is_binary_classification=is_binary_classification,
         )
 
+        # TODO: refactoring of this part in the run_simulation.py
+        if not args.by_epoch:
+            train_iterator = iter(dataloader)
         for step in range(args.num_epochs):
-            # TODO: this should be integrated in run_simulation.py
-            if args.noise_factor is not None:
-                noise_model = model_init_fn().to(args.device)
-                if args.verbose:
-                    model_norm = torch.linalg.norm(finetuning_trainer.get_param_tensor())
-                    logging.info(f'Norm of the model {model_norm}')
-                    noise_norm = torch.linalg.norm(get_param_tensor(noise_model) * args.noise_factor)
-                    logging.info(f'Norm of the noise {noise_norm}')
-                finetuning_trainer.model = add_noise(finetuning_trainer.model, noise_model, args.noise_factor)
+            # # TODO: this should be integrated in run_simulation.py
+            # if args.noise_factor is not None:
+            #     noise_model = model_init_fn().to(args.device)
+            #     if args.verbose:
+            #         model_norm = torch.linalg.norm(finetuning_trainer.get_param_tensor())
+            #         logging.info(f'Norm of the model {model_norm}')
+            #         noise_norm = torch.linalg.norm(get_param_tensor(noise_model) * args.noise_factor)
+            #         logging.info(f'Norm of the noise {noise_norm}')
+            #     finetuning_trainer.model = add_noise(finetuning_trainer.model, noise_model, args.noise_factor)
 
-            loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
+            if args.by_epoch:
+                loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
+            else:
+                try:
+                    batch = next(train_iterator)
+                except StopIteration:
+                    train_iterator = iter(dataloader)
+                    batch = next(train_iterator)
+
+                loss, metric = finetuning_trainer.fit_batch(batch)
 
             if step % args.save_freq == 0:
 
