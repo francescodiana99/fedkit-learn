@@ -276,6 +276,7 @@ def main():
 
     all_clients_scores = []
     all_clients_cos_dis = []
+    all_clients_l2_dis = []
 
     pbar = tqdm(range(num_clients))
     attacked_client_id = 0
@@ -330,12 +331,16 @@ def main():
             test=args.test
         )
 
-        cos_dis = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)[-1]
+        all_cos_dis, all_l2_dist = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)
+        cos_dis = all_cos_dis[-1]
+        l2_dist = all_l2_dist[-1]
 
         score = attack_simulator.evaluate_attack()
         all_clients_scores.append(score)
         all_clients_cos_dis.append(cos_dis/ len(keep_round_ids))
+        all_clients_l2_dis.append(l2_dist)
         logging.info(f"Score={score:.3f} for client {attacked_client_id}")
+        logging.info(f"L2 distance={l2_dist:.3f} for client {attacked_client_id}")
 
         scores_list.append(score)
         n_samples_list.append(len(dataset))
@@ -349,14 +354,18 @@ def main():
 
     avg_score = weighted_average(all_clients_scores, n_samples_list)
     avg_cos_dis = weighted_average(all_clients_cos_dis, n_samples_list)
+    avg_l2_dis = weighted_average(all_clients_l2_dis, n_samples_list)
     logging.info(f"Average score: {avg_score}")
     logging.info(f"Average cosine dissimilarity: {avg_cos_dis}")
+    logging.info(f"Average L2 distance: {avg_l2_dis}")
 
     logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     # TODO: remove later
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
+    save_scores(scores_list=all_clients_l2_dis, n_samples_list=n_samples_list,
+                results_path=args.results_path.replace(".json", "_l2_dis.json"))
 
     results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history_aia.json")
 
@@ -365,7 +374,8 @@ def main():
     #                                  attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
 
     # TODO: remove later, used only to speed up testing
-    if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "toy_classification", "toy_regression"]:
+    if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "toy_classification", "toy_regression",
+                          "income"]:
         os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
         if not os.path.exists(results_history_path):
             results_dict = dict()

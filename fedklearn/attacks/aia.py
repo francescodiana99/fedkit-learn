@@ -550,7 +550,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         if self.test is True:
             self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
             n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
-            random_idx = torch.randperm(self.predicted_features.shape[0], generator=self.torch_rng)[:n_flip]
+            random_idx = torch.randperm(self.predicted_features.shape[0])[:n_flip]
             self.predicted_features[random_idx, self.sensitive_attribute_id] = \
                 torch.where(self.predicted_features[random_idx, self.sensitive_attribute_id] == \
                             self.sensitive_attribute_interval[0],
@@ -571,6 +571,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
             # TODO: move to cosine dissimilarity
             round_loss = F.cosine_similarity(virtual_grad, pseudo_grad, dim=0)
+            l2_dist = torch.cdist(virtual_grad.unsqueeze(0), pseudo_grad.unsqueeze(0), p=2).item()
 
             loss += 1 - round_loss
 
@@ -592,7 +593,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         self.logger.add_scalar("Loss", loss, c_iteration)
         self.logger.add_scalar("Metric", metric, c_iteration)
 
-        return loss, metric
+        return loss, metric, l2_dist
 
     def execute_attack(self, num_iterations, output_losses=False):
         """
@@ -603,9 +604,11 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         """
         # TODO: remove all_losses, only for debug
         all_losses = []
+        all_l2_dist = []
         for c_iteration in tqdm(range(num_iterations), leave=False):
-            loss, metric = self._perform_iteration(c_iteration)
+            loss, metric, l2_dist = self._perform_iteration(c_iteration)
             all_losses.append(loss.item())
+            all_l2_dist.append(l2_dist)
 
             if c_iteration % self.log_freq == 0:
                 logging.info("+" * 50)
@@ -613,7 +616,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
                 logging.info("+" * 50)
 
         if output_losses:
-            return all_losses
+            return all_losses, all_l2_dist
 
     def evaluate_attack(self):
         """
