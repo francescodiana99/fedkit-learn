@@ -349,11 +349,32 @@ class FederatedIncomeDataset:
 
         return tasks_dict
 
+    def _split_by_state(self, df):
+        if self.state is not None:
+            raise ValueError("The state split criterion is supported only for the full dataset. "
+                             "Please do not specify a state.")
+        if self.n_tasks is None:
+            raise ValueError("The number of tasks must be specified for the state split criterion.")
+
+        if self.n_tasks > len(STATES):
+            raise ValueError(f"The number of tasks must be less than or equal to the number of states, "
+                             f"which is {len(STATES)}.")
+
+        tasks_dict = dict()
+        for i in range(self.n_tasks):
+            state = STATES[i]
+            if self.n_task_samples is not None:
+                tasks_dict[f"{state}"] = df[df['ST'] == state].sample(n=self.n_task_samples, random_state=self.seed)
+            else:
+                tasks_dict[f"{state}"] = df[df['ST'] == state]
+        return state_dict
+
 
     def _split_data_into_tasks(self, df):
         split_criterion_dict = {
             'random': self._random_split,
             'correlation': self._split_by_correlation,
+            'state': self._split_by_state,
         }
         if self.split_criterion not in split_criterion_dict:
             raise ValueError(f"Invalid split critrion. Supported criteria are {', '.join(split_criterion_dict)}.")

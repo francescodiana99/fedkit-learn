@@ -291,6 +291,8 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         - gumbel_threshold (float): non-negative scalar, between 0 and 1, used as a threshold in the binary case
         - rng: Random number generator for reproducibility.
         - torch_rng (torch.Generator): Random number generator for reproducibility.
+        - flip_percentage: Percentage of sensitive features to flip. Used only when "test" option is true.
+        - test: Boolean flag to indicate whether to use the true sensitive features instead of the predicted ones.
         """
         super(AttributeInferenceAttack, self).__init__(
             dataset=dataset,
@@ -328,7 +330,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         self.pseudo_gradients_dict = self._compute_pseudo_gradients_dict()
 
-        # TODO: remove these two args
+        # TODO: remove these two args, here just for testing purposes
         self.flip_percentage = flip_percentage
 
         self.test = test
@@ -546,7 +548,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         # plug here the true value for the feature
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
 
-        # TODO: remove this lines ABSOLUTELY********************************
+        # TODO: remove these lines ********************************
         if self.test is True:
             self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
             n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
@@ -602,7 +604,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         Parameters:
         - num_iterations (int): The number of iterations to perform the attack.
         """
-        # TODO: remove all_losses, only for debug
+        # TODO: remove all_losses and l2_dist, only for debug
         all_losses = []
         all_l2_dist = []
         for c_iteration in tqdm(range(num_iterations), leave=False):
