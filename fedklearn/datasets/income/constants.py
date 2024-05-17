@@ -6,7 +6,11 @@ COLUMNS = [
 
 CATEGORICAL_COLUMNS = [
     'COW', 'MAR', 'OCCP', 'POBP', 'RELP', 'RAC1P', 'ST'
-]
+    ]
+
+NON_CATEGORICAL_COLUMNS = [
+    'AGEP', 'SCHL', 'WKHP', 'SEX' , 'PINCP'
+    ]
 
 STATES = {
     "alabama": 1,

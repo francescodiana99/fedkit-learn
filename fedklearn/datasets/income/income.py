@@ -28,11 +28,113 @@ class FederatedIncomeDataset:
     and each client represents a specific task based on criteria such as age and education level.
 
     For more information about the dataset, see: https://www.openml.org/search?type=data&sort=runs&id=43141&status=active
+
+    Args:
+        cache_dir (str, optional): The directory path for caching downloaded and preprocessed data. Default is "./".
+
+        download (bool, optional): Whether to download the raw data. Default is True.
+
+        test_frac (float, optional): Fraction of the test samples; it should be a float between 0 and 1.
+
+        scaler_name (str, optional): The name of the scaler to use for feature scaling. Default is "standard".
+
+        rng (Random Number Generator, optional): An instance of a random number generator.
+            If `None`, a new generator will be created. Default is `None`.
+
+        split_criterion (str, optional): The criterion used to split the data into tasks. Default is "random".
+
+        n_tasks (int, optional): The number of tasks to split the data into. Default is `None`.
+
+        n_task_samples (int, optional): The number of samples per task.
+            If 'None',all the data will be used. Default is `None`.
+
+        force_generation (bool, optional): Whether to force the generation of tasks from the pre-processed data
+            even if they already exist. Default is False.
+
+        seed (int, optional): The seed used for random number generation. Default is 42.
+
+        state (str, optional): USA state data to use.
+            If 'None', the full dataset will be used. Default is None.
+
+        mixing_coefficient (float, optional): Mixing coefficient used to manage the correlation between 'SEX' and target
+            variable, when using  'correlation' as split criterion. Default is 0.
+
+    Attributes:
+        cache_dir (str): The directory path for caching downloaded and preprocessed data.
+
+        download (bool): Whether to download the raw data.
+
+        test_frac (float): Fraction of the test samples.
+
+        scaler_name (str): The name of the scaler to use for feature scaling.
+
+        rng (Random Number Generator): An instance of a random number generator.
+
+        split_criterion (str): The criterion used to split the data into tasks.
+
+        n_tasks (int): The number of tasks to split the data into.
+
+        n_task_samples (int): The number of samples per task.
+
+        force_generation (bool): Whether to force the generation of tasks from the pre-processed data
+            even if they already exist.
+
+        raw_data_dir (str): The directory path for the raw data.
+
+        intermediate_data_dir (str): The directory path for the preprocessed data.
+
+        tasks_dir (str): The directory path for the tasks.
+
+        state (str): USA state data to use.
+
+        drop_nationality (bool): Whether to drop the 'POBP' column from the dataset.
+
+        mixing_coefficient (float): Mixing coefficient used to manage the correlation.
+
+        _metadata_path (str): The path to the metadata file.
+
+        _split_criterion_path (str): The path to the split criterion file.
+
+        scaler (sklearn.preprocessing): The scaler used for feature scaling.
+
+        task_id_to_name (dict): A dictionary mapping task IDs to task names.
+
+    Methods:
+        _download_data: Download the raw data from OpenML.
+
+        _preprocess: Preprocess the raw data.
+
+        _generate_tasks: Generate tasks based on the split criterion.
+
+        _set_scaler: Set the scaler for feature scaling.
+
+        _scale_features: Scale the features using the specified scaler.
+
+        _save_task_mapping: Save the task mapping to the metadata file.
+
+        _load_task_mapping: Load the task mapping from the metadata file.
+
+        _save_split_criterion: Save the split criterion to the split criterion file.
+
+        _iid_tasks_divide: Split a dataframe into a dictionary of dataframes.
+
+        _split_by_correlation: Split the data based on the correlation between the target variable and the 'SEX' column.
+
+        _random_split: Split the data randomly into tasks.
+
+        _split_by_state: Split the data based on the USA state.
+
+        _split_data_into_tasks: Split the data into tasks based on the split criterion.
+
+        get_task_dataset: Get the dataset for a specific task.
+
+        get_pooled_data: Get tall the data before splitting into tasks.
+
     """
 
-    def __init__(self, cache_dir='./data', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
+    def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state='texas', mixing_coefficient=0.):
+            seed=42, state=None, mixing_coefficient=0.):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -116,6 +218,7 @@ class FederatedIncomeDataset:
 
     def _preprocess(self):
         """Preprocess the raw data."""
+
         data, _ = loadarff(os.path.join(self.raw_data_dir, "income.arff"))
         df = pd.DataFrame(data)
 
@@ -135,7 +238,7 @@ class FederatedIncomeDataset:
             df.drop('POBP', axis=1, inplace=True)
             CATEGORICAL_COLUMNS.remove('POBP')
 
-        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
+        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64, sparse=True)
 
         train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed).reset_index(drop=True)
         test_df = df.drop(train_df.index).reset_index(drop=True)
@@ -164,12 +267,17 @@ class FederatedIncomeDataset:
     @staticmethod
     def _scale_features(df, scaler, mode='train'):
 
-        numerical_columns = df.select_dtypes(include=['number']).columns
-        numerical_columns = numerical_columns[numerical_columns != 'PINCP']
+        dummy_columns = df.select_dtypes(include=['Sparse']).columns
+        dummy_columns = list(set(dummy_columns) - set(NON_CATEGORICAL_COLUMNS))
 
         income_col = df['PINCP']
 
-        features_numerical = df[numerical_columns]
+        features_numerical = df[NON_CATEGORICAL_COLUMNS]
+        features_numerical = features_numerical.drop('PINCP', axis=1)
+
+        features_dummy = df[dummy_columns]
+
+        numerical_columns = features_numerical.columns
 
         if mode == 'train':
             features_numerical_scaled = \
@@ -179,7 +287,7 @@ class FederatedIncomeDataset:
             features_numerical_scaled = \
                 pd.DataFrame(scaler.transform(features_numerical), columns=numerical_columns)
 
-        features_scaled = pd.concat([features_numerical_scaled, income_col], axis=1)
+        features_scaled = pd.concat([features_numerical_scaled, features_dummy, income_col], axis=1)
 
         return features_scaled
 
@@ -208,6 +316,7 @@ class FederatedIncomeDataset:
                 os.makedirs(task_cache_dir, exist_ok=True)
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
+                task_data = task_data.to_dense()
                 task_data.to_csv(file_path, index=False)
 
         logging.info(f"Tasks generated and saved to {self.tasks_dir}.")
@@ -362,7 +471,7 @@ class FederatedIncomeDataset:
 
         tasks_dict = dict()
         for i in range(self.n_tasks):
-            state = STATES[i]
+            state = STATES.keys[i]
             if self.n_task_samples is not None:
                 tasks_dict[f"{state}"] = df[df['ST'] == state].sample(n=self.n_task_samples, random_state=self.seed)
             else:
