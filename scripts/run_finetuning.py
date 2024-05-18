@@ -173,10 +173,12 @@ def parse_args(args_list=None):
         default=None,
         help="Noise factor to simulate server update")
 
-    parser.add_argument('--mixing_coefficient',
-                        type=float,
-                        default=None,
-                        help='Mixing coefficient for the correlation-based split in Adult dataset')
+    parser.add_argument(
+        '--mixing_coefficient',
+        type=float,
+        default=None,
+        help='Mixing coefficient for the correlation-based split in Adult dataset'
+    )
 
     parser.add_argument(
         '--state',
@@ -184,6 +186,12 @@ def parse_args(args_list=None):
         default='None',
         help='USA state to select Income dataset subset'
     )
+
+    parser.add_argument(
+        '--attack_gain',
+        type=float,
+        default=None,
+        help='Attack gain to simulate active attacks'
 
 
     if args_list is None:
@@ -355,6 +363,8 @@ def main():
 
             if args.by_epoch:
                 loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
+                if args.attack_gain is not None:
+
             else:
                 try:
                     batch = next(train_iterator)

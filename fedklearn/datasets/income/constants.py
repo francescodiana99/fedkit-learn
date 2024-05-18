@@ -21,7 +21,7 @@ STATES = {
     "colorado": 8,
     "connecticut": 9,
     "delaware": 10,
-    "district_of_columbia": 11,
+    # "district_of_columbia": 11, # even if it is reported on the data dictionary, it is not present in the dataset
     "florida": 12,
     "georgia": 13,
     "hawaii": 15,

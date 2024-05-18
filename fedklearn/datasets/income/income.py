@@ -25,7 +25,7 @@ class FederatedIncomeDataset:
     """
     A class representing a federated dataset derived from the Income datset.
     This dataset is designed for federated learning scenarios where the data is split across multiple clients,
-    and each client represents a specific task based on criteria such as age and education level.
+    and each client represents a specific task based on criteria such as age USA state.
 
     For more information about the dataset, see: https://www.openml.org/search?type=data&sort=runs&id=43141&status=active
 
@@ -54,7 +54,7 @@ class FederatedIncomeDataset:
         seed (int, optional): The seed used for random number generation. Default is 42.
 
         state (str, optional): USA state data to use.
-            If 'None', the full dataset will be used. Default is None.
+            If 'full', the full dataset will be used. Default is full.
 
         mixing_coefficient (float, optional): Mixing coefficient used to manage the correlation between 'SEX' and target
             variable, when using  'correlation' as split criterion. Default is 0.
@@ -70,7 +70,8 @@ class FederatedIncomeDataset:
 
         rng (Random Number Generator): An instance of a random number generator.
 
-        split_criterion (str): The criterion used to split the data into tasks.
+        split_criterion (str): The criterion used to split the data into tasks. Available options are 'random', 'state',
+            and 'correlation'. Default is 'random'.
 
         n_tasks (int): The number of tasks to split the data into.
 
@@ -79,13 +80,13 @@ class FederatedIncomeDataset:
         force_generation (bool): Whether to force the generation of tasks from the pre-processed data
             even if they already exist.
 
-        raw_data_dir (str): The directory path for the raw data.
+        _raw_data_dir (str): The directory path for the raw data.
 
-        intermediate_data_dir (str): The directory path for the preprocessed data.
+        _intermediate_data_dir (str): The directory path for the preprocessed data.
 
-        tasks_dir (str): The directory path for the tasks.
+        _tasks_dir (str): The directory path for the tasks.
 
-        state (str): USA state data to use.
+        state (str): USA state data to use. If 'full', the full dataset will be used. Default is 'full'.
 
         drop_nationality (bool): Whether to drop the 'POBP' column from the dataset.
 
@@ -103,6 +104,12 @@ class FederatedIncomeDataset:
         _download_data: Download the raw data from OpenML.
 
         _preprocess: Preprocess the raw data.
+
+        _prepare_data: Prepare the raw data for scaling and splitting.
+
+        _prepare_full_data: Prepare the raw data for scaling when using the full data.
+
+        _sample_state: Sample data from a DataFrame group.
 
         _generate_tasks: Generate tasks based on the split criterion.
 
@@ -134,7 +141,7 @@ class FederatedIncomeDataset:
 
     def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state=None, mixing_coefficient=0.):
+            seed=42, state='full', mixing_coefficient=0.):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -145,17 +152,20 @@ class FederatedIncomeDataset:
         self.n_tasks = n_tasks
         self.n_task_samples = n_task_samples
         self.force_generation = force_generation
-        self.raw_data_dir = os.path.join(self.cache_dir, 'raw')
+        self._raw_data_dir = os.path.join(self.cache_dir, 'raw')
         self.state=state
         self.drop_nationality = drop_nationality
         self.mixing_coefficient = mixing_coefficient
 
-        if self.state is not None:
-            self.intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
-            self.tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
+        if self.state is None:
+            raise ValueError("The 'state' is None. Please specify a value.")
+
+        if self.state != 'full':
+            self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
+            self._tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
         else:
-            self.intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', 'full')
-            self.tasks_dir = os.path.join(self.cache_dir, 'tasks', 'full')
+            self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', 'full')
+            self._tasks_dir = os.path.join(self.cache_dir, 'tasks', 'full')
 
         if rng is None:
             rng = np.random.default_rng()
@@ -170,89 +180,155 @@ class FederatedIncomeDataset:
 
         self.scaler = self._set_scaler(self.scaler_name)
 
-        if os.path.exists(self.tasks_dir) and not self.force_generation:
-            logging.info(f"Processed data folders found in {self.tasks_dir}. Loading existing files.")
+        if os.path.exists(self._tasks_dir) and not self.force_generation:
+            logging.info(f"Processed data folders found in {self._tasks_dir}. Loading existing files.")
             self._load_task_mapping()
 
         elif not self.download and self.force_generation:
-            if not os.path.exists(self.intermediate_data_dir):
+            if not os.path.exists(self._intermediate_data_dir):
                 logging.info(f'Intermediate data not found for state {self.state}. Processing data...')
-                self._preprocess()
+                if self.state != 'full':
+                    df = self._prepare_data()
+                else:
+                    df = self._prepare_full_data()
+
+                self._preprocess(df)
 
             logging.info("Data found in the cache directory. Splitting data into tasks..")
 
-            train_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "train.csv"))
-            test_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "test.csv"))
+            train_df = pd.read_csv(os.path.join(self._intermediate_data_dir, "train.csv"))
+            test_df = pd.read_csv(os.path.join(self._intermediate_data_dir, "test.csv"))
+
             self._generate_tasks(train_df, test_df)
 
         elif  not self.download:
             raise RuntimeError(
-                f"Data is not found in {self.raw_data_dir}. Please set `download=True`."
+                f"Data is not found in {self._raw_data_dir}. Please set `download=True`."
             )
 
         else:
 
             # remove the task folder if it exists to avoid inconsistencies
-            if os.path.exists(self.tasks_dir):
-                shutil.rmtree(self.tasks_dir)
+            if os.path.exists(self._tasks_dir):
+                shutil.rmtree(self._tasks_dir)
 
             logging.info("Downloading raw data..")
-            os.makedirs(self.raw_data_dir, exist_ok=True)
+            os.makedirs(self._raw_data_dir, exist_ok=True)
             self._download_data()
 
-            os.makedirs(self.intermediate_data_dir, exist_ok=True)
+            os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
+            if self.state != 'full':
+               df = self._prepare_data()
+            else:
+               df =  self._prepare_full_data()
 
-            train_df, test_df = self._preprocess()
-
+            train_df, test_df = self._preprocess(df)
             self._generate_tasks(train_df, test_df)
 
 
     def _download_data(self):
         """Download the raw data from OpenML."""
-        os.makedirs(self.raw_data_dir, exist_ok=True)
-        _, _ = urllib.request.urlretrieve(URL, os.path.join(self.raw_data_dir, "income.arff"))
+        os.makedirs(self._raw_data_dir, exist_ok=True)
+        _, _ = urllib.request.urlretrieve(URL, os.path.join(self._raw_data_dir, "income.arff"))
 
-        logging.info(f"Data downloaded to {self.raw_data_dir}.")
-
-
-    def _preprocess(self):
-        """Preprocess the raw data."""
-
-        data, _ = loadarff(os.path.join(self.raw_data_dir, "income.arff"))
+        logging.info(f"Data downloaded to {self._raw_data_dir}.")
+        data, _ = loadarff(os.path.join(self._raw_data_dir, "income.arff"))
         df = pd.DataFrame(data)
+        df.to_csv(os.path.join(self._raw_data_dir, "income.csv"), index=False)
 
-        if self.state is not None:
-            if self.state.lower() not in STATES:
-                raise ValueError(f"State {self.state} not found in the dataset.")
 
-            df = df[df['ST'] == STATES[self.state]]
-            df.drop('ST', axis=1, inplace=True)
-            CATEGORICAL_COLUMNS.remove('ST')
+    def _prepare_data(self):
+        """Prepare the raw data for scaling and splitting."""
+        df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
+
+        if self.state.lower() not in STATES:
+            raise ValueError(f"State {self.state} not found in the dataset.")
+
+        df = df[df['ST'] == STATES[self.state]]
+        df.drop('ST', axis=1, inplace=True)
+        CATEGORICAL_COLUMNS.remove('ST')
 
         df = df.dropna()
         df = df.drop_duplicates()
         df = df.reset_index(drop=True)
 
+        return df
+
+
+    def _preprocess(self, df):
+        """Scale, split and save the data"""
+
         if self.drop_nationality:
             df.drop('POBP', axis=1, inplace=True)
             CATEGORICAL_COLUMNS.remove('POBP')
 
-        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64, sparse=True)
+        state_col = df['ST']
 
-        train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed).reset_index(drop=True)
+        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
+
+        # keeping for later use in state based split
+        df['ST'] = state_col
+
+        if self.state == 'full':
+            df_grouped = df.groupby('ST')
+            n_train = int(df_grouped.size().min() * (1 - self.test_frac))
+            sampled_states = [self._sample_state(state_group, n_train) for state, state_group in df_grouped]
+            train_df = pd.concat(sampled_states)
+        else:
+            train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
         test_df = df.drop(train_df.index).reset_index(drop=True)
+        train_df.reset_index(drop=True, inplace=True)
 
         train_df = self._scale_features(train_df, self.scaler, mode='train')
         test_df = self._scale_features(test_df, self.scaler, mode='test')
 
-        os.makedirs(self.intermediate_data_dir, exist_ok=True)
+        os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
-        train_df.to_csv(os.path.join(self.intermediate_data_dir, "train.csv"), index=False)
-        test_df.to_csv(os.path.join(self.intermediate_data_dir, "test.csv"), index=False)
-        logging.info(f"Preprocessed data saved to {self.intermediate_data_dir}.")
+        train_df.to_csv(os.path.join(self._intermediate_data_dir, "train.csv"), index=False)
+        test_df.to_csv(os.path.join(self._intermediate_data_dir, "test.csv"), index=False)
+
+        logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
 
         return train_df, test_df
+
+    @staticmethod
+    def _sample_state(state_group, n_samples):
+        """Sample data from a DataFrame group.
+        Args:
+            state_group(pd.DataFrame): The DataFrame group to sample from.
+            n_samples(int): The number of samples to draw."""
+        indices = np.random.choice(state_group.index, n_samples, replace=False)
+        return state_group.loc[indices]
+
+    def _prepare_full_data(self):
+        """
+        Prepare the raw data for scaling when using the full data.
+
+        Returns:
+            pd.DataFrame: Sampled and preocessed training data.
+
+        """
+
+        df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
+
+        df = df.dropna()
+        df = df.drop_duplicates()
+        df = df.reset_index(drop=True)
+
+        df_grouped = df.groupby('ST')
+        state_samples = df_grouped.size().sort_values(ascending=False)
+        if self.n_task_samples > state_samples.min():
+            raise ValueError(f"The number of samples per task must be less than or equal to the number of samples in "
+                             f"the smallest state, which is {state_samples.min()}.")
+        if self.n_tasks > len(state_samples):
+            raise ValueError(f"The number of tasks must be less than or equal to the number of states, "
+                             f"which is {len(state_samples)}.")
+
+        sampled_states = [self._sample_state(state_group, state_samples.min()) for state, state_group in df_grouped]
+        df = pd.concat(sampled_states).reset_index(drop=True)
+
+        return df
 
     @staticmethod
     def _set_scaler(scaler_name):
@@ -270,6 +346,7 @@ class FederatedIncomeDataset:
         dummy_columns = df.select_dtypes(include=['Sparse']).columns
         dummy_columns = list(set(dummy_columns) - set(NON_CATEGORICAL_COLUMNS))
 
+        state_col = df['ST']
         income_col = df['PINCP']
 
         features_numerical = df[NON_CATEGORICAL_COLUMNS]
@@ -287,7 +364,7 @@ class FederatedIncomeDataset:
             features_numerical_scaled = \
                 pd.DataFrame(scaler.transform(features_numerical), columns=numerical_columns)
 
-        features_scaled = pd.concat([features_numerical_scaled, features_dummy, income_col], axis=1)
+        features_scaled = pd.concat([features_dummy, state_col, features_numerical_scaled, income_col], axis=1)
 
         return features_scaled
 
@@ -297,11 +374,11 @@ class FederatedIncomeDataset:
         logging.info(f"Forcing tasks generation... ")
 
         if self.split_criterion != 'correlation':
-            if os.path.exists(self.tasks_dir):
-                shutil.rmtree(self.tasks_dir)
+            if os.path.exists(self._tasks_dir):
+                shutil.rmtree(self._tasks_dir)
 
-        train_tasks_dict = self._split_data_into_tasks(train_df)
-        test_tasks_dict = self._split_data_into_tasks(test_df)
+        train_tasks_dict = self._split_data_into_tasks(train_df, mode='train')
+        test_tasks_dict = self._split_data_into_tasks(test_df, mode='test')
 
         task_dicts = [train_tasks_dict, test_tasks_dict]
 
@@ -310,16 +387,15 @@ class FederatedIncomeDataset:
         for mode, task_dict in zip(['train', 'test'], task_dicts):
             for task_name, task_data in task_dict.items():
                 if self.split_criterion == 'correlation':
-                    task_cache_dir = os.path.join(self.tasks_dir, f'{int(self.mixing_coefficient * 100)}',task_name)
+                    task_cache_dir = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', task_name)
                 else:
-                    task_cache_dir = os.path.join(self.tasks_dir,task_name)
+                    task_cache_dir = os.path.join(self._tasks_dir, task_name)
                 os.makedirs(task_cache_dir, exist_ok=True)
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
-                task_data = task_data.to_dense()
                 task_data.to_csv(file_path, index=False)
 
-        logging.info(f"Tasks generated and saved to {self.tasks_dir}.")
+        logging.info(f"Tasks generated and saved to {self._tasks_dir}.")
 
         self._save_task_mapping()
 
@@ -381,6 +457,8 @@ class FederatedIncomeDataset:
 
     def _split_by_correlation(self, df):
 
+        df.drop('ST', axis=1, inplace=True)
+
         lower_bound = min(df['SEX'])
         upper_bound = max(df['SEX'])
 
@@ -397,8 +475,8 @@ class FederatedIncomeDataset:
         if self.mixing_coefficient > 0:
             n_mix_samples_rmpw = int(self.mixing_coefficient * len(df_rich_men_poor_women))
             n_mix_samples_pmrw = int(self.mixing_coefficient * len(df_poor_men_rich_women))
-            mix_sample_rich_men_poor_women = df_rich_men_poor_women.sample(n=n_mix_samples_pmrw)
-            mix_sample_poor_men_rich_women = df_poor_men_rich_women.sample(n=n_mix_samples_rmpw)
+            mix_sample_rich_men_poor_women = df_rich_men_poor_women.sample(n=n_mix_samples_pmrw, random_state=self.seed)
+            mix_sample_poor_men_rich_women = df_poor_men_rich_women.sample(n=n_mix_samples_rmpw, random_state=self.seed)
 
             df_rich_men_poor_women = df_rich_men_poor_women[n_mix_samples_rmpw:]
             df_poor_men_rich_women = df_poor_men_rich_women[n_mix_samples_pmrw:]
@@ -424,6 +502,7 @@ class FederatedIncomeDataset:
                 raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
                              "Please reduce the number of tasks or the number of samples per task.")
+
         else:
             tasks_dict_rich_men = dict()
             tasks_dict_poor_men = dict()
@@ -443,11 +522,14 @@ class FederatedIncomeDataset:
 
 
     def _random_split(self, df):
+
         num_elems = len(df)
         group_size = int(len(df) // self.n_tasks)
         num_big_groups = num_elems - self.n_tasks * group_size
         num_small_groups = self.n_tasks - num_big_groups
         tasks_dict = dict()
+
+        df.drop('ST', axis=1, inplace=True)
 
         for i in range(num_small_groups):
             tasks_dict[f"{i}"] = df.iloc[group_size * i: group_size * (i + 1)]
@@ -458,10 +540,9 @@ class FederatedIncomeDataset:
 
         return tasks_dict
 
-    def _split_by_state(self, df):
-        if self.state is not None:
-            raise ValueError("The state split criterion is supported only for the full dataset. "
-                             "Please do not specify a state.")
+    def _split_by_state(self, df, mode='train'):
+        if self.state != 'full':
+            raise ValueError("The state split criterion is supported only for the full dataset. ")
         if self.n_tasks is None:
             raise ValueError("The number of tasks must be specified for the state split criterion.")
 
@@ -470,16 +551,20 @@ class FederatedIncomeDataset:
                              f"which is {len(STATES)}.")
 
         tasks_dict = dict()
+        states_list = [(k,v) for k, v in STATES.items()]
+        if mode == 'train':
+            n_samples = int(self.n_task_samples * (1 - self.test_frac))
+        else:
+            n_samples = int(self.n_task_samples * self.test_frac)
+
         for i in range(self.n_tasks):
-            state = STATES.keys[i]
-            if self.n_task_samples is not None:
-                tasks_dict[f"{state}"] = df[df['ST'] == state].sample(n=self.n_task_samples, random_state=self.seed)
-            else:
-                tasks_dict[f"{state}"] = df[df['ST'] == state]
-        return state_dict
+            state_name, state_code = states_list[i]
+            tasks_dict[f"{i}"] = df[df['ST'] == state_code].sample(n=n_samples, random_state=self.seed).copy()
+            tasks_dict[f"{i}"].drop('ST', axis=1, inplace=True)
 
+        return tasks_dict
 
-    def _split_data_into_tasks(self, df):
+    def _split_data_into_tasks(self, df, mode='train'):
         split_criterion_dict = {
             'random': self._random_split,
             'correlation': self._split_by_correlation,
@@ -487,6 +572,8 @@ class FederatedIncomeDataset:
         }
         if self.split_criterion not in split_criterion_dict:
             raise ValueError(f"Invalid split critrion. Supported criteria are {', '.join(split_criterion_dict)}.")
+        if self.state == 'full':
+            return split_criterion_dict[self.split_criterion](df, mode=mode)
         else:
             return split_criterion_dict[self.split_criterion](df)
 
@@ -500,9 +587,9 @@ class FederatedIncomeDataset:
 
         task_name = self.task_id_to_name[task_id]
         if self.split_criterion == 'correlation':
-            file_path = os.path.join(self.tasks_dir, f'{int(self.mixing_coefficient * 100)}', task_name, f"{mode}.csv")
+            file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', task_name, f"{mode}.csv")
         else:
-            file_path = os.path.join(self.tasks_dir, task_name, f"{mode}.csv")
+            file_path = os.path.join(self._tasks_dir, task_name, f"{mode}.csv")
         task_data = pd.read_csv(file_path)
 
         return IncomeDataset(task_data, name=task_name)
@@ -521,7 +608,7 @@ class FederatedIncomeDataset:
         if mode not in ['train', 'test']:
             raise ValueError(f"Invalid mode '{mode}'. Supported values are 'train' or 'test'.")
 
-        file_path = os.path.join(self.intermediate_data_dir, f'{mode}.csv')
+        file_path = os.path.join(self._intermediate_data_dir, f'{mode}.csv')
 
         data = pd.read_csv(file_path)
 
