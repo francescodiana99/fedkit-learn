@@ -192,6 +192,12 @@ def parse_args(args_list=None):
         type=float,
         default=None,
         help='Attack gain to simulate active attacks'
+    )
+
+    parser.add_argument(
+        '--n_local_steps',
+    type=int,
+    help="Number of simulated local batch updates")
 
 
     if args_list is None:
@@ -349,6 +355,8 @@ def main():
 
         # TODO: refactoring of this part in the run_simulation.py
         if not args.by_epoch:
+            if args.n_local_steps is None:
+                raise ValueError('Please specify a number of local steps to simulate.')
             train_iterator = iter(dataloader)
         for step in range(args.num_epochs):
             # # TODO: this should be integrated in run_simulation.py
@@ -363,16 +371,15 @@ def main():
 
             if args.by_epoch:
                 loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
-                if args.attack_gain is not None:
-
             else:
-                try:
-                    batch = next(train_iterator)
-                except StopIteration:
-                    train_iterator = iter(dataloader)
-                    batch = next(train_iterator)
+                for _ in args.n_local_steps:
+                    try:
+                        batch = next(train_iterator)
+                    except StopIteration:
+                        train_iterator = iter(dataloader)
+                        batch = next(train_iterator)
 
-                loss, metric = finetuning_trainer.fit_batch(batch)
+                    loss, metric = finetuning_trainer.fit_batch(batch)
 
             if step % args.save_freq == 0:
 
