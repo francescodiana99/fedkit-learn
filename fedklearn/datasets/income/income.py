@@ -265,22 +265,25 @@ class FederatedIncomeDataset:
 
         df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
 
-        if self.state == 'full':
-            # keeping for later use in state based split
-            df['ST'] = state_col
+        # keeping for later use in state based split
+        df['ST'] = state_col
 
+        if self.state == 'full':
             df_grouped = df.groupby('ST')
             n_train = int(df_grouped.size().min() * (1 - self.test_frac))
             sampled_states = [self._sample_state(state_group, n_train) for state, state_group in df_grouped]
             train_df = pd.concat(sampled_states)
         else:
-
             train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
         test_df = df.drop(train_df.index).reset_index(drop=True)
         train_df.reset_index(drop=True, inplace=True)
 
         train_df = self._scale_features(train_df, self.scaler, mode='train')
         test_df = self._scale_features(test_df, self.scaler, mode='test')
+
+        if self.state != 'full':
+            train_df.drop('ST', axis=1, inplace=True)
+            test_df.drop('ST', axis=1, inplace=True)
 
         os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
