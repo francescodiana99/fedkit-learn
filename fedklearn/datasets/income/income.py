@@ -103,11 +103,9 @@ class FederatedIncomeDataset:
     Methods:
         _download_data: Download the raw data from OpenML.
 
-        _preprocess: Preprocess the raw data.
+        _preprocess: Preprocess the raw data when using a specific state.
 
-        _prepare_data: Prepare the raw data for scaling and splitting.
-
-        _prepare_full_data: Prepare the raw data for scaling when using the full data.
+        _preprocess_full_data: Preprocess the raw data when using the full dataset.
 
         _sample_state: Sample data from a DataFrame group.
 
@@ -188,17 +186,14 @@ class FederatedIncomeDataset:
             if not os.path.exists(self._intermediate_data_dir):
                 logging.info(f'Intermediate data not found for state {self.state}. Processing data...')
                 if self.state != 'full':
-                    df = self._prepare_data()
+                    self._preprocess()
                 else:
-                    df = self._prepare_full_data()
-
-                self._preprocess(df)
+                    self._preprocess_full_data()
 
             logging.info("Data found in the cache directory. Splitting data into tasks..")
 
             train_df = pd.read_csv(os.path.join(self._intermediate_data_dir, "train.csv"))
             test_df = pd.read_csv(os.path.join(self._intermediate_data_dir, "test.csv"))
-
             self._generate_tasks(train_df, test_df)
 
         elif  not self.download:
@@ -218,12 +213,11 @@ class FederatedIncomeDataset:
 
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
-            if self.state != 'full':
-               df = self._prepare_data()
+            if self.state == 'full':
+               train_df, test_df = self._preprocess_full_data()
             else:
-               df =  self._prepare_full_data()
+               train_df, test_df =  self._preprocess()
 
-            train_df, test_df = self._preprocess(df)
             self._generate_tasks(train_df, test_df)
 
 
@@ -238,8 +232,8 @@ class FederatedIncomeDataset:
         df.to_csv(os.path.join(self._raw_data_dir, "income.csv"), index=False)
 
 
-    def _prepare_data(self):
-        """Prepare the raw data for scaling and splitting."""
+    def _preprocess(self):
+        """Prepare the raw data for splitting in tasks."""
         df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
 
         if self.state.lower() not in STATES:
@@ -251,39 +245,21 @@ class FederatedIncomeDataset:
         df = df.drop_duplicates()
         df = df.reset_index(drop=True)
 
-        return df
-
-
-    def _preprocess(self, df):
-        """Scale, split and save the data"""
-
         if self.drop_nationality:
             df.drop('POBP', axis=1, inplace=True)
             CATEGORICAL_COLUMNS.remove('POBP')
 
-        state_col = df['ST']
+        df.drop('ST', axis=1, inplace=True)
+        CATEGORICAL_COLUMNS.remove('ST')
 
         df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
 
-        # keeping for later use in state based split
-        df['ST'] = state_col
-
-        if self.state == 'full':
-            df_grouped = df.groupby('ST')
-            n_train = int(df_grouped.size().min() * (1 - self.test_frac))
-            sampled_states = [self._sample_state(state_group, n_train) for state, state_group in df_grouped]
-            train_df = pd.concat(sampled_states)
-        else:
-            train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
+        train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
         test_df = df.drop(train_df.index).reset_index(drop=True)
         train_df.reset_index(drop=True, inplace=True)
 
         train_df = self._scale_features(train_df, self.scaler, mode='train')
         test_df = self._scale_features(test_df, self.scaler, mode='test')
-
-        if self.state != 'full':
-            train_df.drop('ST', axis=1, inplace=True)
-            test_df.drop('ST', axis=1, inplace=True)
 
         os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
@@ -294,6 +270,7 @@ class FederatedIncomeDataset:
 
         return train_df, test_df
 
+
     @staticmethod
     def _sample_state(state_group, n_samples):
         """Sample data from a DataFrame group.
@@ -303,7 +280,7 @@ class FederatedIncomeDataset:
         indices = np.random.choice(state_group.index, n_samples, replace=False)
         return state_group.loc[indices]
 
-    def _prepare_full_data(self):
+    def _preprocess_full_data(self):
         """
         Prepare the raw data for scaling when using the full data.
 
@@ -330,7 +307,34 @@ class FederatedIncomeDataset:
         sampled_states = [self._sample_state(state_group, state_samples.min()) for state, state_group in df_grouped]
         df = pd.concat(sampled_states).reset_index(drop=True)
 
-        return df
+        if self.drop_nationality:
+            df.drop('POBP', axis=1, inplace=True)
+            CATEGORICAL_COLUMNS.remove('POBP')
+
+        state_col = df['ST']
+        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
+
+        df['ST'] = state_col
+
+        df_grouped = df.groupby('ST')
+        n_train = int(df_grouped.size().min() * (1 - self.test_frac))
+        sampled_states = [self._sample_state(state_group, n_train) for state, state_group in df_grouped]
+        train_df = pd.concat(sampled_states)
+
+        test_df = df.drop(train_df.index).reset_index(drop=True)
+        train_df.reset_index(drop=True, inplace=True)
+
+        train_df = self._scale_features(train_df, self.scaler, mode='train')
+        test_df = self._scale_features(test_df, self.scaler, mode='test')
+
+        os.makedirs(self._intermediate_data_dir, exist_ok=True)
+
+        train_df.to_csv(os.path.join(self._intermediate_data_dir, "train.csv"), index=False)
+        test_df.to_csv(os.path.join(self._intermediate_data_dir, "test.csv"), index=False)
+
+        logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
+
+        return train_df, test_df
 
     @staticmethod
     def _set_scaler(scaler_name):
@@ -341,14 +345,13 @@ class FederatedIncomeDataset:
         else:
             raise ValueError(f"Scaler {scaler_name} not found.")
 
-
-    @staticmethod
-    def _scale_features(df, scaler, mode='train'):
+    def _scale_features(self, df, scaler, mode='train'):
 
         dummy_columns = df.select_dtypes(include=['Sparse']).columns
         dummy_columns = list(set(dummy_columns) - set(NON_CATEGORICAL_COLUMNS))
 
-        state_col = df['ST']
+        if self.state == 'full':
+            state_col = df['ST']
         income_col = df['PINCP']
 
         features_numerical = df[NON_CATEGORICAL_COLUMNS]
@@ -366,7 +369,10 @@ class FederatedIncomeDataset:
             features_numerical_scaled = \
                 pd.DataFrame(scaler.transform(features_numerical), columns=numerical_columns)
 
-        features_scaled = pd.concat([features_dummy, state_col, features_numerical_scaled, income_col], axis=1)
+        if self.state == 'full':
+            features_scaled = pd.concat([features_dummy, state_col, features_numerical_scaled, income_col], axis=1)
+        else:
+            features_scaled = pd.concat([features_dummy, features_numerical_scaled, income_col], axis=1)
 
         return features_scaled
 
@@ -458,8 +464,6 @@ class FederatedIncomeDataset:
         return tasks_dict
 
     def _split_by_correlation(self, df):
-
-        df.drop('ST', axis=1, inplace=True)
 
         lower_bound = min(df['SEX'])
         upper_bound = max(df['SEX'])
