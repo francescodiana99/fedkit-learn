@@ -372,7 +372,7 @@ def main():
             if args.by_epoch:
                 loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
             else:
-                for _ in args.n_local_steps:
+                for _ in range(args.n_local_steps):
                     try:
                         batch = next(train_iterator)
                     except StopIteration:
