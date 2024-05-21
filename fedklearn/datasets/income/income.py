@@ -246,8 +246,6 @@ class FederatedIncomeDataset:
             raise ValueError(f"State {self.state} not found in the dataset.")
 
         df = df[df['ST'] == STATES[self.state]]
-        df.drop('ST', axis=1, inplace=True)
-        CATEGORICAL_COLUMNS.remove('ST')
 
         df = df.dropna()
         df = df.drop_duplicates()
