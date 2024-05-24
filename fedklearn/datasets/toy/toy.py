@@ -254,8 +254,9 @@ class FederatedToyDataset:
 
         logits = np.dot(features, self.weights) + self.bias
 
-        if task_id >= self.n_tasks // 2:
-            logits = -logits
+        # NOTE: this should be commented to have same distribution for all tasks
+        # if task_id >= self.n_tasks // 2:
+        #     logits = -logits
 
         logits += self.noise_level * np.random.standard_normal(size=logits.shape)
 
