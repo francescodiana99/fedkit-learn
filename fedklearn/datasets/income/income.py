@@ -352,6 +352,8 @@ class FederatedIncomeDataset:
 
         dummy_columns = df.select_dtypes(include=['Sparse']).columns
         dummy_columns = list(set(dummy_columns) - set(NON_CATEGORICAL_COLUMNS))
+        if 'ST' in dummy_columns:
+            dummy_columns.remove('ST')
 
         if self.state == 'full':
             state_col = df['ST']
@@ -621,7 +623,7 @@ class FederatedIncomeDataset:
 
         data = pd.read_csv(file_path)
 
-        return AdultDataset(data, name="pooled")
+        return IncomeDataset(data, name="pooled")
 
 
 class IncomeDataset(Dataset):
