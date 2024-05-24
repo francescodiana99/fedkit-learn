@@ -87,6 +87,7 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
         data_dir (str): Directory where the dataset should be stored or loaded from.
         rng (RandomState): NumPy random number generator for reproducibility.
         mixing_coefficient (str, opt): Mix coefficient for correlation split in Adult dataset.
+        state (int, opt): State to use in case of income dataset.
 
     Returns:
         FederatedDataset: Initialized federated dataset.

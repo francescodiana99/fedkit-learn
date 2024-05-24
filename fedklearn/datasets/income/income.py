@@ -312,9 +312,12 @@ class FederatedIncomeDataset:
             CATEGORICAL_COLUMNS.remove('POBP')
 
         state_col = df['ST']
+        df.drop('ST', axis=1, inplace=True)
+        CATEGORICAL_COLUMNS.remove('ST')
         df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
 
         df['ST'] = state_col
+        CATEGORICAL_COLUMNS.append('ST')
 
         df_grouped = df.groupby('ST')
         n_train = int(df_grouped.size().min() * (1 - self.test_frac))
