@@ -455,7 +455,7 @@ def initialize_dataset(args, rng):
             sensitive_attribute_type=args.sensitive_attribute_type,
             sensitive_attribute_weight=args.sensitive_attribute_weight,
             noise_level=args.noise_level,
-            force_generation=True,
+            force_generation=args.force_generation,
             allow_generation=True,
             cache_dir=args.data_dir,
             rng=rng
