@@ -81,7 +81,7 @@ class FederatedToyDataset:
             logging.info("Processed data folders found in the tasks directory. Loading existing files.")
             self._load_metadata()
 
-            self.task_id_to_name = {i: f"{i}" for i in range(self.n_tasks)}
+            self.task_id_to_name = {f"{i}": f"{i}" for i in range(self.n_tasks)}
 
         else:
             assert problem_type in ['classification', 'regression'], \
