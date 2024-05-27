@@ -497,7 +497,7 @@ class FederatedIncomeDataset:
 
         return tasks_dict
 
-    def _split_by_correlation(self, df, 'mode'='train'):
+    def _split_by_correlation(self, df, mode='train'):
 
         lower_bound = min(df['SEX'])
         upper_bound = max(df['SEX'])
