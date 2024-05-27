@@ -497,7 +497,7 @@ class FederatedIncomeDataset:
 
         return tasks_dict
 
-    def _split_by_correlation(self, df):
+    def _split_by_correlation(self, df, 'mode'='train'):
 
         lower_bound = min(df['SEX'])
         upper_bound = max(df['SEX'])
@@ -538,8 +538,13 @@ class FederatedIncomeDataset:
             tasks_dict_rich_men = {str(int(k) + self.n_tasks // 2): v for k, v in tasks_dict_rich_men.items()}
             tasks_dict = {**tasks_dict_poor_men, **tasks_dict_rich_men}
 
-        elif self.n_tasks * self.n_task_samples > len(df):
+        elif self.n_tasks * self.n_task_samples > len(df) and mode == 'train':
                 raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
+                             f"which has size {len(df)}."
+                             "Please reduce the number of tasks or the number of samples per task.")
+
+        elif self.n_tasks * self.n_task_samples * self.test_frac > len(df) and mode == 'test':
+            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
                              "Please reduce the number of tasks or the number of samples per task.")
 
@@ -639,7 +644,7 @@ class FederatedIncomeDataset:
         }
         if self.split_criterion not in split_criterion_dict:
             raise ValueError(f"Invalid split critrion. Supported criteria are {', '.join(split_criterion_dict)}.")
-        if self.state == 'full':
+        if self.state == 'full' or self.split_criterion == 'correlation':
             return split_criterion_dict[self.split_criterion](df, mode=mode)
         else:
             return split_criterion_dict[self.split_criterion](df)
