@@ -174,7 +174,19 @@ class FederatedIncomeDataset:
 
         self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
 
-        self._split_criterion_path = os.path.join(self.cache_dir, "split_criterion.json")
+        if self.split_criterion == 'correlation':
+            if self.n_task_samples is None:
+                self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', 'all',
+                                              f'{self.n_tasks}', 'split_criterion.json')
+            else:
+                self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                                              f'{self.n_tasks}', f'{self.n_task_samples}', 'split_criterion.json')
+        else:
+            if self.n_task_samples is None:
+                self._split_criterion_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', 'split_criterion.json')
+            else:
+                self._split_criterion_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', 'split_criterion.json')
+
 
         self.scaler = self._set_scaler(self.scaler_name)
 
@@ -399,14 +411,13 @@ class FederatedIncomeDataset:
 
         for mode, task_dict in zip(['train', 'test'], task_dicts):
             for task_name, task_data in task_dict.items():
-                if self.split_criterion == 'correlation':
-                    task_cache_dir = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', task_name)
-                else:
-                    task_cache_dir = os.path.join(self._tasks_dir, task_name)
+                task_cache_dir = self._get_task_cache_dir(task_name)
+
                 os.makedirs(task_cache_dir, exist_ok=True)
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
                 task_data.to_csv(file_path, index=False)
+                # TODO: this should be not in the loop, and coded better
 
         logging.info(f"Tasks generated and saved to {self._tasks_dir}.")
 
@@ -414,6 +425,21 @@ class FederatedIncomeDataset:
 
         self._save_split_criterion()
 
+    def _get_task_cache_dir(self, task_name):
+        if self.split_criterion == 'correlation':
+            if self.n_task_samples is None:
+                task_cache_dir = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                                              f'{self.n_tasks}', 'all', task_name)
+            else:
+                task_cache_dir = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                                              f'{self.n_tasks}', f'{self.n_task_samples}', task_name)
+        else:
+            if self.n_task_samples is None:
+                task_cache_dir = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', task_name)
+            else:
+                task_cache_dir = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', task_name)
+
+        return task_cache_dir
 
     def _save_task_mapping(self):
         if os.path.exists(self._metadata_path):
@@ -435,9 +461,12 @@ class FederatedIncomeDataset:
 
 
     def _save_split_criterion(self):
-        criterion_dict = {'split_criterion': self.split_criterion}
-        if self.split_criterion in ['correlation']:
-            criterion_dict['n_task_samples'] = self.n_task_samples
+        criterion_dict = {'split_criterion': self.split_criterion,
+                          'cache_dir': self.cache_dir,
+                          'n_tasks': self.n_tasks,
+                          'n_task_samples':self.n_task_samples
+                          }
+
         with open(self._split_criterion_path, "w") as f:
             json.dump(criterion_dict, f)
 
@@ -625,9 +654,19 @@ class FederatedIncomeDataset:
 
         task_name = self.task_id_to_name[task_id]
         if self.split_criterion == 'correlation':
-            file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', task_name, f"{mode}.csv")
+            if self.n_task_samples is None:
+                file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
+                                         'all', task_name, f"{mode}.csv")
+            else:
+                file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
+                                         f'{self.n_task_samples}', task_name, f"{mode}.csv")
+
         else:
-            file_path = os.path.join(self._tasks_dir, task_name, f"{mode}.csv")
+            if self.n_task_samples is None:
+                file_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', task_name, f"{mode}.csv")
+            else:
+                file_path = os.path.join(self._tasks_dir, f'{self.n_tasks}',  f'{self.n_task_samples}'  , task_name,
+                                         f"{mode}.csv")
         task_data = pd.read_csv(file_path)
 
         return IncomeDataset(task_data, name=task_name)
