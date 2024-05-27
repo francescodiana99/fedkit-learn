@@ -551,6 +551,32 @@ class FederatedIncomeDataset:
 
         return tasks_dict
 
+
+    def _split_by_income_sex(self, df):
+        if self.n_tasks is None:
+            raise ValueError("The number of tasks must be specified")
+
+        men = df['SEX'].min()
+        women = df['SEX'].max()
+
+        percentiles = [i/self.n_tasks for i in range(0,self.n_tasks + 1)]
+        income_percentiles = list(df['PINCP'].quantile(percentiles))
+
+        tasks_dict = dict()
+
+        for i in range(self.n_tasks):
+            df_men = df[(df['SEX'] == men) & (income_percentiles[i] < df['PINCP'] ) & (df['PINCP']  <= income_percentiles[i+1])]
+            df_women = df[(df['SEX'] == women) & (income_percentiles[i] < df['PINCP'] ) & (df['PINCP']  <= income_percentiles[i+1])]
+
+            if len(df_men) < len(df_women):
+               df_women =  df_women.sample(n=len(df_men), random_state=self.seed)
+            else:
+                df_men = df_men.sample(n=len(df_women), random_state=self.seed)
+
+            tasks_dict[f"{i}"] = pd.concat([df_men, df_women], axis=0)
+
+        return tasks_dict
+
     def _split_by_state(self, df, mode='train'):
         if self.state != 'full':
             raise ValueError("The state split criterion is supported only for the full dataset. ")
@@ -580,6 +606,7 @@ class FederatedIncomeDataset:
             'random': self._random_split,
             'correlation': self._split_by_correlation,
             'state': self._split_by_state,
+            'income_sex': self._split_by_income_sex
         }
         if self.split_criterion not in split_criterion_dict:
             raise ValueError(f"Invalid split critrion. Supported criteria are {', '.join(split_criterion_dict)}.")
