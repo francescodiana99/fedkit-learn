@@ -551,14 +551,30 @@ class FederatedIncomeDataset:
         else:
             tasks_dict_rich_men = dict()
             tasks_dict_poor_men = dict()
-            for i in range(self.n_tasks // 2):
-                tasks_dict_poor_men[f"{i}"] = df_poor_men_rich_women.iloc[i * self.n_task_samples:(i + 1) * self.n_task_samples]
-                tasks_dict_rich_men[f"{i}"] = df_rich_men_poor_women[i * self.n_task_samples:(i + 1) * self.n_task_samples]
 
-            if self.n_tasks % 2 != 0:
-                tasks_dict_rich_men[f"{self.n_tasks // 2}"] = df_rich_men_poor_women[self.n_tasks // 2 * self.n_task_samples:
-                                                                           self.n_tasks // 2 * self.n_task_samples +
-                                                                           self.n_task_samples]
+            if mode == 'train':
+                for i in range(self.n_tasks // 2):
+                    tasks_dict_poor_men[f"{i}"] = df_poor_men_rich_women.iloc[i * self.n_task_samples:(i + 1) * self.n_task_samples]
+                    tasks_dict_rich_men[f"{i}"] = df_rich_men_poor_women[i * self.n_task_samples:(i + 1) * self.n_task_samples]
+
+                if self.n_tasks % 2 != 0:
+                    tasks_dict_rich_men[f"{self.n_tasks // 2}"] = df_rich_men_poor_women[self.n_tasks // 2 * self.n_task_samples:
+                                                                               self.n_tasks // 2 * self.n_task_samples +
+                                                                               self.n_task_samples]
+            else:
+                n_test_samples = int(self.n_task_samples * self.test_frac)
+                for i in range(self.n_tasks // 2):
+                    tasks_dict_poor_men[f"{i}"] = df_poor_men_rich_women.iloc[
+                                                  i * n_test_samples:(i + 1) * n_test_samples]
+                    tasks_dict_rich_men[f"{i}"] = df_rich_men_poor_women[
+                                                  i * n_test_samples:(i + 1) * n_test_samples]
+
+                if self.n_tasks % 2 != 0:
+                    tasks_dict_rich_men[f"{self.n_tasks // 2}"] = df_rich_men_poor_women[
+                                                                  self.n_tasks // 2 * n_test_samples:
+                                                                  self.n_tasks // 2 * n_test_samples +
+                                                                  n_test_samples]
+
             tasks_dict_rich_men = {str(int(k) + self.n_tasks // 2): v for k, v in tasks_dict_rich_men.items()}
 
             tasks_dict = {**tasks_dict_poor_men, **tasks_dict_rich_men}
