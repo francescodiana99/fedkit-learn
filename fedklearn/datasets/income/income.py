@@ -195,12 +195,13 @@ class FederatedIncomeDataset:
             self._load_task_mapping()
 
         elif not self.download and self.force_generation:
-            if not os.path.exists(self._intermediate_data_dir):
-                logging.info(f'Intermediate data not found for state {self.state}. Processing data...')
-                if self.state != 'full':
+            if state == 'full':
+                logging.info(f'Using full split criterion. Processing data..')
+                self._preprocess_full_data()
+            else:
+                if not os.path.exists(self._intermediate_data_dir):
+                    logging.info(f'Intermediate data not found for state {self.state}. Processing data...')
                     self._preprocess()
-                else:
-                    self._preprocess_full_data()
 
             logging.info("Data found in the cache directory. Splitting data into tasks..")
 
@@ -309,14 +310,17 @@ class FederatedIncomeDataset:
 
         df_grouped = df.groupby('ST')
         state_samples = df_grouped.size().sort_values(ascending=False)
-        if self.n_task_samples > state_samples.min():
+
+        if any(self.n_task_samples > state_samples.head(self.n_tasks)):
             raise ValueError(f"The number of samples per task must be less than or equal to the number of samples in "
-                             f"the smallest state, which is {state_samples.min()}.")
+                             f"the smallest state considered which is {state_samples.iloc[:self.n_tasks]}.")
         if self.n_tasks > len(state_samples):
             raise ValueError(f"The number of tasks must be less than or equal to the number of states, "
                              f"which is {len(state_samples)}.")
 
-        sampled_states = [self._sample_state(state_group, state_samples.min()) for state, state_group in df_grouped]
+        df_filtered = df[df['ST'].isin(state_samples.head(self.n_tasks).index[:self.n_tasks])]
+
+        sampled_states = [self._sample_state(state_group, self.n_task_samples) for state, state_group in df_filtered.groupby('ST')]
         df = pd.concat(sampled_states).reset_index(drop=True)
 
         if self.drop_nationality:
@@ -638,14 +642,14 @@ class FederatedIncomeDataset:
                              f"which is {len(STATES)}.")
 
         tasks_dict = dict()
-        states_list = [(k,v) for k, v in STATES.items()]
+        states_list = [k for k, v in df['ST'].value_counts().items()]
         if mode == 'train':
             n_samples = int(self.n_task_samples * (1 - self.test_frac))
         else:
             n_samples = int(self.n_task_samples * self.test_frac)
 
         for i in range(self.n_tasks):
-            state_name, state_code = states_list[i]
+            state_code = states_list[i]
             tasks_dict[f"{i}"] = df[df['ST'] == state_code].sample(n=n_samples, random_state=self.seed).copy()
             tasks_dict[f"{i}"].drop('ST', axis=1, inplace=True)
 
