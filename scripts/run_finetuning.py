@@ -207,7 +207,7 @@ def parse_args(args_list=None):
 
 
 def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn, criterion, metric,
-                                  is_binary_classification, attack_gain=None):
+                                  is_binary_classification):
     """
     Initialize the trainer for finetuning.
 
@@ -235,25 +235,15 @@ def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn,
             f"Optimizer '{args.optimizer}' is not implemented"
         )
 
-    if attack_gain:
-        return AttackTrainer(
-            model=finetuning_model,
-            optimizer=optimizer,
-            criterion=criterion,
-            device=args.device,
-            is_binary_classification=is_binary_classification,
-            metric=metric,
-            attack_gain=attack_gain
-        )
-    else:
-        return Trainer(
-            model=finetuning_model,
-            optimizer=optimizer,
-            criterion=criterion,
-            device=args.device,
-            is_binary_classification=is_binary_classification,
-            metric=metric
-        )
+    return Trainer(
+        model=finetuning_model,
+        optimizer=optimizer,
+        criterion=criterion,
+        device=args.device,
+        is_binary_classification=is_binary_classification,
+        metric=metric
+
+    )
 
 def add_noise(model, noise_model, noise_factor):
     """
@@ -361,7 +351,6 @@ def main():
             criterion=criterion,
             metric=metric,
             is_binary_classification=is_binary_classification,
-            attack_gain=self.attack_gain
         )
 
         # TODO: refactoring of this part in the run_simulation.py
@@ -391,9 +380,6 @@ def main():
                         batch = next(train_iterator)
 
                     loss, metric = finetuning_trainer.fit_batch(batch)
-
-            if attack_gain is not None:
-                finetuning_trainer.active_update()
 
             if step % args.save_freq == 0:
 
