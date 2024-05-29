@@ -261,7 +261,6 @@ class FederatedMedicalCostDataset:
             logging.debug(f"Processed data cached in: {self.intermediate_data_dir}")
 
 
-    def _generate_tasks_mapping(self):
         """
         Splits the data into tasks and saves the data to the tasks folder.
         """
@@ -436,7 +435,7 @@ class FederatedMedicalCostDataset:
         task_id = str(task_id)
 
         task_name = self.task_id_to_name[task_id]
-        task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion, task_name)
+        task_cache_dir = os.path.join(self.tasks_folder, f'{self.n_tasks}', self.split_criterion, task_name)
         file_path = os.path.join(task_cache_dir, f"{mode}.csv")
         task_data = pd.read_csv(file_path)
         return MedicalCostDataset(task_data, name=task_name)
