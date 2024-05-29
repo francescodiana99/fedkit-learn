@@ -394,6 +394,7 @@ class FederatedMedicalCostDataset:
         return tasks_dict
 
     def _save_split_criterion(self):
+        os.makedirs(os.path.dirname(self._split_criterion_path), exist_ok=True)
         with open(self._split_criterion_path, "w") as f:
             criterion_dict = {'split_criterion': self.split_criterion, 'n_tasks': self.n_tasks}
             json.dump(criterion_dict, f)
