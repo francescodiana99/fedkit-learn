@@ -131,7 +131,8 @@ class FederatedMedicalCostDataset:
 
         self.rng = rng
 
-        self._split_criterion_path = os.path.join(self.tasks_folder, f'{self.n_tasks}', "split_criterion.json")
+        self._split_criterion_path = os.path.join(self.tasks_folder, f'{self.n_tasks}', self.split_criterion,
+                                                  "split_criterion.json")
         self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
         self.test_frac = test_frac
 
@@ -395,7 +396,9 @@ class FederatedMedicalCostDataset:
     def _save_split_criterion(self):
         os.makedirs(os.path.dirname(self._split_criterion_path), exist_ok=True)
         with open(self._split_criterion_path, "w") as f:
-            criterion_dict = {'split_criterion': self.split_criterion, 'n_tasks': self.n_tasks}
+            criterion_dict = {'split_criterion': self.split_criterion,
+                              'n_tasks': self.n_tasks,
+                              'cache_dir': self.cache_dir}
             json.dump(criterion_dict, f)
 
 

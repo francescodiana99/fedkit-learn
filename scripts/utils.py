@@ -187,12 +187,15 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
         with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
             split_dict = json.load(f)
         split_criterion = split_dict["split_criterion"]
+        cache_dir = split_dict['cache_dir']
+        n_tasks = split_dict["n_tasks"]
         return FederatedMedicalCostDataset(
-            cache_dir=data_dir,
+            cache_dir=cache_dir,
             download=False,
             force_generation=False,
             rng=rng,
             split_criterion=split_criterion,
+            n_tasks=n_tasks
         )
     else:
         raise NotImplementedError(
