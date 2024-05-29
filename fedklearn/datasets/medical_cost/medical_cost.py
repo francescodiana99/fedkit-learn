@@ -276,7 +276,7 @@ class FederatedMedicalCostDataset:
 
         for mode, task_dict in zip(["train", "test"], task_dicts):
             for task_name, task_df in task_dict.items():
-                task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion, self.n_tasks, task_name)
+                task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion, f'{self.n_tasks}', task_name)
                 os.makedirs(task_cache_dir, exist_ok=True)
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
