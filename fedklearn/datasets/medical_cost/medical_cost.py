@@ -131,7 +131,7 @@ class FederatedMedicalCostDataset:
 
         self.rng = rng
 
-        self._split_criterion_path = os.path.join(self.tasks_folder, f'{self.n_tasks}', self.split_criterion,
+        self._split_criterion_path = os.path.join(self.tasks_folder, self.split_criterion,  f'{self.n_tasks}'
                                                   "split_criterion.json")
         self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
         self.test_frac = test_frac
