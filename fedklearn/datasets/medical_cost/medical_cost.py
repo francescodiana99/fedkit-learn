@@ -131,7 +131,7 @@ class FederatedMedicalCostDataset:
 
         self.rng = rng
 
-        self._split_criterion_path = os.path.join(self.cache_dir, "split_criterion.json")
+        self._split_criterion_path = os.path.join(self.tasks_folder, self.n_tasks, "split_criterion.json")
         self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
         self.test_frac = test_frac
 
@@ -276,7 +276,7 @@ class FederatedMedicalCostDataset:
 
         for mode, task_dict in zip(["train", "test"], task_dicts):
             for task_name, task_df in task_dict.items():
-                task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion, task_name)
+                task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion, self.n_tasks, task_name)
                 os.makedirs(task_cache_dir, exist_ok=True)
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
