@@ -260,7 +260,7 @@ class FederatedMedicalCostDataset:
 
             logging.debug(f"Processed data cached in: {self.intermediate_data_dir}")
 
-        def _generate_tasks_mapping(self):
+    def _generate_tasks_mapping(self):
         """
         Splits the data into tasks and saves the data to the tasks folder.
         """
