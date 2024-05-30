@@ -158,12 +158,9 @@ class FederatedIncomeDataset:
         if self.state is None:
             raise ValueError("The 'state' is None. Please specify a value.")
 
-        if self.state != 'full':
-            self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
-            self._tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
-        else:
-            self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', 'full')
-            self._tasks_dir = os.path.join(self.cache_dir, 'tasks', 'full')
+
+        self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
+        self._tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
 
         if rng is None:
             rng = np.random.default_rng()
@@ -542,11 +539,11 @@ class FederatedIncomeDataset:
             tasks_dict_rich_men = {str(int(k) + self.n_tasks // 2): v for k, v in tasks_dict_rich_men.items()}
             tasks_dict = {**tasks_dict_poor_men, **tasks_dict_rich_men}
 
-        elif self.n_tasks * self.n_task_samples > len(df) and mode == 'train':
-                raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
+        n_train_samples = self.n_task_samples * (1 - n_test_samples)
+        if self.n_tasks * n_train_samples > len(df) and mode == 'train':
+            raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
                              "Please reduce the number of tasks or the number of samples per task.")
-
         elif self.n_tasks * self.n_task_samples * self.test_frac > len(df) and mode == 'test':
             raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                              f"which has size {len(df)}."
@@ -558,11 +555,11 @@ class FederatedIncomeDataset:
 
             if mode == 'train':
                 for i in range(self.n_tasks // 2):
-                    tasks_dict_poor_men[f"{i}"] = df_poor_men_rich_women.iloc[i * self.n_task_samples:(i + 1) * self.n_task_samples]
-                    tasks_dict_rich_men[f"{i}"] = df_rich_men_poor_women[i * self.n_task_samples:(i + 1) * self.n_task_samples]
+                    tasks_dict_poor_men[f"{i}"] = df_poor_men_rich_women.iloc[i * n_train_samples:(i + 1) * n_train_samples]
+                    tasks_dict_rich_men[f"{i}"] = df_rich_men_poor_women[i * n_train_samples:(i + 1) * n_train_samples]
 
                 if self.n_tasks % 2 != 0:
-                    tasks_dict_rich_men[f"{self.n_tasks // 2}"] = df_rich_men_poor_women[self.n_tasks // 2 * self.n_task_samples:
+                    tasks_dict_rich_men[f"{self.n_tasks // 2}"] = df_rich_men_poor_women[self.n_tasks // 2 * n_train_samples:
                                                                                self.n_tasks // 2 * self.n_task_samples +
                                                                                self.n_task_samples]
             else:
