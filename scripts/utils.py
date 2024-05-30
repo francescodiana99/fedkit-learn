@@ -269,7 +269,7 @@ def get_first_rounds(round_ids, keep_frac=0.):
 
     return set(map(str, int_list[:end_index]))
 
-def get_trainer_parameters(task_name, device, model_config_path):
+def get_trainer_parameters(task_name, device, model_config_path=None):
     model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
