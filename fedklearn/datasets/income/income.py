@@ -208,7 +208,7 @@ class FederatedIncomeDataset:
 
         elif  not self.download:
             raise RuntimeError(
-                f"Data is not found in {self._raw_data_dir}. Please set `download=True`."
+                f"Data is not found in {self._tasks_dir}. Please set `download=True`."
             )
 
         else:
