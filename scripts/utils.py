@@ -184,11 +184,11 @@ def load_dataset(task_name, data_dir, rng):
             rng=rng
         )
     elif task_name == "medical_cost":
-        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
-            split_dict = json.load(f)
-        split_criterion = split_dict["split_criterion"]
-        cache_dir = split_dict['cache_dir']
-        n_tasks = split_dict["n_tasks"]
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        cache_dir = metadata_dict['cache_dir']
+        n_tasks = metadata_dict["n_tasks"]
         return FederatedMedicalCostDataset(
             cache_dir=cache_dir,
             download=False,
