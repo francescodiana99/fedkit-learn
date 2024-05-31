@@ -173,8 +173,8 @@ class FederatedIncomeDataset:
 
         if self.split_criterion == 'correlation':
             if self.n_task_samples is None:
-                self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', 'all',
-                                              f'{self.n_tasks}', 'split_criterion.json')
+                self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                                              f'{self.n_tasks}', 'all', 'split_criterion.json')
             else:
                 self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
                                               f'{self.n_tasks}', f'{self.n_task_samples}', 'split_criterion.json')
@@ -677,7 +677,7 @@ class FederatedIncomeDataset:
         task_name = self.task_id_to_name[task_id]
         if self.split_criterion == 'correlation':
             if self.n_task_samples is None:
-                file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
+                file_path = os.path.join(self._tasks_dimv r, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
                                          'all', task_name, f"{mode}.csv")
             else:
                 file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
