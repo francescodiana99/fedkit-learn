@@ -188,7 +188,7 @@ class FederatedIncomeDataset:
         self.scaler = self._set_scaler(self.scaler_name)
         print(self._tasks_dir)
         print(os.path.exists(self._tasks_dir))
-        print(self.force_generation
+        print(self.force_generation)
         if os.path.exists(self._tasks_dir) and not self.force_generation:
             logging.info(f"Processed data folders found in {self._tasks_dir}. Loading existing files.")
             self._load_task_mapping()
