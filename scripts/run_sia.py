@@ -151,8 +151,7 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
-                                     mixing_coefficient=args.mixing_coefficient)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
 
     num_clients = len(federated_dataset.task_id_to_name)
 

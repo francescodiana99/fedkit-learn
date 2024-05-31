@@ -68,8 +68,6 @@ class FederatedMedicalCostDataset:
 
         rng (np.random.Generator): A random number generator.
 
-        _split_criterion_path (str): The file path to store the split criterion.
-
         _metadata_path (str): The file path to store the metadata.
 
     Methods:
@@ -94,11 +92,8 @@ class FederatedMedicalCostDataset:
         _iid_divide(self, df):
             Splits a dataframe into a dictionary of dataframes in an iid fashion.
 
-        _save_split_criterion(self):
-            Saves the split criterion in a JSON file.
-
-        _save_task_mapping(self, metadata_dict):
-            Saves the task mapping in a JSON file.
+        _save_metadata(self):
+            Saves the metadata in a JSON file.
 
         _load_task_mapping(self):
             Loads the task mapping from a JSON file.
@@ -131,9 +126,8 @@ class FederatedMedicalCostDataset:
 
         self.rng = rng
 
-        self._split_criterion_path = os.path.join(self.tasks_folder, self.split_criterion,  f'{self.n_tasks}',
-                                                  "split_criterion.json")
-        self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
+        self._metadata_path = os.path.join(self.tasks_folder, self.split_criterion,  f'{self.n_tasks}',
+                                                  "metadata.json")
         self.test_frac = test_frac
 
         if scaler == "standard":
@@ -286,7 +280,7 @@ class FederatedMedicalCostDataset:
 
         self._save_task_mapping(self.task_id_to_name)
 
-        self._save_split_criterion()
+        self._metadata()
 
 
     def _split_data_into_tasks(self, df):
@@ -393,32 +387,20 @@ class FederatedMedicalCostDataset:
 
         return tasks_dict
 
-    def _save_split_criterion(self):
+    def _save_metadata(self):
         os.makedirs(os.path.dirname(self._split_criterion_path), exist_ok=True)
         with open(self._split_criterion_path, "w") as f:
-            criterion_dict = {'split_criterion': self.split_criterion,
+            metadata_dict = {'split_criterion': self.split_criterion,
                               'n_tasks': self.n_tasks,
-                              'cache_dir': self.cache_dir}
-            json.dump(criterion_dict, f)
-
-
-    def _save_task_mapping(self, metadata_dict):
-        if os.path.exists(self._metadata_path):
-            with open(self._metadata_path, "r") as f:
-                metadata = json.load(f)
-                metadata[self.split_criterion] = metadata_dict
-            with open(self._metadata_path, "w") as f:
-                json.dump(metadata, f)
-        else:
-            with open(self._metadata_path, "w") as f:
-                metadata = {self.split_criterion: metadata_dict}
-                json.dump(metadata, f)
+                              'cache_dir': os.path.abspath(self.cache_dir),
+                              'task_mapping': self.task_id_to_name}
+            json.dump(metadata_dict, f)
 
 
     def _load_task_mapping(self):
         with (open(self._metadata_path, "r") as f):
-            metadata = json.load(f)
-            self.task_id_to_name = metadata[self.split_criterion]
+            metadata_dict = json.load(f)
+            self.task_id_to_name = metadata_dict['task_mapping']
 
 
     def get_task_dataset(self, task_id, mode="train"):

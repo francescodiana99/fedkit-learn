@@ -94,8 +94,6 @@ class FederatedIncomeDataset:
 
         _metadata_path (str): The path to the metadata file.
 
-        _split_criterion_path (str): The path to the split criterion file.
-
         scaler (sklearn.preprocessing): The scaler used for feature scaling.
 
         task_id_to_name (dict): A dictionary mapping task IDs to task names.
@@ -115,11 +113,9 @@ class FederatedIncomeDataset:
 
         _scale_features: Scale the features using the specified scaler.
 
-        _save_task_mapping: Save the task mapping to the metadata file.
+        _save_metadata: Save all the metadata to the metadata file.
 
         _load_task_mapping: Load the task mapping from the metadata file.
-
-        _save_split_criterion: Save the split criterion to the split criterion file.
 
         _iid_tasks_divide: Split a dataframe into a dictionary of dataframes.
 
@@ -168,21 +164,20 @@ class FederatedIncomeDataset:
         self.rng = rng
         self.seed = seed
 
-
-        self._metadata_path = os.path.join(self.cache_dir, "metadata.json")
+        # TODO: absolutely to refactor. Consider removing the split criterion file and put everything in the metadata file
 
         if self.split_criterion == 'correlation':
             if self.n_task_samples is None:
-                self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
-                                              f'{self.n_tasks}', 'all', 'split_criterion.json')
+                self._metadata_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                                              f'{self.n_tasks}', 'all', 'metadata.json')
             else:
-                self._split_criterion_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
-                                              f'{self.n_tasks}', f'{self.n_task_samples}', 'split_criterion.json')
+                self._metadata_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                                              f'{self.n_tasks}', f'{self.n_task_samples}', 'metadata.json')
         else:
             if self.n_task_samples is None:
-                self._split_criterion_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', 'split_criterion.json')
+                self._metadata_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', 'metadata.json')
             else:
-                self._split_criterion_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', 'split_criterion.json')
+                self._metadata_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', 'metadata.json')
 
 
         self.scaler = self._set_scaler(self.scaler_name)
@@ -422,9 +417,7 @@ class FederatedIncomeDataset:
 
         logging.info(f"Tasks generated and saved to {self._tasks_dir}.")
 
-        self._save_task_mapping()
-
-        self._save_split_criterion()
+        self._save_metadata()
 
     def _get_task_cache_dir(self, task_name):
         if self.split_criterion == 'correlation':
@@ -442,34 +435,26 @@ class FederatedIncomeDataset:
 
         return task_cache_dir
 
-    def _save_task_mapping(self):
-        if os.path.exists(self._metadata_path):
-            with open(self._metadata_path, "r") as f:
-                metadata = json.load(f)
-                metadata[self.split_criterion] = self.task_id_to_name
-            with open(self._metadata_path, "w") as f:
-                json.dump(metadata, f)
-        else:
-            with open(self._metadata_path, "w") as f:
-                metadata = {self.split_criterion: self.task_id_to_name}
-                json.dump(metadata, f)
+
+    def _save_metadata(self):
+        metadata ={
+            'split_criterion': self.split_criterion,
+            'cache_dir': os.path.abspath(self.cache_dir),
+            'n_tasks': self.n_tasks,
+            'n_task_samples': self.n_task_samples,
+            'mixing_coefficient': self.mixing_coefficient,
+            'state': self.state,
+            'task_mapping': self.task_id_to_name
+         }
+
+        with open(self._metadata_path, "w") as f:
+            json.dump(metadata, f, indent=4)
 
 
     def _load_task_mapping(self):
         with (open(self._metadata_path, "r") as f):
             metadata = json.load(f)
-            self.task_id_to_name = metadata[self.split_criterion]
-
-
-    def _save_split_criterion(self):
-        criterion_dict = {'split_criterion': self.split_criterion,
-                          'cache_dir': os.path.abspath(self.cache_dir),
-                          'n_tasks': self.n_tasks,
-                          'n_task_samples':self.n_task_samples
-                          }
-
-        with open(self._split_criterion_path, "w") as f:
-            json.dump(criterion_dict, f)
+            self.task_id_to_name = metadata["task_mapping"]
 
 
     def _iid_tasks_divide(self, df, n_tasks):

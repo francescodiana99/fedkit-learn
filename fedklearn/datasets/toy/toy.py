@@ -31,6 +31,7 @@ class FederatedToyDataset:
         If the data is not previously cached and allow_generation is False,
         the class initialization will throw a runtime error.
     - rng (numpy.random.Generator): Random number generator for reproducibility.
+    - split_clients (bool): If True, the logits are negated for the second half of the tasks.
 
     Methods:
     - generate_task_data(task_id):
@@ -53,7 +54,7 @@ class FederatedToyDataset:
             self, cache_dir="./", n_tasks=None, n_train_samples=None, n_test_samples=None, problem_type=None,
             n_numerical_features=None, n_binary_features=None, sensitive_attribute_type=None,
             sensitive_attribute_weight=None, bias=False, noise_level=None, force_generation=False,
-            allow_generation=True, rng=None
+            allow_generation=True, rng=None, split_clients=False
     ):
 
         if any(param is None for param in [n_tasks, n_train_samples, n_test_samples, problem_type,
@@ -67,6 +68,7 @@ class FederatedToyDataset:
         self.cache_dir = cache_dir
         self.allow_generation = allow_generation
         self.force_generation = force_generation if self.allow_generation else False
+        self.split_clients = split_clients
 
         self.tasks_dir = os.path.join(self.cache_dir, 'tasks')
         self.metadata_path = os.path.join(self.cache_dir, 'metadata.json')
@@ -254,9 +256,9 @@ class FederatedToyDataset:
 
         logits = np.dot(features, self.weights) + self.bias
 
-        # NOTE: this should be commented to have same distribution for all tasks
-        # if task_id >= self.n_tasks // 2:
-        #     logits = -logits
+        if self.split_clients is True:
+            if task_id >= self.n_tasks // 2:
+                logits = -logits
 
         logits += self.noise_level * np.random.standard_normal(size=logits.shape)
 

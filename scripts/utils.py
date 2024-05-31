@@ -77,8 +77,8 @@ def get_task_type(task_name):
 
     return task_types[task_name]
 
-#TODO: find a better way to load Adult dataset with correlation-based split
-def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
+#TODO: fix this method for all the datasets respect to the split criterion (refactor)
+def load_dataset(task_name, data_dir, rng):
     """
     Load a federated dataset based on the specified task name.
 
@@ -86,8 +86,6 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
         task_name (str): Name of the task for which the dataset is to be loaded.
         data_dir (str): Directory where the dataset should be stored or loaded from.
         rng (RandomState): NumPy random number generator for reproducibility.
-        mixing_coefficient (str, opt): Mix coefficient for correlation split in Adult dataset.
-        state (int, opt): State to use in case of income dataset.
 
     Returns:
         FederatedDataset: Initialized federated dataset.
@@ -96,15 +94,15 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
         NotImplementedError: If the dataset initialization for the specified task is not implemented.
     """
     if task_name == "adult":
-        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
-            split_dict = json.load(f)
-        split_criterion = split_dict["split_criterion"]
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
 
         if split_criterion is None:
             raise ValueError("Split criterion must be specified for the Adult dataset.")
         if split_criterion == "n_tasks":
-            n_tasks = split_dict["n_tasks"]
-            n_task_samples = split_dict["n_task_samples"]
+            n_tasks = metadata_dict["n_tasks"]
+            n_task_samples = metadata_dict["n_task_samples"]
             return FederatedAdultDataset(
                 cache_dir=data_dir,
                 download=False,
@@ -114,7 +112,7 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
                 n_task_samples=n_task_samples,
             )
         elif split_criterion == "correlation" or split_criterion == 'flip':
-            mixing_coefficient = mixing_coefficient
+            mixing_coefficient = metadata_dict["mixing_coefficient"]
             return FederatedAdultDataset(
                 cache_dir=data_dir,
                 download=False,
@@ -130,12 +128,14 @@ def load_dataset(task_name, data_dir, rng, mixing_coefficient=None, state=None):
                 split_criterion=split_criterion,
             )
     elif task_name == "income":
-        with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
-            split_dict = json.load(f)
-        split_criterion = split_dict["split_criterion"]
-        n_tasks = split_dict["n_tasks"]
-        n_task_samples = split_dict["n_task_samples"]
-        cache_dir = split_dict['cache_dir']
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        n_tasks = metadata_dict["n_tasks"]
+        n_task_samples = metadata_dict["n_task_samples"]
+        cache_dir = metadata_dict['cache_dir']
+        state= metadata_dict['state']
+        mixing_coefficient = metadata_dict['mixing_coefficient']
         return FederatedIncomeDataset(
             cache_dir=cache_dir,
             download=False,
@@ -269,7 +269,7 @@ def get_first_rounds(round_ids, keep_frac=0.):
 
     return set(map(str, int_list[:end_index]))
 
-def get_trainer_parameters(task_name, device, model_config_path=None):
+def get_trainer_parameters(task_name, device, model_config_path):
     model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)

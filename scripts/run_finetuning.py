@@ -174,20 +174,6 @@ def parse_args(args_list=None):
         help="Noise factor to simulate server update")
 
     parser.add_argument(
-        '--mixing_coefficient',
-        type=float,
-        default=None,
-        help='Mixing coefficient for the correlation-based split in Adult dataset'
-    )
-
-    parser.add_argument(
-        '--state',
-        type=str,
-        default='None',
-        help='USA state to select Income dataset subset'
-    )
-
-    parser.add_argument(
         '--attack_gain',
         type=float,
         default=None,
@@ -266,8 +252,7 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng,
-                                     mixing_coefficient=args.mixing_coefficient, state=args.state)
+    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
 
     num_clients = len(federated_dataset.task_id_to_name)
 
