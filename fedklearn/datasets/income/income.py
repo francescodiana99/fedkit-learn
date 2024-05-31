@@ -186,9 +186,7 @@ class FederatedIncomeDataset:
 
 
         self.scaler = self._set_scaler(self.scaler_name)
-        print(self._tasks_dir)
-        print(os.path.exists(self._tasks_dir))
-        print(self.force_generation)
+
         if os.path.exists(self._tasks_dir) and not self.force_generation:
             logging.info(f"Processed data folders found in {self._tasks_dir}. Loading existing files.")
             self._load_task_mapping()
@@ -465,7 +463,7 @@ class FederatedIncomeDataset:
 
     def _save_split_criterion(self):
         criterion_dict = {'split_criterion': self.split_criterion,
-                          'cache_dir': self.cache_dir,
+                          'cache_dir': os.path.abspath(self.cache_dir),
                           'n_tasks': self.n_tasks,
                           'n_task_samples':self.n_task_samples
                           }
