@@ -677,11 +677,11 @@ class FederatedIncomeDataset:
         task_name = self.task_id_to_name[task_id]
         if self.split_criterion == 'correlation':
             if self.n_task_samples is None:
-                file_path = os.path.join(self._tasks_dimv r, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
+                file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
                                          'all', task_name, f"{mode}.csv")
             else:
                 file_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}', f'{self.n_tasks}',
-                                         f'{self.n_task_samples}', task_name, f"{mode}.csv")
+                                         f'{self.n_task_samples}',task_name, f"{mode}.csv")
 
         else:
             if self.n_task_samples is None:
