@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import numpy as np
+from copy import copy
 
 from .utils import *
 
@@ -326,3 +327,277 @@ class FederatedAveraging(Simulator):
             self.write_logs()
 
         self.c_round += 1
+
+
+class ActiveAdamFederatedAveraging(FederatedAveraging):
+    """
+    ActiveAdamFederatedAveraging class extends the FederatedAveraging class to simulate an active server that modify the
+    clients' weights to accelerate clients' convergence.
+
+
+    """
+
+    def __init__(self, clients, global_trainer, logger, chkpts_dir, beta1=0.9, beta2=0.999, epsilon=1e-8,
+                 alpha=0.1, rng=None):
+        """
+        Initialize the federated learning simulator.
+
+        Parameters:
+        - clients (list): List of clients participating in the simulation.
+        - global_trainer: The global trainer responsible for model aggregation.
+        - logger: The logger for recording simulation logs.
+        - chkpts_dir (str): Directory to save simulation checkpoints.
+        - log_freq (int): Frequency for logging simulation information.
+        - rng: Random number generator for reproducibility.
+        - beta1 (float): The exponential decay rate for the first moment estimates.
+        - beta2 (float): The exponential decay rate for the second moment estimates.
+        - epsilon (float): A small constant for numerical stability.
+        - alpha (float): The learning rate for the server.
+        """
+
+        super().__init__(clients, global_trainer, logger, chkpts_dir, rng)
+
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.alpha = alpha
+        self.first_moments, self.second_moments = self._initialize_moments()
+        self.server_trainers = self.initialize_server_trainers()
+
+
+    def _initialize_moments(self):
+        """
+        Initialize the first and second moments of the pseudo-gradients.
+
+        Returns:
+        - tuple: Tuples containing the first and second moments of the pseudo-gradients.
+        """
+        first_moments = [torch.zeros_like(client.trainer.get_param_tensor()) for client in self.clients]
+        second_moments = [torch.zeros_like(client.trainer.get_param_tensor()) for client in self.clients]
+
+        return first_moments, second_moments
+
+
+    def initialize_server_trainers(self):
+        """
+        Initialize server models to actively update clients' weights.
+        Returns:
+        - list: List of  trainers.
+
+        """
+        return [copy.copy(self.global_trainer) for i in range(len(self.clients))]
+
+
+    def update_server_trainers(self):
+        """
+        Update the server's copies of the clients' weights.
+
+        This method iterates through each client and updates the server's copy of the client's model.
+
+        """
+        for i in range(len(self.clients)):
+            self.server_trainers[i] = copy.copy(self.global_trainer)
+
+
+    def _update_first_moment(self, pseudo_gradient, task_index):
+        """
+        Update the first moment of the pseudo-gradient.
+
+        Args:
+            pseudo_gradient (torch.Tensor): The pseudo-gradient for the client model.
+            task_index (int): Index of the client in the clients list.
+
+        Returns:
+            - torch.Tensor: The updated first moment of the pseudo-gradient.
+        """
+        return self.beta1 * self.first_moments[task_index] + (1 - self.beta1) * pseudo_gradient
+
+
+    def _update_second_moment(self, pseudo_gradient, task_index):
+        """
+        Update the second moment of the pseudo-gradient.
+
+        Args:
+            pseudo_gradient (torch.Tensor): The pseudo-gradient for the client model.
+            task_index (int): Index of the client in the clients list.
+
+        Returns:
+            - torch.Tensor: The updated second moment of the pseudo-gradient.
+        """
+        return self.beta2 * self.second_moments[task_index] + (1 - self.beta2) * (pseudo_gradient ** 2)
+
+
+    def compute_pseudo_gradient(self, client_trainer, server_trainer):
+        """
+        Compute the pseudo-gradient for the client model based on the server model.
+
+        Args:
+            client_trainer: Trainer of the attacked client.
+            server_trainer: Trainer of the server copy of the client.
+
+        Returns:
+            - torch.Tensor: The pseudo-gradient for the client model.
+        """
+        return client_trainer.get_param_tensor() - server_trainer.get_param_tensor()
+
+
+    def active_update(self, task_index):
+        """
+        Update client's weights to accelerate clients' convergence, performing the following steps:
+        1. Compute the pseudo-gradient for each client.
+        2. Compute the first and second moments of the pseudo-gradients.
+        3. Update the client's weights simulating an Adam update.
+        4. Update the server's copies of the clients' weights.
+
+        Args:
+            task_index(int): Index of the client in the clients list.
+
+        """
+
+        pseudo_gradient = self.compute_pseudo_gradient(self.clients[task_index].trainer, self.server_trainers[task_index])
+
+        self.first_moments[task_index] = self._update_first_moment(pseudo_gradient, task_index)
+        self.second_moments[task_index] = self._update_second_moment(pseudo_gradient, task_index)
+
+        first_unbias = self.first_moments[task_index] / (1 - (self.beta1 ** (self.c_round + 1)))
+        second_unbias = self.second_moments[task_index] / (1 - (self.beta2 ** (self.c_round + 1)))
+
+        update = self.alpha * first_unbias / (torch.sqrt(second_unbias) + self.epsilon)
+        updated_params = self.clients[task_index].trainer.get_param_tensor() - update
+
+        self.clients[task_index].trainer.set_param_tensor(updated_params)
+        self.server_trainers[task_index].update_model(self.clients[task_index].trainer.model)
+
+
+    def simulate_server_updates(self):
+        """
+        Simulate server updates on each client.
+
+        This method iterates through each client and simulates a server update.
+        """
+
+        for i, client in enumerate(self.clients):
+            self.active_update(i)
+
+
+    def simulate_active_round(self, save_chkpts=False, save_logs=False):
+        """
+        Simulate one round of federated learning using an active malicious server.
+
+        Parameters:
+        - save_chkpts (bool): Flag to determine whether to save checkpoints.
+        - save_logs (bool): Flag to determine whether to save simulation logs.
+
+        """
+
+        logging.debug(f"Round {self.c_round}:")
+
+        # self.synchronize()
+        # logging.debug(f"Clients synchronized successfully")
+
+        self.simulate_local_updates()
+
+        if save_chkpts:
+            self.save_checkpoints()
+            logging.debug(
+                f"Checkpoint saved and messages metadata updated successfully at communication round {self.c_round}."
+            )
+
+        self.simulate_server_updates()
+        logging.debug(f"Server update computed successfully")
+
+        if save_logs:
+            self.write_logs()
+
+        self.c_round += 1
+
+    def simulate_round(self, save_chkpts=False, save_logs=False):
+        """
+        Simulate one round of federated learning using Federated Averaging.
+
+        Parameters:
+        - save_chkpts (bool): Flag to determine whether to save checkpoints.
+        - save_logs (bool): Flag to determine whether to save simulation logs.
+
+        """
+
+        self.synchronize()
+        logging.debug(f"Round {self.c_round}:")
+
+        self.simulate_local_updates()
+
+        if save_chkpts:
+            self.save_checkpoints()
+            logging.debug(
+                f"Checkpoint saved and messages metadata updated successfully at communication round {self.c_round}."
+            )
+
+        self.aggregate()
+        logging.debug(f"Global model computed and updated successfully")
+
+        self.update_server_trainers()
+
+        self.synchronize()
+        logging.debug(f"Clients synchronized successfully")
+
+        if save_logs:
+            self.write_logs()
+
+        self.c_round += 1
+
+    def write_logs(self):
+        """
+        Write simulation logs using the logger.
+        """
+        global_train_loss = 0.
+        global_train_metric = 0.
+        global_test_loss = 0.
+        global_test_metric = 0.
+
+        total_n_samples = 0
+        total_n_test_samples = 0
+
+        for client_id, client in enumerate(self.clients):
+            train_loss, train_metric, test_loss, test_metric = client.write_logs()
+
+            logging.info(f"Client {client_id} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
+
+            global_train_loss += train_loss * client.n_train_samples
+            global_train_metric += train_metric * client.n_train_samples
+            global_test_loss += test_loss * client.n_test_samples
+            global_test_metric += test_metric * client.n_test_samples
+
+            total_n_samples += client.n_train_samples
+            total_n_test_samples += client.n_test_samples
+
+        global_train_loss /= total_n_samples
+        global_test_loss /= total_n_test_samples
+        global_train_metric /= total_n_samples
+        global_test_metric /= total_n_test_samples
+
+        logging.info("+" * 50)
+        logging.info(f"Train Loss: {global_train_loss:.4f} | Train Metric: {global_train_metric:.4f} |")
+        logging.info(f"Test Loss: {global_test_loss:.4f} | Test Metric: {global_test_metric:.4f} |")
+        logging.info("+" * 50)
+
+        self.logger.add_scalar("Train/Loss", global_train_loss, self.c_round)
+        self.logger.add_scalar("Train/Metric", global_train_metric, self.c_round)
+        self.logger.add_scalar("Test/Loss", global_test_loss, self.c_round)
+        self.logger.add_scalar("Test/Metric", global_test_metric, self.c_round)
+
+    def save_checkpoints(self):
+        """
+        Save simulation checkpoints to the specified directory.
+        """
+        path = os.path.join(self.chkpts_folders_dict["global"], f"{self.c_round}.pt")
+        path = os.path.abspath(path)
+        self.global_trainer.save_checkpoint(path)
+
+        self.messages_metadata["global"][self.c_round] = path
+
+        for client in self.clients:
+            path = os.path.join(self.chkpts_folders_dict[client.name], f"{self.c_round}.pt")
+            path = os.path.abspath(path)
+            client.trainer.save_checkpoint(path)
+
+            self.messages_metadata[client.name][self.c_round] = path

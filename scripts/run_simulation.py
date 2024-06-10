@@ -51,6 +51,19 @@ Options:
     --seed: Random seed for reproducibility.
     --binarize_marital_status: Flag for binarizing the marital status.
     --force_generation: Flag for forcing the generation of the dataset.
+    --sensitive_attribute_id: Sensitive attribute id.
+    --is_binary_classification: Flag for binary classification.
+    --target_item: Target item for binary classification with Purchase.
+    --n_features: Number of features for binary classification with Purchase.
+    --features_correlation_path: Path to the features correlation matrix.
+    --state: USA state to extract in Income dataset.
+    --mixing_coefficient: Mixing coefficient for the mixing sample distribution in Adult dataset.
+    --scale_target: Flag for scaling the target variable in the medical cost dataset.
+    --active_server: Flag for using an active server that computes updates.
+    --beta1: Beta1 parameter for the Adam optimizer in the active attack scenario.
+    --beta2: Beta2 parameter for the Adam optimizer in the active attack scenario.
+    --epsilon: Epsilon parameter for the Adam optimizer in the active attack scenario.
+    --attacked_round: Round in which the active attack is performed.
 """
 import argparse
 import logging
@@ -76,7 +89,7 @@ from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 from fedklearn.federated.client import Client
-from fedklearn.federated.simulator import FederatedAveraging
+from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
 
 from fedklearn.metrics import *
 
@@ -399,9 +412,53 @@ def parse_args(args_list=None):
         help="Mixing coefficient for the mixing sample distribution in Adult dataset"
     )
 
-    parser.add_argument("--scale_target",
+    parser.add_argument(
+        "--scale_target",
         action="store_true",
-        help="Flag for scaling the target variable in the medical cost dataset")
+        help="Flag for scaling the target variable in the medical cost dataset"
+    )
+
+    parser.add_argument(
+        "--active_server",
+        action="store_true",
+        help="Flag for using an active server that computes updates"
+    )
+
+    parser.add_argument(
+        "--beta1",
+        type=float,
+        default=None,
+        help="Beta1 parameter for the Adam optimizer in the active attack scenario"
+    )
+
+    parser.add_argument(
+        "--beta2",
+        type=float,
+        default=None,
+        help="Beta2 parameter for the Adam optimizer in the active attack scenario"
+    )
+
+    parser.add_argument(
+        "--epsilon",
+        type=float,
+        default=None,
+        help="Epsilon parameter for the Adam optimizer in the active attack scenario"
+    )
+
+    parser.add_argument(
+        "--attacked_round",
+        type=int,
+        default=None,
+        help="Round in which the active attack is performed"
+    )
+
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=None,
+        help="Alpha parameter for the Adam optimizer in the active attack scenario"
+    )
+
 
     if args_list is None:
         return parser.parse_args()
@@ -736,13 +793,27 @@ def initialize_simulator(clients, args, rng):
     global_trainer = initialize_trainer(args)
     global_logger = SummaryWriter(os.path.join(args.logs_dir, "global"))
 
-    simulator = FederatedAveraging(
-        clients=clients,
-        global_trainer=global_trainer,
-        logger=global_logger,
-        chkpts_dir=args.chkpts_dir,
-        rng=rng,
-    )
+    if args.active_server:
+        simulator = ActiveAdamFederatedAveraging(
+            clients=clients,
+            global_trainer=global_trainer,
+            logger=global_logger,
+            chkpts_dir=args.chkpts_dir,
+            rng=rng,
+            beta1=args.beta1,
+            beta2=args.beta2,
+            epsilon=args.epsilon,
+            alpha=args.alpha,
+        )
+    else:
+
+        simulator = FederatedAveraging(
+            clients=clients,
+            global_trainer=global_trainer,
+            logger=global_logger,
+            chkpts_dir=args.chkpts_dir,
+            rng=rng,
+        )
 
     return simulator
 
@@ -833,7 +904,14 @@ def main():
         logs_flag = (round_id % args.log_freq == 0)
         chkpts_flag = (round_id % args.save_freq == 0)
 
-        simulator.simulate_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
+        if args.active_server and round_id >= args.attacked_round:
+
+            logging.info("Simulating active round...")
+            simulator.simulate_active_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
+
+        else:
+            simulator.simulate_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
+
 
     logging.info("=" * 100)
     logging.info("Saving simulation results..")
