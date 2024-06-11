@@ -181,6 +181,20 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        '--beta1',
+        type=float,
+        default=0.9,
+        help='Beta1 for Adam optimizer'
+    )
+
+    parser.add_argument(
+        '--beta2',
+        type=float,
+        default=0.999,
+        help='Beta2 for Adam optimizer'
+    )
+
+    parser.add_argument(
         '--n_local_steps',
     type=int,
     help="Number of simulated local batch updates")
@@ -214,7 +228,8 @@ def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn,
         optimizer = optim.Adam(
             [param for param in finetuning_model.parameters() if param.requires_grad],
             lr=args.learning_rate,
-            weight_decay=args.weight_decay
+            weight_decay=args.weight_decay,
+            betas=(args.beta1, args.beta2)
         )
     else:
         raise NotImplementedError(
