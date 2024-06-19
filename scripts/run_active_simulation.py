@@ -599,16 +599,19 @@ def main():
         logging.info("Launch hyperparameter optimization using Optuna..")
         abs_log_dir = os.path.abspath(args.logs_dir)
 
-        storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard.db"
+        storage_name = f"{abs_log_dir}/journal.log"
+        storage = optuna.storages.JournalStorage(
+            optuna.storages.JournalFileStorage(storage_name)
+        )
 
-        study = optuna.create_study(direction="minimize", storage=storage_name, load_if_exists=True)
+        study = optuna.create_study(direction="minimize", storage=storage, load_if_exists=True)
         study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)
 
         best_params = study.best_params
 
         logging.info("=" * 100)
         logging.info(f"Best hyperparameters: {study.best_params}")
-        logging.info(f"Optimization results saved in: {args.log_dir}/hp_dashboard.db")
+        logging.info(f"Optimization results saved in: {args.logs_dir}/journal.log")
         logging.info("=" * 100)
 
     logging.info("Loading clients from checkpoints...")
