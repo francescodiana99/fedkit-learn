@@ -145,11 +145,6 @@ def parse_args(args_list=None):
     )
 
     # Federated learning args
-    parser.add_argument(
-        "--compute_local_models",
-        action="store_true",
-        help="Flag for training local models"
-    )
 
     parser.add_argument(
         "--model_config_path",
@@ -311,12 +306,6 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--active_server",
-        action="store_true",
-        help="Flag for using an active server that computes updates"
-    )
-
-    parser.add_argument(
         "--beta1",
         type=float,
         default=None,
@@ -333,7 +322,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--epsilon",
         type=float,
-        default=None,
+        default=1e-8,
         help="Epsilon parameter for the Adam optimizer in the active attack scenario"
     )
 
@@ -664,7 +653,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
