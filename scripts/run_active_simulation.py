@@ -597,8 +597,9 @@ def main():
 
         logging.info("=" * 100)
         logging.info("Launch hyperparameter optimization using Optuna..")
+        abs_log_dir = os.path.abspath(args.logs_dir)
 
-        storage_name = f"sqlite:///{args.logs_dir}/hp_dashboard.db"
+        storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard.db"
 
         study = optuna.create_study(direction="minimize", storage=storage_name, load_if_exists=True)
         study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)

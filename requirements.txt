@@ -9,3 +9,5 @@ numpy
 requests
 imageio
 matplotlib
+optuna
+optuna-dashboard
