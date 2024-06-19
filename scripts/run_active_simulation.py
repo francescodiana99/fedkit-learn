@@ -23,7 +23,6 @@ from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 from fedklearn.federated.client import Client
 from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
-from scripts.run_simulation import initialize_dataset, initialize_clients, initialize_simulator
 
 from fedklearn.metrics import *
 
