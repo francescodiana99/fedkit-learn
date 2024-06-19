@@ -101,3 +101,21 @@ class Client:
         self.logger.add_scalar("Test/Metric", test_metric, self.counter)
 
         return train_loss, train_metric, test_loss, test_metric
+
+
+    def evaluate_train_loader(self):
+        """
+        Evaluate the model on the training dataset.
+        Returns:
+        - train_loss (float): The loss on the training dataset.
+        """
+        return self.trainer.evaluate_loader(loader=self.train_loader)
+
+    def evaluate_test_loader(self):
+        """
+        Evaluate the model on the testing dataset.
+        Returns:
+        - test_loss (float): The loss on the testing dataset.
+        """
+        return self.trainer.evaluate_loader(loader=self.test_loader)
+

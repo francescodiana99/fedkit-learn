@@ -135,7 +135,7 @@ class FederatedIncomeDataset:
 
     def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state='full', mixing_coefficient=0.):
+            seed=42, state='full', mixing_coefficient=0., keep_proportions=False):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -150,6 +150,7 @@ class FederatedIncomeDataset:
         self.state=state
         self.drop_nationality = drop_nationality
         self.mixing_coefficient = mixing_coefficient
+        self.keep_proportions = keep_proportions
 
         if self.state is None:
             raise ValueError("The 'state' is None. Please specify a value.")
@@ -302,17 +303,23 @@ class FederatedIncomeDataset:
 
         df_grouped = df.groupby('ST')
         state_samples = df_grouped.size().sort_values(ascending=False)
-
-        if any(self.n_task_samples > state_samples.head(self.n_tasks)):
-            raise ValueError(f"The number of samples per task must be less than or equal to the number of samples in "
-                             f"the smallest state considered which is {state_samples.iloc[:self.n_tasks]}.")
+        if self.keep_proportions:
+            if self.n_task_samples is None:
+                raise ValueError("The number of samples per task must be specified when 'keep_proportions' is True.")
+            self.proportion = self.n_task_samples / state_samples.max()
+        else:
+            self.proportion = 1
+            if any(self.n_task_samples * self.proportion > len(state_samples.head(self.n_tasks))):
+                raise ValueError(f"The number of samples per task must be less than or equal to the number of samples in "
+                                 f"the smallest state considered which is {state_samples.iloc[:self.n_tasks]}.")
         if self.n_tasks > len(state_samples):
             raise ValueError(f"The number of tasks must be less than or equal to the number of states, "
                              f"which is {len(state_samples)}.")
 
+
         df_filtered = df[df['ST'].isin(state_samples.head(self.n_tasks).index[:self.n_tasks])]
 
-        sampled_states = [self._sample_state(state_group, self.n_task_samples) for state, state_group in df_filtered.groupby('ST')]
+        sampled_states = [self._sample_state(state_group, int(state_samples[state] * self.proportion)) for state, state_group in df_filtered.groupby('ST')]
         df = pd.concat(sampled_states).reset_index(drop=True)
 
         if self.drop_nationality:
@@ -328,8 +335,8 @@ class FederatedIncomeDataset:
         CATEGORICAL_COLUMNS.append('ST')
 
         df_grouped = df.groupby('ST')
-        n_train = int(df_grouped.size().min() * (1 - self.test_frac))
-        sampled_states = [self._sample_state(state_group, n_train) for state, state_group in df_grouped]
+        n_train = df_grouped.size() * (1 - self.test_frac)
+        sampled_states = [self._sample_state(state_group, int(n_train[state])) for state, state_group in df_grouped]
         train_df = pd.concat(sampled_states)
 
         test_df = df.drop(train_df.index).reset_index(drop=True)
@@ -613,7 +620,7 @@ class FederatedIncomeDataset:
 
         return tasks_dict
 
-    def _split_by_state(self, df, mode='train'):
+    def _split_by_state(self, df):
         if self.state != 'full':
             raise ValueError("The state split criterion is supported only for the full dataset. ")
         if self.n_tasks is None:
@@ -624,15 +631,11 @@ class FederatedIncomeDataset:
                              f"which is {len(STATES)}.")
 
         tasks_dict = dict()
-        states_list = [k for k, v in df['ST'].value_counts().items()]
-        if mode == 'train':
-            n_samples = int(self.n_task_samples * (1 - self.test_frac))
-        else:
-            n_samples = int(self.n_task_samples * self.test_frac)
+        states_list = [(k,v)  for k, v in df['ST'].value_counts().items()]
 
         for i in range(self.n_tasks):
-            state_code = states_list[i]
-            tasks_dict[f"{i}"] = df[df['ST'] == state_code].sample(n=n_samples, random_state=self.seed).copy()
+            state_code = states_list[i][0]
+            tasks_dict[f"{i}"] = df[df['ST'] == state_code].sample(n=states_list[i][1], random_state=self.seed).copy()
             tasks_dict[f"{i}"].drop('ST', axis=1, inplace=True)
 
         return tasks_dict
@@ -645,8 +648,8 @@ class FederatedIncomeDataset:
             'income_sex': self._split_by_income_sex
         }
         if self.split_criterion not in split_criterion_dict:
-            raise ValueError(f"Invalid split critrion. Supported criteria are {', '.join(split_criterion_dict)}.")
-        if self.state == 'full' or self.split_criterion == 'correlation':
+            raise ValueError(f"Invalid split criterion. Supported criteria are {', '.join(split_criterion_dict)}.")
+        if self.split_criterion == 'correlation':
             return split_criterion_dict[self.split_criterion](df, mode=mode)
         else:
             return split_criterion_dict[self.split_criterion](df)

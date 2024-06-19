@@ -238,13 +238,13 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--momentum",
         type=float,
-        default=0.9,
+        default=0.,
         help="Momentum"
     )
     parser.add_argument(
         "--weight_decay",
         type=float,
-        default=5e-4,
+        default=0,
         help="Weight decay"
     )
 
@@ -410,6 +410,12 @@ def parse_args(args_list=None):
         type=float,
         default=0,
         help="Mixing coefficient for the mixing sample distribution in Adult dataset"
+    )
+
+    parser.add_argument(
+        "--keep_proportions",
+        action="store_true",
+        help="Flag for keeping the proportions of the states in the Income dataset"
     )
 
     parser.add_argument(
@@ -588,7 +594,8 @@ def initialize_dataset(args, rng):
             rng=rng,
             split_criterion=args.split_criterion,
             state=args.state,
-            mixing_coefficient=args.mixing_coefficient
+            mixing_coefficient=args.mixing_coefficient,
+            keep_proportions=args.keep_proportions
         )
     else:
         raise NotImplementedError(
@@ -804,6 +811,7 @@ def initialize_simulator(clients, args, rng):
             beta2=args.beta2,
             epsilon=args.epsilon,
             alpha=args.alpha,
+            attacked_round=args.attacked_round
         )
     else:
 

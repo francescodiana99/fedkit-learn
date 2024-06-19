@@ -428,7 +428,6 @@ def objective(trial , federated_dataset, rng, args):
         simulator.simulate_round(save_chkpts=False, save_logs=False)
 
     train_loss = simulator.get_client_avg_train_loss()
-    logging.info(f"Train loss: {train_loss} ")
 
     return train_loss
 
@@ -614,11 +613,14 @@ def main():
         storage_name = f"sqlite:///{args.logs_dir}/hp_dashboard.db"
 
         study = optuna.create_study(direction="minimize", storage=storage_name, load_if_exists=True)
-        study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials, show_progress_bar=True)
+        study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)
 
         best_params = study.best_params
 
+        logging.info("=" * 100)
         logging.info(f"Best hyperparameters: {study.best_params}")
+        logging.info(f"Optimization results saved in: {args.log_dir}/hp_dashboard.db")
+        logging.info("=" * 100)
 
     logging.info("Loading clients from checkpoints...")
 

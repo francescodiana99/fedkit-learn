@@ -585,3 +585,15 @@ def get_n_params(model):
     """
     return sum(p.numel() for p in model.parameters())
 
+
+def read_dict(file_path):
+    """Reads a JSON file and returns the data."""
+    try:
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+            return data
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+
