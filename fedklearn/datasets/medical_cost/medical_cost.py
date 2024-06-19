@@ -278,9 +278,8 @@ class FederatedMedicalCostDataset:
 
                 logging.debug(f"{mode.capitalize()} data for task '{task_name}' cached at: {file_path}")
 
-        self._save_task_mapping(self.task_id_to_name)
+        self._save_metadata()
 
-        self._metadata()
 
 
     def _split_data_into_tasks(self, df):
@@ -388,8 +387,8 @@ class FederatedMedicalCostDataset:
         return tasks_dict
 
     def _save_metadata(self):
-        os.makedirs(os.path.dirname(self._split_criterion_path), exist_ok=True)
-        with open(self._split_criterion_path, "w") as f:
+        os.makedirs(os.path.dirname(self._metadata_path), exist_ok=True)
+        with open(self._metadata_path, "w") as f:
             metadata_dict = {'split_criterion': self.split_criterion,
                               'n_tasks': self.n_tasks,
                               'cache_dir': os.path.abspath(self.cache_dir),

@@ -501,11 +501,11 @@ def initialize_trainer(models_metadata_dict, task_id, args, mode='global'):
 
     return Trainer(
         model=model,
-                   criterion=criterion,
-                   optimizer=optimizer,
-                   metric=metric,
-                   device=args.device
-                   )
+        criterion=criterion,
+        optimizer=optimizer,
+        metric=metric,
+        device=args.device
+        )
 
 
 def initialize_active_simulator(clients, rng, args):
