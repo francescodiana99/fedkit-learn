@@ -597,8 +597,7 @@ def main():
 
         logging.info("=" * 100)
         logging.info("Launch hyperparameter optimization using Optuna..")
-        abs_log_dir = os.path.abspath(args.logs_dir)
-
+        abs_log_dir = os.path.abspath(os.path.join(args.logs_dir, f"{args.attacked_round}"))
         os.makedirs(abs_log_dir, exist_ok=True)
         storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard.db"
 
@@ -609,7 +608,7 @@ def main():
 
         logging.info("=" * 100)
         logging.info(f"Best hyperparameters: {study.best_params}")
-        logging.info(f"Optimization results saved in: {args.logs_dir}/journal.log")
+        logging.info(f"Optimization results saved in: {abs_log_dir}/hp_dashboard.db")
         logging.info("=" * 100)
 
     logging.info("Loading clients from checkpoints...")
