@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import logging
 import os
 import pathlib
@@ -597,11 +598,14 @@ def main():
 
         logging.info("=" * 100)
         logging.info("Launch hyperparameter optimization using Optuna..")
-        abs_log_dir = os.path.abspath(os.path.join(args.logs_dir, f"{args.attacked_round}"))
+        abs_log_dir = os.path.abspath(args.logs_dir)
         os.makedirs(abs_log_dir, exist_ok=True)
-        storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard.db"
+        storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{args.attacked_round}.db"
 
-        study = optuna.create_study(direction="minimize", storage=storage_name, load_if_exists=True)
+        study = optuna.create_study(direction="minimize",
+                                    storage=storage_name,
+                                    load_if_exists=True,
+                                    study_name=f"{args.attacked_round}_{datetime.timestamp(datetime.now())}")
         study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)
 
         best_params = study.best_params
