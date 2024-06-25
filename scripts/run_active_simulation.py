@@ -604,8 +604,7 @@ def main():
 
         study = optuna.create_study(direction="minimize",
                                     storage=storage_name,
-                                    load_if_exists=True,
-                                    study_name=f"{args.attacked_round}_{datetime.now()}")
+                                    load_if_exists=True)
         study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)
 
         best_params = study.best_params
