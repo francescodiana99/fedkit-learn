@@ -361,10 +361,10 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                         optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
                                         torch_rng=torch_rng)
         logging.info('=' * 50)
-        logging.info(f"Score={aia_score_reference:.3f} for task {attacked_client_id} with reference model")
-        logging.info(f"Score={aia_score_global:.3f} for task {attacked_client_id} with global model")
-        logging.info(f"Score={aia_score_client:.3f} for task {attacked_client_id} with client model")
-        logging.info(f"Score={aia_score_active:.3f} for task {attacked_client_id} with active model")
+        logging.info(f"Score={aia_score_reference:.4f} for task {attacked_client_id} with reference model")
+        logging.info(f"Score={aia_score_global:.4f} for task {attacked_client_id} with global model")
+        logging.info(f"Score={aia_score_client:.4f} for task {attacked_client_id} with client model")
+        logging.info(f"Score={aia_score_active:.4f} for task {attacked_client_id} with active model")
 
         scores_per_client_dict["reference"][attacked_client_id] = aia_score_reference
         scores_per_client_dict["global"][attacked_client_id] = aia_score_global
@@ -509,23 +509,23 @@ def main():
 
 
         logging.info(f"Scores for round {iteration_id}")
-        logging.info(f"Average metric for global model: {avg_global_metric:.3f}")
-        logging.info(f"Average metric for reference model: {avg_reference_metric:.3f}")
-        logging.info(f"Average metric for client model: {avg_client_metric:.3f}")
-        logging.info(f"Average metric for active model: {avg_active_metric:.3f}")
+        logging.info(f"Average metric for global model: {avg_global_metric:.4f}")
+        logging.info(f"Average metric for reference model: {avg_reference_metric:.4f}")
+        logging.info(f"Average metric for client model: {avg_client_metric:.4f}")
+        logging.info(f"Average metric for active model: {avg_active_metric:.4f}")
 
 
 
-        logging.info(f"Average loss for global model: {avg_global_loss:.3f}")
-        logging.info(f"Average loss for reference model: {avg_reference_loss:.3f}")
-        logging.info(f"Average loss for client model: {avg_client_loss:.3f}")
-        logging.info(f"Average loss for active model: {avg_active_loss:.3f}")
+        logging.info(f"Average loss for global model: {avg_global_loss:.4f}")
+        logging.info(f"Average loss for reference model: {avg_reference_loss:.4f}")
+        logging.info(f"Average loss for client model: {avg_client_loss:.4f}")
+        logging.info(f"Average loss for active model: {avg_active_loss:.4f}")
 
 
-        logging.info(f"Average score for global model: {avg_global_score:.3f}")
-        logging.info(f"Average score for reference model: {avg_reference_score:.3f}")
-        logging.info(f"Average score for client model: {avg_client_score:.3f}")
-        logging.info(f"Average score for active model: {avg_active_score:.3f}")
+        logging.info(f"Average score for global model: {avg_global_score:.4f}")
+        logging.info(f"Average score for reference model: {avg_reference_score:.4f}")
+        logging.info(f"Average score for client model: {avg_client_score:.4f}")
+        logging.info(f"Average score for active model: {avg_active_score:.4f}")
 
     logging.info("Saving scores..")
     os.makedirs(args.results_dir, exist_ok=True)
