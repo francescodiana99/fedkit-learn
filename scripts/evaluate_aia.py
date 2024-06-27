@@ -185,6 +185,12 @@ def parse_args(args_list=None):
         type=str
     )
 
+    parser.add_argument(
+        "--active_round",
+        type=int,
+
+                        )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -309,10 +315,10 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
         # logging.info(f"reference model {split} loss={reference_model_loss:.3f},  {split} metric={reference_model_metric:.3f}")
         # logging.info(f"Global model {split} loss={global_loss:.3f},  {split} metric={global_metric:.3f}")
 
-        metrics_dict["reference"][attacked_client_id] = reference_model_metric
-        metrics_dict["global"][attacked_client_id] = global_metric
-        metrics_dict["client"][attacked_client_id] = client_model_metric
-        metrics_dict["active"][attacked_client_id] = active_model_metric
+        metrics_dict["reference"][attacked_client_id] = reference_model_metric.item()
+        metrics_dict["global"][attacked_client_id] = global_metric.item()
+        metrics_dict["client"][attacked_client_id] = client_model_metric.item()
+        metrics_dict["active"][attacked_client_id] = active_model_metric.item()
 
         loss_dict["reference"][attacked_client_id] = reference_model_loss
         loss_dict["global"][attacked_client_id] = global_loss
@@ -412,8 +418,8 @@ def main():
 
         models_metadata_dict = all_models_metadata_dict[iteration_id]
         reference_models_metadata_dict = all_reference_models_metadata_dict[iteration_id]
-        last_active_round = max([int(k) for k in all_active_models_metadata_dict.keys()])
-        active_models_metadata_dict = all_active_models_metadata_dict[f'{last_active_round}']
+        # last_active_round = max([int(k) for k in all_active_models_metadata_dict.keys()])
+        active_models_metadata_dict = all_active_models_metadata_dict[f'{args.active_round}']
 
         criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
             task_name=args.task_name, device=args.device,
@@ -461,7 +467,8 @@ def main():
         global_losses = list(loss_dict["global"].values())
 
 
-        all_scores[iteration_id]["global"] = {"scores": global_scores, "metrics": global_metric, "losses": global_losses}
+        all_scores[iteration_id]["global"] = {"scores": global_scores, "metrics": global_metric,
+                                              "losses": global_losses, "n_samples": n_samples_list}
 
         avg_global_score = weighted_average(global_scores, n_samples_list)
         avg_global_metric = weighted_average(global_metric, n_samples_list)
@@ -472,7 +479,7 @@ def main():
         reference_losses = list(loss_dict["reference"].values())
 
         all_scores[iteration_id]["reference"] = {"scores": reference_scores, "metrics": reference_metric,
-                                                 "losses": reference_losses}
+                                                 "losses": reference_losses, "n_samples": n_samples_list}
 
         avg_reference_score = weighted_average(reference_scores, n_samples_list)
         avg_reference_metric = weighted_average(reference_metric, n_samples_list)
@@ -483,14 +490,14 @@ def main():
         client_losses = list(loss_dict["client"].values())
 
         all_scores[iteration_id]["client"] = {"scores": client_scores, "metrics": client_metric,
-                                              "losses": client_losses}
+                                              "losses": client_losses, "n_samples": n_samples_list}
 
         active_scores = list(scores_per_client_dict["active"].values())
         active_metric = list(metrics_dict["active"].values())
         active_losses = list(loss_dict["active"].values())
 
         all_scores[iteration_id]["active"] = {"scores": active_scores, "metrics": active_metric,
-                                              "losses": active_losses}
+                                              "losses": active_losses, "n_samples": n_samples_list}
 
         avg_active_score = weighted_average(active_scores, n_samples_list)
         avg_active_metric = weighted_average(active_metric, n_samples_list)
@@ -520,15 +527,12 @@ def main():
         logging.info(f"Average score for client model: {avg_client_score:.3f}")
         logging.info(f"Average score for active model: {avg_active_score:.3f}")
 
-
-
-
-    # logging.info("Saving scores..")
-    # os.makedirs(args.results_dir, exist_ok=True)
-    # scores_path = os.path.join(args.results_dir, f"lmra_aia_{args.sensitive_attribute}.json")
-    # with open(scores_path, "w") as f:
-    #     json.dump(all_scores, f)
-    # logging.info(f"Scores saved in {scores_path}")
+    logging.info("Saving scores..")
+    os.makedirs(args.results_dir, exist_ok=True)
+    scores_path = os.path.join(args.results_dir, f"lmra_aia_{args.sensitive_attribute}.json")
+    with open(scores_path, "w") as f:
+        json.dump(all_scores, f)
+    logging.info(f"Scores saved in {scores_path}")
 
 if __name__ == "__main__":
     main()
