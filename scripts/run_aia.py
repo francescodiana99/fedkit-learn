@@ -153,6 +153,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--local_models_metadata_path",
+        type=str,
+        help="Path to the file containing the metadata of the local models.",
+        default=None
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -186,18 +193,28 @@ def parse_args(args_list=None):
         "--compute_single_client",
         help="If set, the attack will be computed just for the first client.",
         default=False,
-        action="store_true")
+        action="store_true"
+    )
 
     parser.add_argument(
-        '--flip_percentage',
+        "--flip_percentage",
         type=float,
         default=0.0,
-        help='Percentage of the sensitive attribute to flip')
+        help="Percentage of the sensitive attribute to flip")
 
     parser.add_argument(
-        '--test',
+        "--test",
         default=False,
         action="store_true")
+
+    parser.add_argument(
+        "--active_server",
+        default=False,
+        action="store_true",
+        help='If set, it will simulate an active server and instead of using the clients and global messages, it will'
+             'use the difference between local models at each round to simulate the attack. Note that this simulates the '
+             'case of 1 local epoch.'
+    )
 
     if args_list is None:
         return parser.parse_args()
@@ -219,11 +236,18 @@ def main():
 
     with open(args.metadata_path, "r") as f:
         all_messages_metadata = json.load(f)
+    if args.active_server:
+        if args.local_models_metadata_path is not None:
+            with open(args.local_models_metadata_path, "r") as f:
+                local_models_metadata = json.load(f)
+        else:
+            raise ValueError("The local models metadata path is required when  'active server' option is set.")
 
     if args.keep_first_rounds:
         keep_round_ids = get_first_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
     else:
         keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
+    print(keep_round_ids)
 
     # TODO: fix, it is not a binary classification but we need the shape transformation
     if args.task_name == "adult":
@@ -288,11 +312,16 @@ def main():
             )
 
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
-
-        client_messages_metadata = {
-            "global": {key: all_messages_metadata["global"][key] for key in keep_round_ids},
-            "local": {key: all_messages_metadata[f"{attacked_client_id}"][key] for key in keep_round_ids}
-        }
+        if args.active_server:
+            client_messages_metadata = get_active_messages_metadata(local_models_metadata=local_models_metadata,
+                                                                    attacked_client_id=f"{attacked_client_id}",
+                                                                    keep_round_ids=keep_round_ids,
+                                                                    rounds_frac=args.keep_rounds_frac)
+        else:
+            client_messages_metadata = {
+                "global": {key: all_messages_metadata["global"][key] for key in keep_round_ids},
+                "local": {key: all_messages_metadata[f"{attacked_client_id}"][key] for key in keep_round_ids}
+            }
 
         attack_simulator = AttributeInferenceAttack(
             messages_metadata=client_messages_metadata,

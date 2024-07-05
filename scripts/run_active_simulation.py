@@ -127,11 +127,6 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--split_criterion",
-        type=str,
-        help="Criterion for splitting the dataset",
-    )
-    parser.add_argument(
         "--sensitive_attribute_weight",
         type=float,
         default=0.5,
@@ -276,21 +271,6 @@ def parse_args(args_list=None):
         action="store_true",
         help="Flag for binary classification",
         default=False
-    )
-
-
-    parser.add_argument(
-        "--state",
-        type=str,
-        default=None,
-        help="USA state to extract in Income dataset"
-    )
-
-    parser.add_argument(
-        "--mixing_coefficient",
-        type=float,
-        default=0,
-        help="Mixing coefficient for the mixing sample distribution in Adult and Income dataset"
     )
 
     parser.add_argument(
