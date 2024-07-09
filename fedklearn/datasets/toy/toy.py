@@ -152,7 +152,7 @@ class FederatedToyDataset:
         if self.sensitive_attribute_type == "numerical":
             sensitive_attribute_id = self.rng.integers(low=0, high=self.n_numerical_features)
         elif self.sensitive_attribute_type == "binary":
-            sensitive_attribute_id = self.rng.integers(low=self.n_numerical_features, high=self.n_features + 1)
+            sensitive_attribute_id = self.rng.integers(low=self.n_numerical_features, high=self.n_features )
         else:
             raise ValueError(
                 f"Invalid sensitive feature type `{self.sensitive_attribute_type}`. Use 'numerical' or 'binary'."
