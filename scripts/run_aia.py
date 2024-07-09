@@ -247,7 +247,6 @@ def main():
         keep_round_ids = get_first_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
     else:
         keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
-    print(keep_round_ids)
 
     # TODO: fix, it is not a binary classification but we need the shape transformation
     if args.task_name == "adult":
