@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 import numpy as np
 import torch
+import random
 
 from fedklearn.datasets.income.income import FederatedIncomeDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
