@@ -7,6 +7,21 @@ from torch.overrides import has_torch_function_unary, handle_torch_function
 from copy import deepcopy
 
 
+def set_seed(seed):
+    """
+    Set the random seed for reproducibility.
+
+    Parameters
+    ----------
+    seed (int): The random seed to be set.
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    np.random.seed(seed)
+    random.seed(seed)
+
 def copy_model(target, source):
     """
     Copy the state dictionary from the source model to the target model.

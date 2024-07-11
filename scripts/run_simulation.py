@@ -413,6 +413,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--use_embedding",
+        action="store_true",
+        help="Flag for indicate how to process the Income dataset in case of embedding layer",
+        default=False
+    )
+
+    parser.add_argument(
         "--keep_proportions",
         action="store_true",
         help="Flag for keeping the proportions of the states in the Income dataset"
@@ -595,7 +602,8 @@ def initialize_dataset(args, rng):
             split_criterion=args.split_criterion,
             state=args.state,
             mixing_coefficient=args.mixing_coefficient,
-            keep_proportions=args.keep_proportions
+            keep_proportions=args.keep_proportions,
+            use_embedding=args.use_embedding
         )
     else:
         raise NotImplementedError(
@@ -867,6 +875,8 @@ def main():
     args = parse_args()
 
     configure_logging(args)
+
+    set_seed(seed=args.seed)
 
     rng = np.random.default_rng(seed=args.seed)
 
