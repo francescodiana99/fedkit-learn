@@ -21,6 +21,20 @@ from fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
 from fedklearn.attacks.sia import SourceInferenceAttack
 
 
+def set_seed(seed):
+    """
+    Set the random seed for reproducibility.
+
+    Parameters:
+    - seed (int): The random seed to be set.
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    np.random.seed(seed)
+    random.seed(seed)
+
 def none_or_float(value):
     """
     Helper function to convert 'none' to None or float values.
