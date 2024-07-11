@@ -5,6 +5,9 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
+import numpy as np
+import torch
+
 from fedklearn.datasets.income.income import FederatedIncomeDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
@@ -21,7 +24,7 @@ from fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
 from fedklearn.attacks.sia import SourceInferenceAttack
 
 
-def set_seed(seed):
+def set_seeds(seed):
     """
     Set the random seed for reproducibility.
 
