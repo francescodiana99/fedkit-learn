@@ -876,7 +876,7 @@ def main():
 
     configure_logging(args)
 
-    set_seed(seed=args.seed)
+    set_seeds(seed=args.seed)
 
     rng = np.random.default_rng(seed=args.seed)
 
