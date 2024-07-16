@@ -241,10 +241,10 @@ def main():
             with open(args.local_models_metadata_path, "r") as f:
                 local_models_metadata = json.load(f)
             if args.keep_first_rounds:
-                keep_round_ids = get_first_rounds(local_models_metadata["0"].keys(),
+                keep_round_ids = get_first_rounds(local_models_metadata.keys(),
                                                   keep_frac=args.keep_rounds_frac)
             else:
-                keep_round_ids = get_last_rounds(local_models_metadata["0"].keys(),
+                keep_round_ids = get_last_rounds(local_models_metadata.keys(),
                                                  keep_frac=args.keep_rounds_frac)
         else:
             raise ValueError("The local models metadata path is required when  'active server' option is set.")
