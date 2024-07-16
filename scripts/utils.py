@@ -630,10 +630,8 @@ def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep
     rounds_id = [int(round_id) for round_id in keep_round_ids]
     rounds_id.sort()
     local_models_metadata = swap_dict_levels(local_models_metadata)
-    print(local_models_metadata)
     if rounds_frac == 1:
         rounds_id.remove(max(rounds_id))
-    print(rounds_id)
     client_messages_metadata = {
         'global': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i}'] for i in range(len(rounds_id))},
         'local': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
