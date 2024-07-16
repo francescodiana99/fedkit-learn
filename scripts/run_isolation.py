@@ -377,7 +377,7 @@ def main():
 
     all_isolated_models_metadata_dict = swap_dict_levels(all_isolated_models_metadata_dict)
 
-    trajectory_path = os.path.join(args.metadata_dir, "isolated_trajectory.json")
+    trajectory_path = os.path.join(args.metadata_dir, "isolated_trajectories.json")
     with open(trajectory_path, "w") as f:
         json.dump(all_isolated_models_metadata_dict, f)
 
