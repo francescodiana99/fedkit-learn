@@ -101,7 +101,7 @@ def parse_args(args_list=None):
         "--num_epochs",
         type=int,
         default=20,
-        help="Number of finetuning epochs"
+        help="Number of additional epochs"
     )
 
     parser.add_argument(
@@ -125,17 +125,17 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--finetuned_models_dir",
+        "--isolated_models_dir",
         type=str,
-        default="./finetuned_models",
-        help="Directory to save finetuned models."
+        default="./isolated_models",
+        help="Directory to save isolated models."
     )
 
     parser.add_argument(
-        "--finetune_round",
+        "--attacked_round",
         required=True,
         type=int,
-        help="Starting round for finetuning."
+        help="Starting round for attacking."
     )
     parser.add_argument(
         "--save_freq",
@@ -174,13 +174,6 @@ def parse_args(args_list=None):
         help="Noise factor to simulate server update")
 
     parser.add_argument(
-        '--attack_gain',
-        type=float,
-        default=None,
-        help='Attack gain to simulate active attacks'
-    )
-
-    parser.add_argument(
         '--n_local_steps',
     type=int,
     help="Number of simulated local batch updates")
@@ -192,27 +185,27 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn, criterion, metric,
+def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, criterion, metric,
                                   is_binary_classification):
     """
-    Initialize the trainer for finetuning.
+    Initialize the trainer for running the active simulation.
 
     """
-    global_model_chkpt = torch.load(client_messages_metadata['global'][f"{args.finetune_round}"],
+    local_model_chkpt = torch.load(client_messages_metadata['local'][f"{args.attacked_round}"],
                                     map_location=args.device)["model_state_dict"]
-    finetuning_model = model_init_fn()
-    finetuning_model.load_state_dict(global_model_chkpt)
+    attacked_model = model_init_fn()
+    attacked_model.load_state_dict(local_model_chkpt)
 
     if args.optimizer == "sgd":
         optimizer = optim.SGD(
-            [param for param in finetuning_model.parameters() if param.requires_grad],
+            [param for param in attacked_model.parameters() if param.requires_grad],
             lr=args.learning_rate,
             momentum=args.momentum,
             weight_decay=args.weight_decay
         )
     elif args.optimizer == "adam":
         optimizer = optim.Adam(
-            [param for param in finetuning_model.parameters() if param.requires_grad],
+            [param for param in attacked_model.parameters() if param.requires_grad],
             lr=args.learning_rate,
             weight_decay=args.weight_decay
         )
@@ -222,7 +215,7 @@ def initialize_finetuning_trainer(args, client_messages_metadata, model_init_fn,
         )
 
     return Trainer(
-        model=finetuning_model,
+        model=attacked_model,
         optimizer=optimizer,
         criterion=criterion,
         device=args.device,
@@ -291,25 +284,25 @@ def main():
 
     logging.info("Simulate Attacks..")
 
-    os.makedirs(args.finetuned_models_dir, exist_ok=True)
+    os.makedirs(args.isolated_models_dir, exist_ok=True)
 
-    all_finetuned_models_metadata_dict = defaultdict(lambda : dict())
-    final_finetuned_models_metadata_dict = defaultdict(lambda : dict())
+    all_isolated_models_metadata_dict = defaultdict(lambda : dict())
+    final_isolated_models_metadata_dict = defaultdict(lambda : dict())
 
     pbar = tqdm(range(num_clients))
-    finetuned_client_id = 0
+    atacked_client_id = 0
 
-    while finetuned_client_id < num_clients:
+    while atacked_client_id < num_clients:
         logging.info("=" * 100)
-        logging.info(f"Finetuning client {finetuned_client_id}")
+        logging.info(f"Isolating client {atacked_client_id}")
 
 
-        dataset = federated_dataset.get_task_dataset(task_id=finetuned_client_id, mode=args.split)
+        dataset = federated_dataset.get_task_dataset(task_id=atacked_client_id, mode=args.split)
         dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],
-            "local": all_messages_metadata[f"{finetuned_client_id}"]
+            "local": all_messages_metadata[f"{atacked_client_id}"]
         }
 
         if args.task_name == "purchase":
@@ -329,14 +322,9 @@ def main():
                 f"Metric for task '{args.task_name}' is not implemented"
             )
 
-        finetuning_trainer = initialize_finetuning_trainer(
-            args=args,
-            client_messages_metadata=client_messages_metadata,
-            model_init_fn=model_init_fn,
-            criterion=criterion,
-            metric=metric,
-            is_binary_classification=is_binary_classification,
-        )
+        active_trainer = initialize_attack_trainer(args=args, client_messages_metadata=client_messages_metadata,
+                                                   model_init_fn=model_init_fn, criterion=criterion, metric=metric,
+                                                   is_binary_classification=is_binary_classification)
 
         # TODO: refactoring of this part in the run_simulation.py
         if not args.by_epoch:
@@ -344,18 +332,8 @@ def main():
                 raise ValueError('Please specify a number of local steps to simulate.')
             train_iterator = iter(dataloader)
         for step in range(args.num_epochs):
-            # # TODO: this should be integrated in run_simulation.py
-            # if args.noise_factor is not None:
-            #     noise_model = model_init_fn().to(args.device)
-            #     if args.verbose:
-            #         model_norm = torch.linalg.norm(finetuning_trainer.get_param_tensor())
-            #         logging.info(f'Norm of the model {model_norm}')
-            #         noise_norm = torch.linalg.norm(get_param_tensor(noise_model) * args.noise_factor)
-            #         logging.info(f'Norm of the noise {noise_norm}')
-            #     finetuning_trainer.model = add_noise(finetuning_trainer.model, noise_model, args.noise_factor)
-
             if args.by_epoch:
-                loss, metric = finetuning_trainer.fit_epoch(loader=dataloader)
+                loss, metric = active_trainer.fit_epoch(loader=dataloader)
             else:
                 for _ in range(args.n_local_steps):
                     try:
@@ -364,55 +342,55 @@ def main():
                         train_iterator = iter(dataloader)
                         batch = next(train_iterator)
 
-                    loss, metric = finetuning_trainer.fit_batch(batch)
+                    loss, metric = active_trainer.fit_batch(batch)
 
             if step % args.save_freq == 0:
 
-                os.makedirs(os.path.join(args.finetuned_models_dir, f"{finetuned_client_id}"), exist_ok=True)
-                path = os.path.join(os.path.join(args.finetuned_models_dir, f"{finetuned_client_id}", f"{step}.pt"))
+                os.makedirs(os.path.join(args.isolated_models_dir, f"{atacked_client_id}"), exist_ok=True)
+                path = os.path.join(os.path.join(args.isolated_models_dir, f"{atacked_client_id}", f"{step}.pt"))
                 path = os.path.abspath(path)
-                finetuning_trainer.save_checkpoint(path)
-                all_finetuned_models_metadata_dict[f"{finetuned_client_id}"][f"{step}"] = path
+                active_trainer.save_checkpoint(path)
+                all_isolated_models_metadata_dict[f"{atacked_client_id}"][f"{step}"] = path
 
-                if finetuning_trainer.lr_scheduler is not None:
-                    finetuning_trainer.lr_scheduler.step()
+                if active_trainer.lr_scheduler is not None:
+                    active_trainer.lr_scheduler.step()
 
             logging.info("+" * 50)
-            logging.info(f"Task ID: {finetuned_client_id}")
+            logging.info(f"Task ID: {atacked_client_id}")
             logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f} |")
             logging.info("+" * 50)
 
-        last_saved_iteration = max(all_finetuned_models_metadata_dict[f"{finetuned_client_id}"], key=int)
+        last_saved_iteration = max(all_isolated_models_metadata_dict[f"{atacked_client_id}"], key=int)
 
-        final_finetuned_models_metadata_dict[f"{finetuned_client_id}"] = (
-            all_finetuned_models_metadata_dict[f"{finetuned_client_id}"][last_saved_iteration]
+        final_isolated_models_metadata_dict[f"{atacked_client_id}"] = (
+            all_isolated_models_metadata_dict[f"{atacked_client_id}"][last_saved_iteration]
         )
 
-        logging.info("Local model finetuned successfully.")
+        logging.info("Local model isolated successfully.")
 
-        finetuned_client_id += 1
+        atacked_client_id += 1
         pbar.update(1)
         if args.compute_single_client:
-            finetuned_client_id = num_clients
+            atacked_client_id = num_clients
 
     pbar.close()
 
-    all_finetuned_models_metadata_dict = swap_dict_levels(all_finetuned_models_metadata_dict)
+    all_isolated_models_metadata_dict = swap_dict_levels(all_isolated_models_metadata_dict)
 
-    trajectory_path = os.path.join(args.metadata_dir, "finetuning_trajectory.json")
+    trajectory_path = os.path.join(args.metadata_dir, "isolated_trajectory.json")
     with open(trajectory_path, "w") as f:
-        json.dump(all_finetuned_models_metadata_dict, f)
+        json.dump(all_isolated_models_metadata_dict, f)
 
-    logging.info(f"The finetuned models have been saved successfully in {trajectory_path} .")
+    logging.info(f"The attacked models have been saved successfully in {trajectory_path} .")
 
     logging.info("="*100)
     logging.info("Saving final models metadata...")
 
 
-    with open(os.path.join(args.metadata_dir, "finetuned.json"), "w") as f:
-        json.dump(final_finetuned_models_metadata_dict, f)
+    with open(os.path.join(args.metadata_dir, "isolated.json"), "w") as f:
+        json.dump(final_isolated_models_metadata_dict, f)
 
-    logging.info("The final finetuned models have been saved successfully.")
+    logging.info("The final isolated models have been saved successfully.")
 
 
 if __name__ == "__main__":
