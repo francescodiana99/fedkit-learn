@@ -240,13 +240,20 @@ def main():
         if args.local_models_metadata_path is not None:
             with open(args.local_models_metadata_path, "r") as f:
                 local_models_metadata = json.load(f)
+            if args.keep_first_rounds:
+                keep_round_ids = get_first_rounds(local_models_metadata["0"].keys(),
+                                                  keep_frac=args.keep_rounds_frac)
+            else:
+                keep_round_ids = get_last_rounds(local_models_metadata["0"].keys(),
+                                                 keep_frac=args.keep_rounds_frac)
         else:
             raise ValueError("The local models metadata path is required when  'active server' option is set.")
 
-    if args.keep_first_rounds:
-        keep_round_ids = get_first_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
     else:
-        keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
+        if args.keep_first_rounds:
+            keep_round_ids = get_first_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
+        else:
+            keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
 
     # TODO: fix, it is not a binary classification but we need the shape transformation
     if args.task_name == "adult":
