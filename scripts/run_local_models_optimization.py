@@ -312,7 +312,8 @@ def optimize_model(args, train_loader, test_loader, task_id):
     abs_log_dir = os.path.abspath(args.logs_dir)
     storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{task_id}.db"
     if args.test_best_hyperparams is True:
-        study = optuna.load_study(storage=storage_name)
+        logging.info(f'Loading existing Optuna study from {storage_name}')
+        study = optuna.load_study(study_name=None, storage=storage_name)
     else:
         study = optuna.create_study(direction="minimize",
                                     storage=storage_name,
