@@ -158,6 +158,13 @@ def parse_args(args_list=None):
         default=0
     )
 
+    parser.add_argument(
+        '--test_best_hyperparams',
+        action='store_true',
+        default=False,
+        help='If True, test the best hyperparameters found by Optuna.'
+        )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -304,12 +311,14 @@ def optimize_model(args, train_loader, test_loader, task_id):
     """
     abs_log_dir = os.path.abspath(args.logs_dir)
     storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{task_id}.db"
-    study = optuna.create_study(direction="minimize",
-                                storage=storage_name,
-                                load_if_exists=True)
-
-    study.optimize(lambda trial: objective(trial=trial, train_loader=train_loader, test_loader=test_loader, task_id=task_id, args=args),
-                   n_trials=args.n_trials)
+    if args.test_best_hyperparams is True:
+        study = optuna.load_study(storage=storage_name)
+    else:
+        study = optuna.create_study(direction="minimize",
+                                    storage=storage_name,
+                                    load_if_exists=True)
+        study.optimize(lambda trial: objective(trial=trial, train_loader=train_loader, test_loader=test_loader, task_id=task_id, args=args),
+                       n_trials=args.n_trials)
 
     best_params = study.best_params
     logging.info("=" * 100)
