@@ -394,7 +394,7 @@ def objective(trial , federated_dataset, rng, args):
     simulator.alpha = alpha
 
     for round_id in range(args.attacked_round):
-        simulator.simulate_round(save_chkpts=False, save_logs=False)
+        simulator.simulate_active_round(save_chkpts=False, save_logs=False)
 
     train_loss = simulator.get_client_avg_train_loss()
 

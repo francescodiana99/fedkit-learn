@@ -356,9 +356,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         - attacked_round (int): The round in which the active simulation starts.
 
         Methods:
-        - _initialize_gradients: Initialize the gradients of the pseudo-gradients.
         - _initialize_server_trainers: Initialize server models to actively update clients' weights.
-        - _initialize_gradients: Initialize the gradients of the pseudo-gradients.
         - simulate_server_updates: Update the server's copies of the clients' weights.
         - compute_pseudo_gradient: Compute the pseudo-gradient for the client model based on the server model.
         - active_update: Update client's weights to accelerate clients' convergence.
@@ -377,6 +375,8 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         self.server_trainers = self._initialize_server_trainers()
         self.attacked_round = attacked_round
         self.active_chkpts_folders_dict = self._create_active_chkpts_folders()
+        self.messages_metadata = self._init_messages_metadata()
+
 
 
     def _create_active_chkpts_folders(self):
@@ -397,23 +397,44 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         os.makedirs(self.chkpts_dir, exist_ok=True)
 
-        global_model_folder = os.path.join(self.chkpts_dir, "global")
-        os.makedirs(global_model_folder, exist_ok=True)
-        chkpts_folders_dict["global"] = global_model_folder
+        server_model_folder = os.path.join(self.chkpts_dir, "active_server")
+        os.makedirs(server_model_folder, exist_ok=True)
+        chkpts_folders_dict["server"] = server_model_folder
 
         for client in self.clients:
-            path = os.path.join(self.chkpts_dir, client.name)
-            os.makedirs(path, exist_ok=True)
+            active_server_path = os.path.join(self.chkpts_dir, 'active_server', client.name, , f'{self.attacked_round}')
+            path = os.path.join(self.chkpts_dir, client.name, 'active', , f'{self.attacked_round}')
 
-            path = os.path.join(path, 'active')
             os.makedirs(path, exist_ok=True)
-
-            path = os.path.join(path, f'{self.attacked_round}')
-            os.makedirs(path, exist_ok=True)
+            os.makedirs(active_server_path, exist_ok=True)
 
             chkpts_folders_dict[client.name] = path
+            chkpts_folders_dict['server'][client.name] = active_server_path
 
         return chkpts_folders_dict
+
+
+    def _init_messages_metadata(self):
+        """
+        Initialize metadata for messages exchanged between the global server and clients.
+
+        This method creates and returns a dictionary (`messages_metadata`) to store metadata
+        related to messages exchanged during federated learning. The dictionary includes an
+        entry for the global server, for each client and for each active server exchange,
+        with initial empty metadata.
+
+        Returns:
+        - dict: A dictionary containing metadata for messages, with keys for the global server, the active server,
+                and each client, initialized with empty metadata dictionaries.
+        """
+
+        messages_metadata = {"server": dict()}
+        messages_metadata['global'] = dict()
+        for client in self.clients:
+            messages_metadata[client.name] = dict()
+            messages_metadata['server'][client.name] = dict()
+
+        return messages_metadata
 
     def _initialize_gradients(self, trainer):
         """
@@ -451,18 +472,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         return server_trainers
 
 
-
-    def update_server_trainers(self):
-        """
-        Update the server's copies of the clients' weights.
-
-        This method iterates through each client and updates the server's copy of the client's model.
-
-        """
-        for i in range(len(self.clients)):
-            self.server_trainers[i].set_param_tensor(self.clients[i].trainer.get_param_tensor())
-
-
     def compute_pseudo_gradient(self, client_trainer, server_trainer):
         """
         Compute the pseudo-gradient for the client model based on the server model.
@@ -479,10 +488,10 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
     def active_update(self, task_index):
         """
-        Update client's weights to accelerate clients' convergence, performing the following steps:
+        Update client's parameters to accelerate clients' convergence, performing the following steps:
         1. Compute the pseudo-gradient for each client.
         2. Compute an Adam update for each client copy.
-        3. Update the client's weights simulating the server aggregation.
+        3. Update the client's parameters using the ones received from the server.
 
         Args:
             task_index(int): Index of the client in the clients list.
@@ -521,19 +530,22 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         logging.debug(f"Round {self.c_round}:")
 
-        # self.synchronize()
-        # logging.debug(f"Clients synchronized successfully")
-
         self.simulate_local_updates()
 
         if save_chkpts:
-            self.save_active_checkpoints()
+            self.save_active_checkpoints(mode='client')
             logging.debug(
                 f"Checkpoint saved and messages metadata updated successfully at communication round {self.c_round}."
             )
 
         self.simulate_server_updates()
         logging.debug(f"Server update computed successfully")
+
+        if save_chkpts:
+            self.save_active_checkpoints(mode='server')
+            logging.debug(
+                f"Checkpoint saved and messages metadata updated successfully at communication round {self.c_round}."
+            )
 
         if save_logs:
             self.write_logs()
@@ -563,8 +575,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         self.aggregate()
         logging.debug(f"Global model computed and updated successfully")
-
-        # self.update_server_trainers()
 
         self.synchronize()
         logging.debug(f"Clients synchronized successfully")
@@ -613,20 +623,37 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         self.logger.add_scalar("Train/Metric", global_train_metric, self.c_round)
         self.logger.add_scalar("Test/Loss", global_test_loss, self.c_round)
         self.logger.add_scalar("Test/Metric", global_test_metric, self.c_round)
-    def save_active_checkpoints(self):
-        # TODO: not saving the global model at the moment. Might be useful to save the server model for each client
-        # path = os.path.join(self.active_chkpts_folders_dict["global"], f"{self.c_round}.pt")
-        # path = os.path.abspath(path)
-        # self.global_trainer.save_checkpoint(path)
+    def save_active_checkpoints(self, mode='client'):
+        """
+        Save simulation checkpoints to the specified directory.
+        Args:
+            mode (str): Indicates whether to save the checkpoints for the clients or the server.
 
-        # self.messages_metadata["global"][self.c_round] = path
+        Returns:
 
-        for client in self.clients:
-            path = os.path.join(self.active_chkpts_folders_dict[client.name], f"{self.c_round}.pt")
-            path = os.path.abspath(path)
-            client.trainer.save_checkpoint(path)
+        """
 
-            self.messages_metadata[client.name][self.c_round] = path
+        if mode == 'client':
+            for client in self.clients:
+                path = os.path.join(self.active_chkpts_folders_dict[client.name], f"{self.c_round}.pt")
+                path = os.path.abspath(path)
+                client.trainer.save_checkpoint(path)
+
+                self.messages_metadata[client.name][self.c_round] = path
+
+        elif mode == 'server':
+            for i, client in enumerate(self.clients):
+                path = os.path.join(self.active_chkpts_folders_dict['server'][client.name], f"{self.c_round}.pt")
+                path = os.path.abspath(path)
+                client.trainer.save_checkpoint(path)
+
+                self.messages_metadata['server'][client.name][self.c_round] = path
+
+        else:
+            raise ValueError(f"Invalid mode: {mode}. Valid options are 'client' and 'server'.")
+
+
+
 
     def get_client_avg_train_loss(self):
         """
