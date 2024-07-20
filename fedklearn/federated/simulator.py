@@ -399,7 +399,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         server_model_folder = os.path.join(self.chkpts_dir, "active_server")
         os.makedirs(server_model_folder, exist_ok=True)
-        chkpts_folders_dict["server"] = server_model_folder
+        chkpts_folders_dict["server"] = dict()
 
         for client in self.clients:
             active_server_path = os.path.join(self.chkpts_dir, 'active_server', client.name, f'{self.attacked_round}')
