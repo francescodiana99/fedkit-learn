@@ -296,7 +296,27 @@ def objective(trial, train_loader, test_loader, task_id, args):
 
     return train_loss
 
-def optimize_model(args, train_loader, test_loader, task_id):
+def write_logs(args, train_loss, train_metric, test_loss, test_metric, step, logger):
+    """
+    Write the training and testing logs to the TensorBoard.
+    Args:
+        args:
+        train_loss(float):  Training loss.
+        train_metric(float):  Training metric.
+        test_loss(float):  Testing loss.
+        test_metric(float):  Testing metric.
+        step(int):  Current step.
+        logger(torch.utils.tensorboard.SummaryWriter):  Logger object.
+
+    Returns:
+        None
+    """
+    logger.add_scalar("Train/Loss", train_loss, step)
+    logger.add_scalar("Train/Metric", train_metric, step)
+    logger.add_scalar("Test/Loss", test_loss, step)
+    logger.add_scalar("Test/Metric", test_metric, step)
+
+def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
     """
     Optimize the hyperparameters for the client model using Optuna.
     Args:
@@ -304,6 +324,7 @@ def optimize_model(args, train_loader, test_loader, task_id):
         train_loader(torch.utils.data.DataLoader):  Training data loader.
         test_loader(torch.utils.data.DataLoader):  Testing data loader.
         task_id(str):  Task ID.
+        logs_dir(str):  Directory to save the logs.
 
     Returns:
         dict:  Dictionary containing the trajectory of the model checkpoints.
@@ -334,8 +355,11 @@ def optimize_model(args, train_loader, test_loader, task_id):
 
     trajectory_dict = dict()
 
+    logger = SummaryWriter(os.path.join(logs_dir, task_id))
+
     for step in range(args.num_rounds):
-        trainer.fit_epoch(train_loader)
+        train_loss, train_metric = trainer.fit_epoch(train_loader)
+
         if step % args.save_freq == 0:
             os.makedirs(os.path.join(args.local_models_dir, task_id), exist_ok=True)
 
@@ -343,6 +367,10 @@ def optimize_model(args, train_loader, test_loader, task_id):
             path = os.path.abspath(path)
             trainer.save_checkpoint(path)
             trajectory_dict[f"{step}"] = path
+
+        if step % args.log_freq == 0:
+            test_loss, test_metric = trainer.evaluate_loader(test_loader)
+            write_logs(args, train_loss, train_metric, test_loss, test_metric, step, logger)
 
         if trainer.lr_scheduler is not None:
             trainer.lr_scheduler.step()
@@ -401,7 +429,7 @@ def main():
         abs_log_dir = os.path.abspath(args.logs_dir)
         os.makedirs(abs_log_dir, exist_ok=True)
 
-        task_trajectory_dict = optimize_model(args, train_loader, test_loader, task_id)
+        task_trajectory_dict = optimize_model(args, train_loader, test_loader, task_id, abs_log_dir)
         models_trajectory_dict[task_id] = task_trajectory_dict
 
     local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
