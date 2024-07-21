@@ -5,6 +5,8 @@ import pathlib
 import shutil
 import optuna
 import numpy as np
+from datetime import datetime
+
 
 from tqdm import tqdm
 
@@ -138,6 +140,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--study_name",
+        type=str,
+        default=None,
+        help="Name of the Optuna study to load when checking the best hyperparameters. Default is None."
+    )
+
+    parser.add_argument(
         "--hparams_config_path",
         type=str,
         default="../configs/hyperparameters.json",
@@ -230,7 +239,7 @@ def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2):
     if args.optimizer == "sgd":
         optimizer = optim.SGD(
             [param for param in model.parameters() if param.requires_grad],
-            lr=args.learning_rate,
+            lr=learning_rate,
             momentum=args.momentum,
             weight_decay=args.weight_decay,
         )
@@ -332,13 +341,15 @@ def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
     """
     abs_log_dir = os.path.abspath(args.logs_dir)
     storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{task_id}.db"
+
     if args.test_best_hyperparams is True:
         logging.info(f'Loading existing Optuna study from {storage_name}')
-        study = optuna.load_study(study_name=None, storage=storage_name)
+        study = optuna.load_study(study_name=args.study_name, storage=storage_name)
     else:
         study = optuna.create_study(direction="minimize",
                                     storage=storage_name,
-                                    load_if_exists=True)
+                                    load_if_exists=True,
+                                    (study_name=f"{datetime.now()}")
         study.optimize(lambda trial: objective(trial=trial, train_loader=train_loader, test_loader=test_loader, task_id=task_id, args=args),
                        n_trials=args.n_trials)
 

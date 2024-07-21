@@ -5,6 +5,8 @@ import os
 import pathlib
 import shutil
 
+from datetime import datetime
+
 import numpy as np
 
 from tqdm import tqdm
@@ -584,7 +586,7 @@ def main():
 
         study = optuna.create_study(direction="minimize",
                                     storage=storage_name,
-                                    load_if_exists=True)
+                                    load_if_exists=True, study_name=f'{datetime.now()}')
         study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)
 
         best_params = study.best_params
