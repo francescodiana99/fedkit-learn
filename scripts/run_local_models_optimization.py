@@ -349,7 +349,7 @@ def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
         study = optuna.create_study(direction="minimize",
                                     storage=storage_name,
                                     load_if_exists=True,
-                                    (study_name=f"{datetime.now()}")
+                                    study_name=f"{datetime.now()}")
         study.optimize(lambda trial: objective(trial=trial, train_loader=train_loader, test_loader=test_loader, task_id=task_id, args=args),
                        n_trials=args.n_trials)
 
