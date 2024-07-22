@@ -216,6 +216,20 @@ def parse_args(args_list=None):
              'case of 1 local epoch.'
     )
 
+    parser.add_argument(
+        "--isolated",
+        default=False,
+        action="store_true",
+        help='If set, it will simulate an active server that isolates a task by sending back the received model'
+    )
+
+    parser.add_argument(
+        "active_adam",
+        default=False,
+        action="store_true",
+        help='If set, it will simulate an active server with Adam server'
+    )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -318,11 +332,18 @@ def main():
             )
 
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
-        if args.active_server:
+        if args.active_server and args.isolated:
             client_messages_metadata = get_active_messages_metadata(local_models_metadata=local_models_metadata,
                                                                     attacked_client_id=f"{attacked_client_id}",
                                                                     keep_round_ids=keep_round_ids,
-                                                                    rounds_frac=args.keep_rounds_frac)
+                                                                    rounds_frac=args.keep_rounds_frac,
+                                                                    use_isolate=True)
+        elif args.active_server and args.active_adam:
+            client_messages_metadata = get_active_messages_metadata(local_models_metadata=local_models_metadata,
+                                                                      attacked_client_id=f"{attacked_client_id}",
+                                                                      keep_round_ids=keep_round_ids,
+                                                                      rounds_frac=args.keep_rounds_frac,
+                                                                      use_isolate=False)
         else:
             client_messages_metadata = {
                 "global": {key: all_messages_metadata["global"][key] for key in keep_round_ids},

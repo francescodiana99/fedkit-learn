@@ -616,26 +616,26 @@ def read_dict(file_path):
         return {}
 
 
-def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep_round_ids, rounds_frac):
+def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep_round_ids, rounds_frac, use_isolate=False):
     """Create a dictionary for running the Attribute Inference Attack using the isolated trajectory of each client.
     Parameters:
         local_models_metadata (dict): A dictionary containing the metadata of the local models.
         attacked_client_id (str): The ID of the attacked client.
         keep_round_ids (set): A set of round IDs to keep.
         rounds_frac (float): Fraction of rounds to keep.
+        use_isolate (bool): Boolean to indicate if using isolated models or active ones.
     Returns:
         client_messages_metadata(dict): A dictionary containing the metadata of the client messages.
         """
 
     rounds_id = [int(round_id) for round_id in keep_round_ids]
     rounds_id.sort()
-    local_models_metadata = swap_dict_levels(local_models_metadata)
+    if mode == 'isolated':
+        local_models_metadata = swap_dict_levels(local_models_metadata)
     if rounds_frac == 1:
         rounds_id.remove(max(rounds_id))
     client_messages_metadata = {
         'global': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i}'] for i in range(len(rounds_id))},
         'local': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
     }
-
-
     return client_messages_metadata
