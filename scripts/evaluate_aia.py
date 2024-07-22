@@ -411,6 +411,8 @@ def main():
     if args.active_round:
         with open(args.active_models_metadata_path, "r") as f:
             all_active_models_metadata_dict = json.load(f)
+            all_active_models_metadata_dict.pop("global")
+            all_active_models_metadata_dict.pop('server')
             all_active_models_metadata_dict = swap_dict_levels(all_active_models_metadata_dict)
 
     with open(args.models_config_metadata_path, "r") as f:
