@@ -224,7 +224,7 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "active_adam",
+        "--active_adam",
         default=False,
         action="store_true",
         help='If set, it will simulate an active server with Adam server'
