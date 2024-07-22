@@ -630,7 +630,7 @@ def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep
 
     rounds_id = [int(round_id) for round_id in keep_round_ids]
     rounds_id.sort()
-    if mode == 'isolated':
+    if use_isolate is True:
         local_models_metadata = swap_dict_levels(local_models_metadata)
     if rounds_frac == 1:
         rounds_id.remove(max(rounds_id))
