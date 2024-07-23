@@ -534,9 +534,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         if save_chkpts:
             self.save_active_checkpoints(mode='client')
-            logging.debug(
-                f"Checkpoint saved and messages metadata updated successfully at communication round {self.c_round}."
-            )
 
         self.simulate_server_updates()
         logging.debug(f"Server update computed successfully")
@@ -584,7 +581,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         self.c_round += 1
 
-    def write_logs(self):
+    def write_logs(self, display_only=True):
         """
         Write simulation logs using the logger.
         """
@@ -619,10 +616,15 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         logging.info(f"Test Loss: {global_test_loss:.4f} | Test Metric: {global_test_metric:.4f} |")
         logging.info("+" * 50)
 
-        self.logger.add_scalar("Train/Loss", global_train_loss, self.c_round)
-        self.logger.add_scalar("Train/Metric", global_train_metric, self.c_round)
-        self.logger.add_scalar("Test/Loss", global_test_loss, self.c_round)
-        self.logger.add_scalar("Test/Metric", global_test_metric, self.c_round)
+        if not display_only:
+            self.logger.add_scalar("Train/Loss", global_train_loss, self.c_round)
+            self.logger.add_scalar("Train/Metric", global_train_metric, self.c_round)
+            self.logger.add_scalar("Test/Loss", global_test_loss, self.c_round)
+            self.logger.add_scalar("Test/Metric", global_test_metric, self.c_round)
+
+        return global_train_loss, global_train_metric, global_test_loss, global_test_metric
+
+
     def save_active_checkpoints(self, mode='client'):
         """
         Save simulation checkpoints to the specified directory.
@@ -632,7 +634,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         Returns:
 
         """
-
         if mode == 'client':
             for client in self.clients:
                 path = os.path.join(self.active_chkpts_folders_dict[client.name], f"{self.c_round}.pt")
@@ -651,8 +652,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         else:
             raise ValueError(f"Invalid mode: {mode}. Valid options are 'client' and 'server'.")
-
-
 
 
     def get_client_avg_train_loss(self):

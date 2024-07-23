@@ -395,10 +395,10 @@ def objective(trial , federated_dataset, rng, args):
     simulator.beta2 = beta2
     simulator.alpha = alpha
 
-    for round_id in range(args.attacked_round):
-        simulator.simulate_active_round(save_chkpts=False, save_logs=False)
+    for round_id in tqdm(range(args.num_rounds)):
+        simulator.simulate_active_round(save_chkpts=False, save_logs=log_freq)
 
-    train_loss = simulator.get_client_avg_train_loss()
+    train_loss, _, _, _ = simulator.write_logs(display_only=True)
 
     return train_loss
 
@@ -518,13 +518,15 @@ def initialize_active_simulator(clients, rng, args):
 
 def load_clients_from_chkpt(federated_dataset, args):
     """
-    Load clients from checkpoints.
+    Load clients from given checkpoints.
 
     Args:
-
+        federated_dataset (FederatedDataset): Federated dataset for the specific task.
+        args (argparse.Namespace): Parsed command-line arguments.
     Returns:
         list: List of clients.
     """
+    set_seeds(args.seed)
     clients = []
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         models_metadata_dict = json.load(f)
@@ -564,8 +566,8 @@ def main():
     """
 
     args = parse_args()
-
     rng = np.random.default_rng(seed=args.seed)
+    set_seeds(args.seed)
 
     configure_logging(args)
 
@@ -598,7 +600,7 @@ def main():
 
     logging.info("Loading clients from checkpoints...")
 
-    clients = load_clients_from_chkpt(federated_dataset, args)
+    clients = load_clients_from_chkpt(federated_dataset=federated_dataset, args=args)
 
     logging.info("=" * 100)
     logging.info("Initializing simulator from checkpoint..")
@@ -623,6 +625,8 @@ def main():
         chkpts_flag = (round_id % args.save_freq == 0)
 
         simulator.simulate_active_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
+
+    simulator.write_logs(display_only=True)
 
     logging.info("=" * 100)
     logging.info("Saving simulation results..")

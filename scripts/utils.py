@@ -36,8 +36,22 @@ def set_seeds(seed):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
+
+def seed_worker(worker_id):
+    """
+    Seed the worker for reproducibility.
+    Args:
+        worker_id:
+
+    Returns:
+
+    """
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 def none_or_float(value):
     """
