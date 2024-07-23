@@ -355,12 +355,12 @@ def save_last_round_metadata(all_messages_metadata, metadata_dir, args):
     last_saved_round_id = int(last_saved_round_id) if isinstance(_random_key, int) else str(last_saved_round_id)
 
     last_clients_messages_metadata = dict()
-    # last_server_messages_metadata = dict()
+    last_server_messages_metadata = dict()
 
     for client_id in all_messages_metadata:
         if str(client_id).isdigit():
             last_clients_messages_metadata[client_id] = all_messages_metadata[client_id][last_saved_round_id]
-            # last_server_messages_metadata[client_id] = all_messages_metadata["global"][last_saved_round_id]
+            last_server_messages_metadata[client_id] = all_messages_metadata["server"][client_id][last_saved_round_id]
 
     last_models_metadata_path = os.path.join(metadata_dir, "last_active.json")
     last_models_dict = read_dict(last_models_metadata_path)
@@ -389,21 +389,22 @@ def objective(trial , federated_dataset, rng, args):
     alpha = trial.suggest_float("alpha", hparams_dict['alpha'][0], hparams_dict['alpha'][1], log=True)
 
     clients = load_clients_from_chkpt(federated_dataset, args)
-    simulator = initialize_active_simulator(clients, rng, args)
+    simulator = initialize_active_simulator(clients=clients, rng=rng, beta1=beta1, beta2=beta2, alpha=alpha, args=args)
 
-    simulator.beta1 = beta1
-    simulator.beta2 = beta2
-    simulator.alpha = alpha
-
+    logging.info(f"Running active simulation with beta1={beta1}, beta2={beta2}, alpha={alpha}..")
+    logging.info('Initial logs..')
+    simulator.write_logs(display_only=True)
     for round_id in tqdm(range(args.num_rounds)):
-        simulator.simulate_active_round(save_chkpts=False, save_logs=log_freq)
-
+        logs_flag = (round_id % args.log_freq == 0)
+        # TODO: check why when putting save_s = False, results do not correspond
+        simulator.simulate_active_round(save_chkpts=False, save_logs=logs_flag)
+    logging.info('Search results..')
     train_loss, _, _, _ = simulator.write_logs(display_only=True)
 
     return train_loss
 
 
-def initialize_trainer(models_metadata_dict, task_id, args, mode='global'):
+def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
     """
     Initialize the trainer based on the specified model metadata.
     Args:
@@ -491,12 +492,12 @@ def initialize_trainer(models_metadata_dict, task_id, args, mode='global'):
         )
 
 
-def initialize_active_simulator(clients, rng, args):
+def initialize_active_simulator(clients, rng, beta1, beta2, alpha, args):
 
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         model_metadata_dict = json.load(f)
 
-    global_trainer = initialize_trainer(model_metadata_dict['global'], args.attacked_round, args, mode='global')
+    global_trainer = initialize_trainer(model_metadata_dict['global'], args, task_id=None, mode='global')
     global_logger = SummaryWriter(os.path.join(args.logs_dir, "global"))
 
     active_chkpts_dir = os.path.join(args.chkpts_dir)
@@ -506,10 +507,10 @@ def initialize_active_simulator(clients, rng, args):
         logger=global_logger,
         chkpts_dir=active_chkpts_dir,
         rng=rng,
-        beta1=args.beta1,
-        beta2=args.beta2,
+        beta1=beta1,
+        beta2=beta2,
         epsilon=args.epsilon,
-        alpha=args.alpha,
+        alpha=alpha,
         attacked_round=args.attacked_round
     )
 
@@ -532,7 +533,7 @@ def load_clients_from_chkpt(federated_dataset, args):
         models_metadata_dict = json.load(f)
     for task_id in federated_dataset.task_id_to_name:
 
-        trainer = initialize_trainer(models_metadata_dict, task_id, args, mode='task')
+        trainer = initialize_trainer(models_metadata_dict, args, task_id, mode='task')
 
         train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
         test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
@@ -604,12 +605,14 @@ def main():
 
     logging.info("=" * 100)
     logging.info("Initializing simulator from checkpoint..")
-    simulator = initialize_active_simulator(clients, rng, args)
 
     if args.optimize_hyperparams:
-        simulator.beta1 = best_params['beta1']
-        simulator.beta2 = best_params['beta2']
-        simulator.alpha = best_params['alpha']
+        simulator = initialize_active_simulator(clients=clients, rng=rng, beta1=best_params['beta1'],
+                                                beta2=best_params['beta2'], alpha=best_params['alpha'], args=args)
+
+    else:
+        simulator = initialize_active_simulator(clients=clients, rng=rng, beta1=args.beta1, beta2=args.beta2,
+                                                alpha=args.alpha, args=args)
 
         logging.info("Running active simulation with the best hyperparameters...")
 
@@ -625,7 +628,7 @@ def main():
         chkpts_flag = (round_id % args.save_freq == 0)
 
         simulator.simulate_active_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
-
+    logging.info('Last Results..')
     simulator.write_logs(display_only=True)
 
     logging.info("=" * 100)
