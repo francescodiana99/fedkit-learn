@@ -424,8 +424,9 @@ def main():
 
     if args.active_round:
         all_models_metadata_dict = {k: v for k, v in all_models_metadata_dict.items() if k in args.attacked_rounds}
+        print(all_models_metadata_dict.keys())
 
-    for iteration_id in all_models_metadata_dict:
+    for iteration_id in all_models_metadata_dict.keys():
 
         all_scores[iteration_id] = dict()
 
