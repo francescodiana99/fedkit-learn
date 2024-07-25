@@ -408,7 +408,7 @@ def main():
         all_models_metadata_dict = json.load(f)
         all_models_metadata_dict = swap_dict_levels(all_models_metadata_dict)
 
-    if args.active_round:
+    if args.active_round is not None:
         with open(args.active_models_metadata_path, "r") as f:
             all_active_models_metadata_dict = json.load(f)
             all_active_models_metadata_dict.pop("global", None)
@@ -422,9 +422,8 @@ def main():
         all_reference_models_metadata_dict = json.load(f)
         all_reference_models_metadata_dict = swap_dict_levels(all_reference_models_metadata_dict)
 
-    if args.active_round:
+    if args.active_round is not None:
         all_models_metadata_dict = {k: v for k, v in all_models_metadata_dict.items() if k in args.attacked_rounds}
-        print(all_models_metadata_dict.keys())
 
     for iteration_id in all_models_metadata_dict.keys():
 
@@ -433,7 +432,7 @@ def main():
         models_metadata_dict = all_models_metadata_dict[iteration_id]
         reference_models_metadata_dict = all_reference_models_metadata_dict[iteration_id]
         # last_active_round = max([int(k) for k in all_active_models_metadata_dict.keys()])
-        if args.active_round:
+        if args.active_round is not None:
             active_models_metadata_dict = all_active_models_metadata_dict[f'{args.active_round}']
 
         criterion, model_init_fn, is_binary_classification, metric = get_trainer_parameters(
@@ -445,7 +444,7 @@ def main():
             models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
             is_binary_classification=is_binary_classification, metric=metric, device=args.device
         )
-        if args.active_round:
+        if args.active_round is not None:
             active_trainers_dict = initialize_trainers_dict(
             active_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
             is_binary_classification=is_binary_classification, metric=metric, device=args.device
@@ -510,7 +509,7 @@ def main():
         all_scores[iteration_id]["client"] = {"scores": client_scores, "metrics": client_metric,
                                               "losses": client_losses, "n_samples": n_samples_list}
 
-        if args.active_round:
+        if args.active_round is not None:
 
             active_scores = list(scores_per_client_dict["active"].values())
             active_metric = list(metrics_dict["active"].values())
@@ -532,7 +531,7 @@ def main():
         logging.info(f"Average metric for global model: {avg_global_metric:.4f}")
         logging.info(f"Average metric for reference model: {avg_reference_metric:.4f}")
         logging.info(f"Average metric for client model: {avg_client_metric:.4f}")
-        if args.active_round:
+        if args.active_round is not None:
             logging.info(f"Average metric for active model: {avg_active_metric:.4f}")
 
 
@@ -540,19 +539,19 @@ def main():
         logging.info(f"Average loss for global model: {avg_global_loss:.4f}")
         logging.info(f"Average loss for reference model: {avg_reference_loss:.4f}")
         logging.info(f"Average loss for client model: {avg_client_loss:.4f}")
-        if args.active_round:
+        if args.active_round is not None:
             logging.info(f"Average loss for active model: {avg_active_loss:.4f}")
 
 
         logging.info(f"Average score for global model: {avg_global_score:.4f}")
         logging.info(f"Average score for reference model: {avg_reference_score:.4f}")
         logging.info(f"Average score for client model: {avg_client_score:.4f}")
-        if args.active_round:
+        if args.active_round is not None:
             logging.info(f"Average score for active model: {avg_active_score:.4f}")
 
     logging.info("Saving scores..")
     os.makedirs(args.results_dir, exist_ok=True)
-    if args.active_round:
+    if args.active_round is not None:
         scores_path = os.path.join(args.results_dir, f"lmra_round_{args.active_round}.json")
     else:
         scores_path = os.path.join(args.results_dir, "lmra.json")
