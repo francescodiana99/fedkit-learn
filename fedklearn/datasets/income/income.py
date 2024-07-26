@@ -532,7 +532,7 @@ class FederatedIncomeDataset:
             tasks_dict = {**tasks_dict_poor_men, **tasks_dict_rich_men}
 
         else:
-            n_train_samples = self.n_task_samples * (1 - self.test_frac)
+            n_train_samples = int(self.n_task_samples * (1 - self.test_frac))
             if self.n_tasks * n_train_samples > len(df) and mode == 'train':
                 raise ValueError("The number of tasks and the number of samples per task are too high for the dataset, "
                                  f"which has size {len(df)}."
