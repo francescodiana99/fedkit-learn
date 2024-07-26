@@ -338,7 +338,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
     """
 
     def __init__(self, clients, global_trainer, logger, chkpts_dir, beta1=0.9, beta2=0.999, epsilon=1e-8,
-                 alpha=0.1, attacked_round=99, rng=None):
+                 alpha=0.1, attacked_round=99, active_chkpts_dir=None, rng=None):
         """
         Initialize the federated learning simulator.
 
@@ -355,6 +355,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         - alpha (float): The learning rate for the server.
         - attacked_round (int): The round in which the active simulation starts.
         - pseudo_gradients (list): List of each client current pseudo-gradient value.
+        - active_chkpts_dir (str, opt): Directory to save simulation checkpoints for the active server.
 
         Methods:
         - _initialize_server_trainers: Initialize server models to actively update clients' weights.
@@ -375,7 +376,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         self.alpha = alpha
         self.server_trainers = self._init_server_trainers()
         self.attacked_round = attacked_round
-        self.active_chkpts_folders_dict = self._create_active_chkpts_folders()
+        self.active_chkpts_folders_dict = self._create_active_chkpts_folders(active_chkpts_dir)
         self.messages_metadata = self._init_messages_metadata()
         self.pseudo_gradients = self._init_pseudo_gradients()
 
@@ -387,7 +388,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         return pseudo_gradients
 
-    def _create_active_chkpts_folders(self):
+    def _create_active_chkpts_folders(self, active_chkpts_folder=None):
         """
                 Create checkpoint folders for the global model and each client.
 
@@ -404,14 +405,20 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         chkpts_folders_dict = dict()
 
         os.makedirs(self.chkpts_dir, exist_ok=True)
-
-        server_model_folder = os.path.join(self.chkpts_dir, "active_server")
+        if active_chkpts_folder is None:
+            server_model_folder = os.path.join(self.chkpts_dir, "active_server")
+        else:
+            server_model_folder = os.path.join(active_chkpts_folder, "active_server")
         os.makedirs(server_model_folder, exist_ok=True)
         chkpts_folders_dict["server"] = dict()
 
         for client in self.clients:
-            active_server_path = os.path.join(self.chkpts_dir, 'active_server', client.name, f'{self.attacked_round}')
-            path = os.path.join(self.chkpts_dir, client.name, 'active', f'{self.attacked_round}')
+            if active_chkpts_folder is None:
+                active_server_path = os.path.join(self.chkpts_dir, 'active_server', client.name, f'{self.attacked_round}')
+                path = os.path.join(self.chkpts_dir, client.name, 'active', f'{self.attacked_round}')
+            else:
+                active_server_path = os.path.join(active_chkpts_folder, 'active_server', client.name, f'{self.attacked_round}')
+                path = os.path.join(active_chkpts_folder, client.name, f'{self.attacked_round}')
 
             os.makedirs(path, exist_ok=True)
             os.makedirs(active_server_path, exist_ok=True)
