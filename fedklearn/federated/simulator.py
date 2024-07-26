@@ -354,6 +354,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         - epsilon (float): A small constant for numerical stability.
         - alpha (float): The learning rate for the server.
         - attacked_round (int): The round in which the active simulation starts.
+        - pseudo_gradients (list): List of each client current pseudo-gradient value.
 
         Methods:
         - _initialize_server_trainers: Initialize server models to actively update clients' weights.
@@ -372,12 +373,19 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         self.beta2 = beta2
         self.epsilon = epsilon
         self.alpha = alpha
-        self.server_trainers = self._initialize_server_trainers()
+        self.server_trainers = self._init_server_trainers()
         self.attacked_round = attacked_round
         self.active_chkpts_folders_dict = self._create_active_chkpts_folders()
         self.messages_metadata = self._init_messages_metadata()
+        self.pseudo_gradients = self._init_pseudo_gradients()
 
 
+    def _init_pseudo_gradients(self):
+        pseudo_gradients = []
+        for i in range(len(self.clients)):
+            pseudo_gradients.append(torch.zeros_like(self.clients[i].trainer.get_param_tensor()))
+
+        return pseudo_gradients
 
     def _create_active_chkpts_folders(self):
         """
@@ -436,7 +444,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         return messages_metadata
 
-    def _initialize_gradients(self, trainer):
+    def _init_gradients(self, trainer):
         """
         Initialize the gradients of the pseudo-gradients.
 
@@ -453,7 +461,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         return trainer
 
 
-    def _initialize_server_trainers(self):
+    def _init_server_trainers(self):
         """
         Initialize server models to actively update clients' weights.
         Returns:
@@ -497,10 +505,11 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
             task_index(int): Index of the client in the clients list.
 
         """
-        self.server_trainers[task_index] = self._initialize_gradients(self.server_trainers[task_index])
+        self.server_trainers[task_index] = self._init_gradients(self.server_trainers[task_index])
         pseudo_gradient = self.compute_pseudo_gradient(self.clients[task_index].trainer, self.server_trainers[task_index])
         # TODO: check this sign
         self.server_trainers[task_index].set_grad_tensor(-pseudo_gradient)
+        self.pseudo_gradients[task_index] = pseudo_gradient
 
         self.server_trainers[task_index].optimizer.step()
         self.server_trainers[task_index].optimizer.zero_grad()
@@ -668,3 +677,17 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
             total_train_loss += client_loss * client.n_train_samples
             total_n_samples += client.n_train_samples
         return total_train_loss / total_n_samples
+
+    def compute_pseudo_grad_norm(self):
+        """
+        Get the average norm of the pseudo-gradients of the clients.
+        Returns:
+        - float: The average norm of the pseudo-gradients of the clients.
+
+        """
+        norm_list = [torch.norm(pseudo_grad) for pseudo_grad in self.pseudo_gradients]
+        n_samples = [client.n_train_samples for client in self.clients]
+
+        weighted_sum = sum(score * n_sample for score, n_sample in zip(norm_list, n_samples))
+        total_samples = sum(n_samples)
+        return weighted_sum / total_samples

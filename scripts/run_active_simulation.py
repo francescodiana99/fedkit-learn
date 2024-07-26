@@ -342,6 +342,12 @@ def parse_args(args_list=None):
         help="Path to the hyperparameters configuration file"
     )
 
+    parser.add_argument(
+        "--use_norm",
+        action="store_true",
+        help="If set, the optimization will be performed to minimize the norm of the pseudo-gradients"
+    )
+
 
     if args_list is None:
         return parser.parse_args()
@@ -400,8 +406,13 @@ def objective(trial , federated_dataset, rng, args):
         simulator.simulate_active_round(save_chkpts=False, save_logs=logs_flag)
     logging.info('Search results..')
     train_loss, _, _, _ = simulator.write_logs(display_only=True)
+    pseudo_grad_norm = simulator.compute_pseudo_grad_norm()
 
-    return train_loss
+    logging.info(f'Pseudo-grad norm: {pseudo_grad_norm}')
+    if args.use_norm:
+        return simulator.compute_pseudo_grad_norm()
+    else:
+        return train_loss
 
 
 def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
