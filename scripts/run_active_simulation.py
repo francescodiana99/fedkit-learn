@@ -221,6 +221,14 @@ def parse_args(args_list=None):
         default="./chkpts",
         help="Checkpoints directory"
     )
+
+    parser.add_argument(
+        "--active_chkpts_dir",
+        type=str,
+        default=None,
+        help="Checkpoints directory for the active models"
+    )
+
     parser.add_argument(
         "--logs_dir",
         type=str,
@@ -368,7 +376,10 @@ def save_last_round_metadata(all_messages_metadata, metadata_dir, args):
             last_clients_messages_metadata[client_id] = all_messages_metadata[client_id][last_saved_round_id]
             last_server_messages_metadata[client_id] = all_messages_metadata["server"][client_id][last_saved_round_id]
 
-    last_models_metadata_path = os.path.join(metadata_dir, "last_active.json")
+    if args.use_norm:
+        last_models_metadata_path = os.path.join(metadata_dir, f"last_active_{args.attacked_round}_norm.json")
+    else:
+        last_models_metadata_path = os.path.join(metadata_dir, f"last_active_{args.attacked_round}.json")
     last_models_dict = read_dict(last_models_metadata_path)
     last_models_dict[f'{args.attacked_round}'] = last_clients_messages_metadata
     with open(last_models_metadata_path, "w") as f:
@@ -522,7 +533,8 @@ def initialize_active_simulator(clients, rng, beta1, beta2, alpha, args):
         beta2=beta2,
         epsilon=args.epsilon,
         alpha=alpha,
-        attacked_round=args.attacked_round
+        attacked_round=args.attacked_round,
+        active_chkpts_dir=args.active_chkpts_dir
     )
 
     return simulator
@@ -645,7 +657,10 @@ def main():
     logging.info("=" * 100)
     logging.info("Saving simulation results..")
     os.makedirs(os.path.dirname(args.metadata_dir), exist_ok=True)
-    messages_metadata_path = os.path.join(args.metadata_dir, f"active_{args.attacked_round}.json")
+    if args.use_norm:
+        messages_metadata_path = os.path.join(args.metadata_dir, f"active_norm_{args.attacked_round}.json")
+    else:
+        messages_metadata_path = os.path.join(args.metadata_dir, f"active_{args.attacked_round}.json")
     with open(messages_metadata_path, "w") as f:
         json.dump(simulator.messages_metadata, f)
 
