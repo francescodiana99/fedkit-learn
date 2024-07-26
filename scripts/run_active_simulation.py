@@ -410,7 +410,7 @@ def objective(trial , federated_dataset, rng, args):
 
     logging.info(f'Pseudo-grad norm: {pseudo_grad_norm}')
     if args.use_norm:
-        return simulator.compute_pseudo_grad_norm()
+        return pseudo_grad_norm
     else:
         return train_loss
 
