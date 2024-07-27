@@ -59,6 +59,8 @@ class FederatedIncomeDataset:
         mixing_coefficient (float, optional): Mixing coefficient used to manage the correlation between 'SEX' and target
             variable, when using  'correlation' as split criterion. Default is 0.
 
+        binarize (bool, optional): Whether to binarize the target variable. Default is False.
+
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
 
@@ -135,7 +137,7 @@ class FederatedIncomeDataset:
 
     def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state='full', mixing_coefficient=0., keep_proportions=False):
+            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -151,6 +153,12 @@ class FederatedIncomeDataset:
         self.drop_nationality = drop_nationality
         self.mixing_coefficient = mixing_coefficient
         self.keep_proportions = keep_proportions
+        self.binarize = binarize
+
+        if self.binarize:
+            raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
+            self.median_income = raw_df['PINCP'].median()
+
 
         if self.state is None:
             raise ValueError("The 'state' is None. Please specify a value.")
@@ -678,6 +686,9 @@ class FederatedIncomeDataset:
                 file_path = os.path.join(self._tasks_dir, f'{self.n_tasks}',  f'{self.n_task_samples}'  , task_name,
                                          f"{mode}.csv")
         task_data = pd.read_csv(file_path)
+
+        if self.binarize:
+            task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
 
         return IncomeDataset(task_data, name=task_name)
 

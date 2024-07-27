@@ -4,6 +4,7 @@ Implementation based on the technique present in (https://arxiv.org/abs/2108.069
 """
 
 import argparse
+import logging
 
 import numpy as np
 
@@ -33,9 +34,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income'],
+                 'income', 'binary_income'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary, "
-             "'medical_cost', 'income'.",
+             "'medical_cost', 'income', 'binary_income'.",
         required=True
     )
 
@@ -301,6 +302,9 @@ def main():
     elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         is_binary_classification = True
+    elif args.task_name == "binary_income":
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+        is_binary_classification = True
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -330,7 +334,7 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income"] :
+        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income", "binary_income"] :
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
@@ -411,63 +415,12 @@ def main():
     logging.info(f"Average cosine dissimilarity: {avg_cos_dis}")
     logging.info(f"Average L2 distance: {avg_l2_dis}")
 
-    logging.info("Save scores..")
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
-    # TODO: remove later
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
     save_scores(scores_list=all_clients_l2_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_l2_dis.json"))
 
-    results_history_path = os.path.join(os.path.dirname(args.results_path), "attacks_history_aia.json")
-
-    # if args. ,_name == "adult":
-    #     load_and_save_result_history(data_dir=args.data_dir, scores_list=scores_list, results_path=results_history_path,
-    #                                  attack_name='aia', n_samples_list=n_samples_list, seed=args.seed)
-
-    # TODO: remove later, used only to speed up testing
-    if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "toy_classification", "toy_regression",
-                          "income"]:
-        os.makedirs(os.path.dirname(results_history_path), exist_ok=True)
-        if not os.path.exists(results_history_path):
-            results_dict = dict()
-        else:
-            with open(results_history_path, "r") as f:
-                try:
-                    results_dict = json.load(f)
-                except json.JSONDecodeError:
-                    results_dict = dict()
-
-        if args.keep_first_rounds:
-            if f"{args.sensitive_attribute}" not in results_dict:
-                results_dict[f"{args.sensitive_attribute}"] = dict()
-            if f"{args.sensitive_attribute}" not in results_dict:
-                results_dict[f"{args.sensitive_attribute}"] = dict()
-
-            if f"{args.keep_rounds_frac}" not in results_dict[f"{args.sensitive_attribute}"]:
-                results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"] = dict()
-
-            if f"{args.learning_rate}" not in results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"]:
-                results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"] = dict()
-            results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"]["score"] = avg_score
-            results_dict[f"{args.sensitive_attribute}"][f"{args.keep_rounds_frac}"][f"{args.learning_rate}"]["cos_dis"] = avg_cos_dis
-
-        else:
-            if f"{args.sensitive_attribute}" not in results_dict:
-                results_dict[f"{args.sensitive_attribute}"] = dict()
-            if f"{args.sensitive_attribute}" not in results_dict:
-                results_dict[f"{args.sensitive_attribute}"] = dict()
-            if "last_5" not in results_dict[f"{args.sensitive_attribute}"]:
-                results_dict[f"{args.sensitive_attribute}"]["last_5"] = dict()
-            if f"{args.learning_rate}" not in results_dict[f"{args.sensitive_attribute}"]["last_5"]:
-                results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}"] = dict()
-
-            results_dict[f"{args.sensitive_attribute}"]["last_5"][f"{args.learning_rate}" ]["score"] = avg_score
-
-        with open(results_history_path, "w") as f:
-            json.dump(results_dict, f)
-
-        logging.info(f"The results dictionary has been saved in {results_history_path}")
-
+    logging.info(f"Results saved in {args.results_path}")
 if __name__ == "__main__":
     main()
