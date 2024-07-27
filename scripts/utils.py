@@ -177,6 +177,27 @@ def load_dataset(task_name, data_dir, rng):
             n_tasks=n_tasks,
             n_task_samples=n_task_samples,
         )
+
+    elif task_name == "binary_income":
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        n_tasks = metadata_dict["n_tasks"]
+        n_task_samples = metadata_dict["n_task_samples"]
+        cache_dir = metadata_dict['cache_dir']
+        state= metadata_dict['state']
+        mixing_coefficient = metadata_dict['mixing_coefficient']
+        return FederatedIncomeDataset(
+            cache_dir=cache_dir,
+            download=False,
+            split_criterion=split_criterion,
+            mixing_coefficient=mixing_coefficient,
+            state=state,
+            n_tasks=n_tasks,
+            n_task_samples=n_task_samples,
+            binarize=True
+        )
+
     elif task_name == "purchase":
         with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
             split_dict = json.load(f)
@@ -660,3 +681,7 @@ def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep
             'local': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
         }
     return client_messages_metadata
+
+def binarize_dataset(federated_dataset):
+    """Binarize a regression dataset to a binary classification dataset."""
+
