@@ -18,18 +18,12 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost', 'income'],
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost', 'income',
+                 'binary_income'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary',"
-             "'medical_cost'.",
+             "'medical_cost', 'icome', 'binary_income'.",
         required=True
     )
-
-    # parser.add_argument(
-    #     "--attacked_round",
-    #     type=int,
-    #     help="Round to test",
-    #     required=True
-    # )
 
     parser.add_argument(
         "--models_metadata_path",
@@ -275,8 +269,7 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
     while attacked_client_id < num_clients:
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
-
-        if task_name == "adult" or task_name == "purchase" or task_name == "purchase_binary" or task_name == "income":
+        if task name in ["adult", "purchase", "purchase_binary", "income", "binary_income"]:
             # TODO: hard-code sensitive attribute_id and type in the federated_dataset
             sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
             sensitive_attribute_type = sensitive_attribute_type
