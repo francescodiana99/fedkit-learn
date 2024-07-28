@@ -145,6 +145,12 @@ def parse_args(args_list=None):
         action="store_true",
         help="If selected, a bias term to the linear model behind the toy dataset."
     )
+
+    parser.add_argument(
+        "--split_clients",
+        action="store_true",
+        help="If selected, split the data of Toy dataset on two groups"
+    )
     parser.add_argument(
         "--n_tasks",
         type=int,
@@ -521,7 +527,8 @@ def initialize_dataset(args, rng):
             force_generation=args.force_generation,
             allow_generation=True,
             cache_dir=args.data_dir,
-            rng=rng
+            rng=rng,
+            split_clients=args.split_clients
         )
     elif args.task_name == "toy_classification":
         return FederatedToyDataset(
@@ -538,7 +545,8 @@ def initialize_dataset(args, rng):
             force_generation=args.force_generation,
             allow_generation=True,
             cache_dir=args.data_dir,
-            rng=rng
+            rng=rng,
+            split_clients=args.split_clients
         )
 
     elif args.task_name == "purchase":
