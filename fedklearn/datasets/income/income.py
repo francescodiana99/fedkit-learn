@@ -61,6 +61,8 @@ class FederatedIncomeDataset:
 
         binarize (bool, optional): Whether to binarize the target variable. Default is False.
 
+        use_linear (bool, optional): Flag to check if preprocess the data for a liner model.
+
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
 
@@ -137,7 +139,7 @@ class FederatedIncomeDataset:
 
     def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False):
+            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False, use_linear=False):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -158,6 +160,7 @@ class FederatedIncomeDataset:
         if self.binarize:
             raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
             self.median_income = raw_df['PINCP'].median()
+
 
 
         if self.state is None:
@@ -450,6 +453,29 @@ class FederatedIncomeDataset:
 
         return task_cache_dir
 
+    def _process_for_linear_model(self, df):
+        """
+        Process the data to prepare them for a linear model. Drops the 'OCCP' and 'RELP' columns, and binarizes
+        the 'RAC1P' FEATURE.
+        Args:
+            df(pd.DataFrame): The DataFrame to process.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame.
+
+        """
+
+        race_cols = [c for c in df.columns if c.startswith('RAC1P')]
+        df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
+        df = df.drop(columns=race_cols)
+        df = df.drop(['OCCP', 'RELP'], axis=1)
+        CATEGORICAL_COLUMNS.remove('OCCP')
+        CATEGORICAL_COLUMNS.remove('RELP')
+
+        return df
+
+
+
 
     def _save_metadata(self):
         metadata ={
@@ -686,6 +712,9 @@ class FederatedIncomeDataset:
                 file_path = os.path.join(self._tasks_dir, f'{self.n_tasks}',  f'{self.n_task_samples}'  , task_name,
                                          f"{mode}.csv")
         task_data = pd.read_csv(file_path)
+
+        if use_linear:
+            task_data = self._preprocess_for_linear_model(task_data)
 
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
