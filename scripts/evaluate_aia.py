@@ -36,7 +36,6 @@ def parse_args(args_list=None):
         "--active_models_metadata_path",
         type=str,
         help="Path to the metadata file of the models after the attack",
-        required=True
     )
 
     parser.add_argument(
