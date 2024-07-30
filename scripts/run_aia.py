@@ -337,7 +337,8 @@ def main():
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
-        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income", "binary_income"] :
+        if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income", "binary_income",
+                              "linear_income"] :
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
