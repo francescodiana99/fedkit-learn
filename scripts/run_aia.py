@@ -34,9 +34,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'binary_income'],
+                 'income', 'binary_income', 'linear_income'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary, "
-             "'medical_cost', 'income', 'binary_income'.",
+             "'medical_cost', 'income', 'binary_income', 'linear_income'.",
         required=True
     )
 
@@ -304,6 +304,9 @@ def main():
         is_binary_classification = True
     elif args.task_name == "binary_income":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
+        is_binary_classification = True
+    elif args.task_name == "linear_income":
+        criterion = nn.MSELoss().to(args.device)
         is_binary_classification = True
     else:
         raise NotImplementedError(
