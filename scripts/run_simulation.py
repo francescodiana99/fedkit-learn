@@ -706,6 +706,11 @@ def initialize_trainer(args):
         metric = binary_accuracy_with_sigmoid
         is_binary_classification = True
 
+    elif args.task_name == "linear_income":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
     else:
         raise NotImplementedError(
             f"Trainer initialization for task '{args.task_name}' is not implemented."

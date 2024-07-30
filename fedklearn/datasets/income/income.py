@@ -156,6 +156,7 @@ class FederatedIncomeDataset:
         self.mixing_coefficient = mixing_coefficient
         self.keep_proportions = keep_proportions
         self.binarize = binarize
+        self.use_linear = use_linear
 
         if self.binarize:
             raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
@@ -465,12 +466,14 @@ class FederatedIncomeDataset:
 
         """
 
+        for col in ['OCCP', 'RELP']:
+            dummy_cols = [c for c in df.columns if col in c]
+            df = df.drop(columns=dummy_cols)
         race_cols = [c for c in df.columns if c.startswith('RAC1P')]
         df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
         df = df.drop(columns=race_cols)
-        df = df.drop(['OCCP', 'RELP'], axis=1)
-        CATEGORICAL_COLUMNS.remove('OCCP')
-        CATEGORICAL_COLUMNS.remove('RELP')
+        # df = df.drop(['OCCP', 'RELP'], axis=1)
+
 
         return df
 
@@ -713,8 +716,8 @@ class FederatedIncomeDataset:
                                          f"{mode}.csv")
         task_data = pd.read_csv(file_path)
 
-        if use_linear:
-            task_data = self._preprocess_for_linear_model(task_data)
+        if self.use_linear:
+            task_data = self._process_for_linear_model(task_data)
 
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
