@@ -377,7 +377,7 @@ def main():
 
     all_isolated_models_metadata_dict = swap_dict_levels(all_isolated_models_metadata_dict)
 
-    trajectory_path = os.path.join(args.metadata_dir, "isolated_trajectories.json")
+    trajectory_path = os.path.join(args.metadata_dir, f"isolated_trajectories_{args.attacked_round}.json")
     with open(trajectory_path, "w") as f:
         json.dump(all_isolated_models_metadata_dict, f)
 
@@ -387,7 +387,7 @@ def main():
     logging.info("Saving final models metadata...")
 
 
-    with open(os.path.join(args.metadata_dir, "isolated.json"), "w") as f:
+    with open(os.path.join(args.metadata_dir, f"isolated_{args.attacked_round}.json"), "w") as f:
         json.dump(final_isolated_models_metadata_dict, f)
 
     logging.info("The final isolated models have been saved successfully.")
