@@ -236,7 +236,7 @@ class FederatedIncomeDataset:
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
             if use_linear:
-                self._preprocess_linear()
+                train_df, test_df = self._preprocess_linear()
             else:
                 if self.state == 'full':
                    train_df, test_df = self._preprocess_full_data()
