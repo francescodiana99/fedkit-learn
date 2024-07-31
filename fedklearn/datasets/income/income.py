@@ -6,7 +6,7 @@ import urllib
 import logging
 from io import StringIO
 
-
+import matplotlib.pyplot as plt
 import torch
 
 import numpy as np
@@ -200,13 +200,17 @@ class FederatedIncomeDataset:
             self._load_task_mapping()
 
         elif not self.download and self.force_generation:
-            if state == 'full':
-                logging.info(f'Using full split criterion. Processing data..')
-                self._preprocess_full_data()
+            if use_linear:
+                logging.info(f"Processing data for linear models..")
+                self._preprocess_linear()
             else:
-                if not os.path.exists(self._intermediate_data_dir):
-                    logging.info(f'Intermediate data not found for state {self.state}. Processing data...')
-                    self._preprocess()
+                if state == 'full':
+                    logging.info(f'Using full split criterion. Processing data..')
+                    self._preprocess_full_data()
+                else:
+                    if not os.path.exists(self._intermediate_data_dir):
+                        logging.info(f'Intermediate data not found for state {self.state}. Processing data...')
+                        self._preprocess()
 
             logging.info("Data found in the cache directory. Splitting data into tasks..")
 
@@ -231,10 +235,13 @@ class FederatedIncomeDataset:
 
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
-            if self.state == 'full':
-               train_df, test_df = self._preprocess_full_data()
+            if use_linear:
+                self._preprocess_linear()
             else:
-               train_df, test_df =  self._preprocess()
+                if self.state == 'full':
+                   train_df, test_df = self._preprocess_full_data()
+                else:
+                   train_df, test_df =  self._preprocess()
 
             self._generate_tasks(train_df, test_df)
 
@@ -297,6 +304,72 @@ class FederatedIncomeDataset:
             n_samples(int): The number of samples to draw."""
         indices = np.random.choice(state_group.index, n_samples, replace=False)
         return state_group.loc[indices]
+
+    @staticmethod
+    def _group_cow(x):
+        if x in [1, 2]:
+            x = 0.
+        elif x in [3, 4, 5]:
+            x = 1.
+        else:
+            x = 2.
+        return x
+
+    def _preprocess_linear(self):
+        """
+        Prepare the raw data for a linear model.
+        Returns:
+            pd.DataFrame: Processed training data.
+            """
+
+        if self.split_criterion != 'correlation':
+            raise ValueError("Linear model is  supported only for split criterion 'correlation'.")
+
+        if self.state.lower() not in STATES:
+            raise ValueError(f"State {self.state} not found in the dataset.")
+
+        df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
+        df = df.dropna()
+        df = df.drop_duplicates()
+        df = df.reset_index(drop=True)
+
+        df = df[df['ST'] == STATES[self.state]]
+
+        df = df.drop(['OCCP', 'RELP', 'POBP', 'ST'], axis=1)
+
+        CATEGORICAL_COLUMNS.remove('OCCP')
+        CATEGORICAL_COLUMNS.remove('RELP')
+        CATEGORICAL_COLUMNS.remove('ST')
+        CATEGORICAL_COLUMNS.remove('POBP')
+
+
+        df['RAC1P'] = df['RAC1P'].apply(lambda x: 1. if x == 1 else 2.)
+        df['MAR'] = df['MAR'].apply(lambda x: 1. if x == 1 else 2.)
+        df['COW'] = df['COW'].apply(self._group_cow)
+
+        # note, the one-hot encoding is done only on 'COW' because for binary feature is better to not have 0 values
+        df = pd.get_dummies(df, columns=['COW'], dtype=np.float64, drop_first=False)
+
+        train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
+        test_df = df.drop(train_df.index).reset_index(drop=True)
+        train_df.reset_index(drop=True, inplace=True)
+
+        train_df = self._scale_features_linear(train_df, self.scaler, mode='train')
+        test_df = self._scale_features_linear(test_df, self.scaler, mode='test')
+        plt.hist(train_df['PINCP'], bins=50)
+        plt.show()
+
+        plt.hist(test_df['PINCP'], bins=50)
+        plt.show()
+
+        os.makedirs(self._intermediate_data_dir, exist_ok=True)
+
+        train_df.to_csv(os.path.join(self._intermediate_data_dir, "train.csv"), index=False)
+        test_df.to_csv(os.path.join(self._intermediate_data_dir, "test.csv"), index=False)
+
+        logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
+
+        return train_df, test_df
 
     def _preprocess_full_data(self):
         """
@@ -408,6 +481,33 @@ class FederatedIncomeDataset:
 
         return features_scaled
 
+    def _scale_features_linear(self, df, scaler, mode='train'):
+        """
+        Scale the features and target to use in a linear model.
+        Args:
+            df (pd.DataFrame): DataFrame to scale.
+            scaler (sklearn.preprocessing): Scaler to use. Available options are 'standard' and 'minmax'.
+            mode (str, opt): Scaling mode. Available options are 'train' and 'test'. Default is 'train'.
+
+        Returns feature_scaled (pd.DataFrame): Scaled DataFrame.
+        """
+
+        cow_cols = [col for col in df.columns if col.startswith('COW')]
+        num_cols = list(set(df.columns) - set(cow_cols))
+
+        features_numerical = np.log(df[num_cols])
+        cat_feat = df[cow_cols]
+
+        if mode == 'train':
+            features_numerical_scaled = pd.DataFrame(scaler.fit_transform(features_numerical), columns=num_cols)
+        else:
+            features_numerical_scaled = pd.DataFrame(scaler.transform(features_numerical), columns=num_cols)
+
+        features_scaled = pd.concat([cat_feat, features_numerical_scaled], axis=1)
+
+        return features_scaled
+
+
     def _generate_tasks(self, train_df, test_df):
         """Generate tasks based on the split criterion."""
 
@@ -454,30 +554,28 @@ class FederatedIncomeDataset:
 
         return task_cache_dir
 
-    def _process_for_linear_model(self, df):
-        """
-        Process the data to prepare them for a linear model. Drops the 'OCCP' and 'RELP' columns, and binarizes
-        the 'RAC1P' FEATURE.
-        Args:
-            df(pd.DataFrame): The DataFrame to process.
-
-        Returns:
-            pd.DataFrame: The processed DataFrame.
-
-        """
-
-        for col in ['OCCP', 'RELP']:
-            dummy_cols = [c for c in df.columns if col in c]
-            df = df.drop(columns=dummy_cols)
-        race_cols = [c for c in df.columns if c.startswith('RAC1P')]
-        df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
-        df = df.drop(columns=race_cols)
-        # df = df.drop(['OCCP', 'RELP'], axis=1)
-
-
-        return df
-
-
+    # def _process_for_linear_model(self, df):
+    #     """
+    #     Process the data to prepare them for a linear model. Drops the 'OCCP' and 'RELP' columns, and binarizes
+    #     the 'RAC1P' FEATURE.
+    #     Args:
+    #         df(pd.DataFrame): The DataFrame to process.
+    #
+    #     Returns:
+    #         pd.DataFrame: The processed DataFrame.
+    #
+    #     """
+    #
+    #     for col in ['OCCP', 'RELP']:
+    #         dummy_cols = [c for c in df.columns if col in c]
+    #         df = df.drop(columns=dummy_cols)
+    #     race_cols = [c for c in df.columns if c.startswith('RAC1P')]
+    #     df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
+    #     df = df.drop(columns=race_cols)
+    #     # df = df.drop(['OCCP', 'RELP'], axis=1)
+    #
+    #
+    #     return df
 
 
     def _save_metadata(self):
@@ -716,8 +814,8 @@ class FederatedIncomeDataset:
                                          f"{mode}.csv")
         task_data = pd.read_csv(file_path)
 
-        if self.use_linear:
-            task_data = self._process_for_linear_model(task_data)
+        # if self.use_linear:
+        #     task_data = self._process_for_linear_model(task_data)
 
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
