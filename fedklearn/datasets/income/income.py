@@ -320,8 +320,8 @@ class FederatedIncomeDataset:
             pd.DataFrame: Processed training data.
             """
 
-        if self.split_criterion != 'correlation':
-            raise ValueError("Linear model is  supported only for split criterion 'correlation'.")
+        if self.split_criterion not in  ['correlation', 'random']:
+            raise ValueError("Linear model is  supported only for split criterion: 'correlation', 'random.")
 
         if self.state.lower() not in STATES:
             raise ValueError(f"State {self.state} not found in the dataset.")
@@ -716,7 +716,7 @@ class FederatedIncomeDataset:
         num_small_groups = self.n_tasks - num_big_groups
         tasks_dict = dict()
 
-        df.drop('ST', axis=1, inplace=True)
+        #df.drop('ST', axis=1, inplace=True)
 
         for i in range(num_small_groups):
             tasks_dict[f"{i}"] = df.iloc[group_size * i: group_size * (i + 1)]
