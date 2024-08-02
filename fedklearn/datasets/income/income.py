@@ -308,6 +308,8 @@ class FederatedIncomeDataset:
     @staticmethod
     def _group_cow(x):
         if x in [1, 2]:
+            x = 0.
+        elif x in [3, 4, 5]:
             x = 1.
         else:
             x = 2.
