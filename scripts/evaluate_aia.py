@@ -556,13 +556,19 @@ def main():
         scores_path = os.path.join(args.results_dir, f"lmra_round_{args.active_round}.json")
     else:
         scores_path = os.path.join(args.results_dir, "lmra.json")
-    with open(scores_path, "r") as f:
-        scores_dict = json.load(f)
+    if os.path.exists(scores_path):
+        with open(scores_path, "r") as f:
+            scores_dict = json.load(f)
 
-    scores_dict.update(all_scores)
-    with open(scores_path, "w") as f:
-        json.dump(scores_dict, f)
-    logging.info(f"Scores saved in {scores_path}")
+        scores_dict.update(all_scores)
+        with open(scores_path, "w") as f:
+            json.dump(scores_dict, f)
+        logging.info(f"Scores saved in {scores_path}")
+
+    else:
+        with open(scores_path, "w") as f:
+            json.dump(all_scores, f)
+        logging.info(f"Scores saved in {scores_path}")
 
 if __name__ == "__main__":
     main()
