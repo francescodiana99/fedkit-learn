@@ -200,7 +200,7 @@ class FederatedIncomeDataset:
             self._load_task_mapping()
 
         elif not self.download and self.force_generation:
-            if use_linear:
+            if use_linear and not self.state == 'full':
                 logging.info(f"Processing data for linear models..")
                 self._preprocess_linear()
             else:
@@ -235,7 +235,7 @@ class FederatedIncomeDataset:
 
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
-            if use_linear:
+            if use_linear and not self.state == 'full':
                 train_df, test_df = self._preprocess_linear()
             else:
                 if self.state == 'full':
@@ -356,11 +356,7 @@ class FederatedIncomeDataset:
 
         train_df = self._scale_features_linear(train_df, self.scaler, mode='train')
         test_df = self._scale_features_linear(test_df, self.scaler, mode='test')
-        plt.hist(train_df['PINCP'], bins=50)
-        plt.show()
 
-        plt.hist(test_df['PINCP'], bins=50)
-        plt.show()
 
         os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
@@ -370,6 +366,50 @@ class FederatedIncomeDataset:
         logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
 
         return train_df, test_df
+
+    def _process_full_for_linear_model(self, df):
+        """Process data from all the states for linear models"""
+
+        for col in ['OCCP', 'RELP',]:
+            dummy_cols = [c for c in df.columns if col in c]
+            df = df.drop(columns=dummy_cols)
+
+        race_cols = [c for c in df.columns if c.startswith('RAC1P')]
+        mar_cols = [c for c in df.columns if c.startswith('MAR')]
+        cow_cols = [c for c in df.columns if c.startswith('COW')]
+        cow_1_rows = (df[cow_cols] == 0).all(axis=1)
+        df['COW'] = df[cow_cols].idxmax(axis=1).str.replace('COW_', '').astype('float')
+        df['COW'][cow_1_rows] = 1.
+
+        mar_1_rows = (df[mar_cols] == 0).all(axis=1)
+        df['MAR'] = df[mar_cols].any(axis=1).astype(float)
+
+        race_1_rows = (df[race_cols] == 0).all(axis=1)
+        df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
+
+        df = df.drop(columns=mar_cols)
+        df = df.drop(columns=race_cols)
+        df = df.drop(columns=cow_cols)
+
+        CATEGORICAL_COLUMNS.remove('OCCP')
+        CATEGORICAL_COLUMNS.remove('RELP')
+
+        df['RAC1P'] = df['RAC1P'].apply(lambda x: 1. if x == 0 else 2.)
+        df['MAR'] = df['MAR'].apply(lambda x: 1. if x == 0 else 2.)
+        df['COW'] = df['COW'].apply(self._group_cow)
+
+        # note, the one-hot encoding is done only on 'COW' because for binary feature is better to not have 0 values
+        df = pd.get_dummies(df, columns=['COW'], dtype=np.float64, drop_first=False)
+
+        train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
+        test_df = df.drop(train_df.index).reset_index(drop=True)
+        train_df.reset_index(drop=True, inplace=True)
+
+        train_df = self._scale_features_linear(train_df, self.scaler, mode='train')
+        test_df = self._scale_features_linear(test_df, self.scaler, mode='test')
+
+        return train_df, test_df
+
 
     def _preprocess_full_data(self):
         """
@@ -424,20 +464,34 @@ class FederatedIncomeDataset:
         sampled_states = [self._sample_state(state_group, int(n_train[state])) for state, state_group in df_grouped]
         train_df = pd.concat(sampled_states)
 
-        test_df = df.drop(train_df.index).reset_index(drop=True)
-        train_df.reset_index(drop=True, inplace=True)
+        if self.use_linear:
+            train_df, test_df = self._process_full_for_linear_model(train_df)
 
-        train_df = self._scale_features(train_df, self.scaler, mode='train')
-        test_df = self._scale_features(test_df, self.scaler, mode='test')
+            os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
-        os.makedirs(self._intermediate_data_dir, exist_ok=True)
+            train_df.to_csv(os.path.join(self._intermediate_data_dir, "train.csv"), index=False)
+            test_df.to_csv(os.path.join(self._intermediate_data_dir, "test.csv"), index=False)
 
-        train_df.to_csv(os.path.join(self._intermediate_data_dir, "train.csv"), index=False)
-        test_df.to_csv(os.path.join(self._intermediate_data_dir, "test.csv"), index=False)
+            logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
 
-        logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
+            return train_df, test_df
 
-        return train_df, test_df
+        else:
+
+            test_df = df.drop(train_df.index).reset_index(drop=True)
+            train_df.reset_index(drop=True, inplace=True)
+
+            train_df = self._scale_features(train_df, self.scaler, mode='train')
+            test_df = self._scale_features(test_df, self.scaler, mode='test')
+
+            os.makedirs(self._intermediate_data_dir, exist_ok=True)
+
+            train_df.to_csv(os.path.join(self._intermediate_data_dir, "train.csv"), index=False)
+            test_df.to_csv(os.path.join(self._intermediate_data_dir, "test.csv"), index=False)
+
+            logging.info(f"Preprocessed data saved to {self._intermediate_data_dir}.")
+
+            return train_df, test_df
 
     @staticmethod
     def _set_scaler(scaler_name):
@@ -495,8 +549,15 @@ class FederatedIncomeDataset:
         cow_cols = [col for col in df.columns if col.startswith('COW')]
         num_cols = list(set(df.columns) - set(cow_cols))
 
-        features_numerical = np.log(df[num_cols])
         cat_feat = df[cow_cols]
+
+        if 'ST' in num_cols:
+            num_cols.remove('ST')
+
+        features_numerical = np.log(df[num_cols])
+
+        if self.state == 'full':
+            state_col = df['ST']
 
         if mode == 'train':
             features_numerical_scaled = pd.DataFrame(scaler.fit_transform(features_numerical), columns=num_cols)
@@ -504,6 +565,9 @@ class FederatedIncomeDataset:
             features_numerical_scaled = pd.DataFrame(scaler.transform(features_numerical), columns=num_cols)
 
         features_scaled = pd.concat([cat_feat, features_numerical_scaled], axis=1)
+
+        if self.state == 'full':
+            features_scaled = pd.concat([state_col, features_scaled], axis=1)
 
         return features_scaled
 
