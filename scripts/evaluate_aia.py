@@ -183,7 +183,12 @@ def parse_args(args_list=None):
         type=int,
         help="Active round to test",
         default=None
+    )
 
+    parser.add_argument(
+        "--isolated",
+        action="store_true",
+        help="Use isolated models"
     )
 
     if args_list is None:
@@ -401,11 +406,15 @@ def main():
         all_models_metadata_dict = swap_dict_levels(all_models_metadata_dict)
 
     if args.active_round is not None:
-        with open(args.active_models_metadata_path, "r") as f:
-            all_active_models_metadata_dict = json.load(f)
-            all_active_models_metadata_dict.pop("global", None)
-            all_active_models_metadata_dict.pop('server', None)
-            all_active_models_metadata_dict = swap_dict_levels(all_active_models_metadata_dict)
+        if args.isolated is True:
+            with open(args.active_models_metadata_path, "r") as f:
+                all_active_models_metadata_dict = json.load(f)
+        else:
+            with open(args.active_models_metadata_path, "r") as f:
+                all_active_models_metadata_dict = json.load(f)
+                all_active_models_metadata_dict.pop("global", None)
+                all_active_models_metadata_dict.pop('server', None)
+                all_active_models_metadata_dict = swap_dict_levels(all_active_models_metadata_dict)
 
     with open(args.models_config_metadata_path, "r") as f:
         models_config_metadata_dict = json.load(f)

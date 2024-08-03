@@ -168,12 +168,6 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--noise_factor",
-        type=float,
-        default=None,
-        help="Noise factor to simulate server update")
-
-    parser.add_argument(
         '--n_local_steps',
     type=int,
     help="Number of simulated local batch updates")
@@ -223,19 +217,6 @@ def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, cri
         metric=metric
 
     )
-
-def add_noise(model, noise_model, noise_factor):
-    """
-    Add noise to the model weights.
-
-    """
-    for layer1, layer2 in zip(model.layers, noise_model.layers):
-        if isinstance(layer1, torch.nn.Linear) and isinstance(layer2, torch.nn.Linear):
-            assert layer1.weight.shape == layer2.weight.shape, "Model layers must have the same shape"
-            layer1.weight.data += (layer2.weight.data * noise_factor)
-            layer1.bias.data += (layer2.bias.data * noise_factor)
-
-    return model
 
 
 def main():

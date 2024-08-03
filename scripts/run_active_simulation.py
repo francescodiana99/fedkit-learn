@@ -619,7 +619,7 @@ def main():
 
         logging.info("=" * 100)
         logging.info(f"Best hyperparameters: {study.best_params}")
-        logging.info(f"Optimization results saved in: {abs_log_dir}/hp_dashboard.db")
+        logging.info(f"Optimization results saved in: {abs_log_dir}/hp_dashboard_{args.attacked_round}.db")
         logging.info("=" * 100)
 
     logging.info("Loading clients from checkpoints...")
