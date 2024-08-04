@@ -447,10 +447,10 @@ def main():
             checkpoint = {'model_state_dict': recon_model.state_dict()}
             torch.save(checkpoint, os.path.join(args.reconstructed_models_dir, f'{task_id}.pt'))
 
-        results_dict['attack_accuracy'][f'{task_id}'] = recon_aia_score
-        results_dict['norm_diff'][f'{task_id}'] = norm_distance
-        results_dict['loss_diff'][f'{task_id}'] = abs((emp_opt_loss - recon_loss))
-        results_dict['n_samples'][f'{task_id}'] = len(train_dataset)
+        results_dict['attack_accuracy'][f'{task_id}'] = str(recon_aia_score)
+        results_dict['norm_diff'][f'{task_id}'] = str(norm_distance)
+        results_dict['loss_diff'][f'{task_id}'] = str(abs((emp_opt_loss - recon_loss)))
+        results_dict['n_samples'][f'{task_id}'] = str(len(train_dataset))
 
     os.makedirs(args.results_dir, exist_ok=True)
     with open(os.path.join(args.results_dir, 'linear_reconstruciton.json'), 'w') as f:
