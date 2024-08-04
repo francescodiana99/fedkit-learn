@@ -394,8 +394,8 @@ def main():
         recon_trainer = initialize_trainer(recon_model, args)
         emp_opt_trainer = initialize_trainer(emp_opt_model, args)
 
-        recon_loss, recon_metric = recon_trainer.evaluate(train_loader)
-        emp_opt_loss, emp_opt_metric = emp_opt_trainer.evaluate(train_loader)
+        recon_loss, recon_metric = recon_trainer.evaluate_loader(train_loader)
+        emp_opt_loss, emp_opt_metric = emp_opt_trainer.evaluate_loader(train_loader)
 
         logging.info(f'Reconstructed Loss: {recon_loss} | Metric: {recon_metric}')
         logging.info(f'Local Loss: {emp_opt_loss} | Metric: {emp_opt_metric}')
