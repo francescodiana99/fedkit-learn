@@ -10,7 +10,7 @@ from tqdm import tqdm
 import torch
 import random
 
-from utils import load_dataset, set_seeds, evaluate_aia, initialize_model, get_gpu
+from utils import *
 
 import numpy as np
 import json
@@ -104,6 +104,19 @@ def parse_args():
         help='Track time'
         )
 
+    parser.add_argument(
+        '-v', '--verbose',
+        help='Increase verbosity level. Repeat for more detailed log messages.',
+        action='count',
+        default=0
+    )
+
+    parser.add_argument(
+        '-q', '--quiet',
+        help='Decrease verbosity level. Repeat for less detailed log messages.',
+        action='count',
+        default=0
+    )
 
     return parser.parse_args()
 
@@ -327,6 +340,8 @@ def main():
 
     args = parse_args()
 
+    configure_logging(args)
+
     set_seeds(args.seed)
 
     rng = np.random.default_rng(args.seed)
@@ -366,7 +381,7 @@ def main():
             results_dict['exec_time'][task_id] = end - start
 
         recon_model = model_init_fn()
-        set_param_tensor(recon_model, reconstructed_params)
+        set_param_tensor(model=recon_model, param_tensor=reconstructed_params, device=args.device)
 
         emp_opt_model = model_init_fn()
         emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'])["model_state_dict"]
