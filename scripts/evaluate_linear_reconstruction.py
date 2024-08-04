@@ -147,6 +147,11 @@ def initialize_trainer(model, args):
         metric = mean_absolute_error
         is_binary_classification = False
 
+    elif args.task_name == "linear_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
     elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error

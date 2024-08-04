@@ -43,6 +43,8 @@ class FederatedMedicalCostDataset:
 
         scale_target (bool): flag to indicate if the target column should be scaled. Default is True.
 
+        use_linear (bool): flag to indicate if the data should be processed for a linear model. Default is False.
+
     Attributes:
         cache_dir (str): The directory path to store the downloaded and processed data.
 
@@ -109,7 +111,7 @@ class FederatedMedicalCostDataset:
     """
 
     def __init__(self, cache_dir="./", download=True, rng=None, force_generation=True, n_tasks=4, split_criterion="random",
-                 test_frac=None, scaler="standard", scale_target=True):
+                 test_frac=None, scaler="standard", scale_target=True, use_linear=False):
         self.cache_dir = cache_dir
         self.download = download
         self.force_generation = force_generation
@@ -120,6 +122,7 @@ class FederatedMedicalCostDataset:
         self.raw_data_dir = os.path.join(self.cache_dir, "raw")
         self.intermediate_data_dir = os.path.join(self.cache_dir, "intermediate")
         self.tasks_folder = os.path.join(self.cache_dir, "tasks")
+        self.use_linear = use_linear
 
         if rng is None:
             rng = np.random.default_rng()
@@ -186,8 +189,7 @@ class FederatedMedicalCostDataset:
         os.remove(zip_file_path)
 
 
-    @staticmethod
-    def _scale_features( df, scaler, mode="train", scale_target=True):
+    def _scale_features(self, df, mode="train"):
         """
         Scales the features in the DataFrame. If `scale_target` is True, the target column is also scaled.
         Args:
@@ -201,32 +203,50 @@ class FederatedMedicalCostDataset:
             pd.DataFrame: The DataFrame containing the scaled features and target columns.
 
         """
-        numerical_columns = df.select_dtypes(include=[np.number]).columns
-        numerical_columns = numerical_columns[numerical_columns != 'charges']
-        charges_column = df['charges']
-        features_numerical = df[numerical_columns]
 
-        if not scale_target:
+        # TODO: this code should be written in a cleaner way
+        categorical_columns = ['sex_male', 'smoker_yes', 'region_northwest', 'region_southeast', 'region_southwest']
+        numerical_columns = [c for c  in df.columns if c not in categorical_columns]
+        features_numerical = df[numerical_columns]
+        features_categorical = df[categorical_columns]
+        charges_column = df["charges"]
+        features_numerical = features_numerical.drop("charges", axis=1)
+
+        if self.use_linear:
+            features_numerical = features_numerical + 1
+            features_numerical = pd.concat([features_numerical, charges_column], axis=1)
+            numerical_columns = features_numerical.columns
+            numerical_log = np.log(features_numerical)
+            if mode == "train":
+                numerical_scaled = self.scaler.fit_transform(numerical_log)
+            else:
+                numerical_scaled = self.scaler.transform(numerical_log)
+
+            df_scaled = pd.DataFrame(numerical_scaled, columns=numerical_columns)
+            df_scaled = pd.concat([features_categorical, df_scaled], axis=1)
+            return df_scaled
+
+        if not self.scale_target:
             if mode == "train":
                 features_numerical_scaled = \
-                    pd.DataFrame(scaler.fit_transform(features_numerical), columns=numerical_columns)
+                    pd.DataFrame(self.scaler.fit_transform(features_numerical), columns=numerical_columns)
             else:
                 features_numerical_scaled = \
-                    pd.DataFrame(scaler.transform(features_numerical), columns=numerical_columns)
+                    pd.DataFrame(self.scaler.transform(features_numerical), columns=numerical_columns)
 
             # Resetting index of both charges_column and features_numerical_scaled
             charges_column = charges_column.reset_index(drop=True)
             features_numerical_scaled = features_numerical_scaled.reset_index(drop=True)
 
-            features_scaled = pd.concat([features_numerical_scaled, charges_column], axis=1)
+            features_scaled = pd.concat([features_numerical_scaled, features_categorical, charges_column], axis=1)
 
             return features_scaled
 
         else:
             if mode =="train":
-                df = pd.DataFrame(scaler.fit_transform(df), columns=df.columns)
+                df = pd.DataFrame(self.scaler.fit_transform(df), columns=df.columns)
             else:
-                df = pd.DataFrame(scaler.transform(df), columns=df.columns)
+                df = pd.DataFrame(self.scaler.transform(df), columns=df.columns)
             return df
 
 
@@ -244,8 +264,10 @@ class FederatedMedicalCostDataset:
         train_df, test_df = train_test_split(df, test_size=self.test_frac,
                                              random_state=self.rng.integers(low=0, high=1000))
 
-        train_df = self._scale_features(train_df, self.scaler, mode="train", scale_target=self.scale_target)
-        test_df = self._scale_features(test_df, self.scaler, mode="test", scale_target=self.scale_target)
+        train_df = train_df.reset_index(drop=True)
+        test_df = test_df.reset_index(drop=True)
+        train_df = self._scale_features(train_df, mode="train")
+        test_df = self._scale_features(test_df, mode="test")
 
         if self.intermediate_data_dir is not None:
             os.makedirs(self.intermediate_data_dir, exist_ok=True)

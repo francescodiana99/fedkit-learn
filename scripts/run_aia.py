@@ -35,9 +35,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'binary_income', 'linear_income'],
+                 'income', 'binary_income', 'linear_income', 'linear_medical_cost'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification, 'purchase', 'purchase_binary, "
-             "'medical_cost', 'income', 'binary_income', 'linear_income'.",
+             "'medical_cost', 'income', 'binary_income', 'linear_income', 'linear_medical_cost'.",
         required=True
     )
 
@@ -307,6 +307,9 @@ def main():
     elif args.task_name == "medical_cost":
         criterion = nn.MSELoss().to(args.device)
         is_binary_classification = True
+    elif args.task_name == "linear_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        is_binary_classification = True
     elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         is_binary_classification = True
@@ -347,7 +350,7 @@ def main():
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
         if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income", "binary_income",
-                              "linear_income"] :
+                              "linear_income", "linear_medical_cost"]: 
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":

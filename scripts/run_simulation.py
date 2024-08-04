@@ -112,9 +112,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'binary_income', 'linear_income'],
+                 'income', 'binary_income', 'linear_income', 'linear_medical_cost'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
-             " 'income', 'binary_income', 'linear_income'.",
+             " 'income', 'binary_income', 'linear_income', 'linear_medical_cost'.",
         required=True
     )
 
@@ -588,6 +588,20 @@ def initialize_dataset(args, rng):
             scaler=args.scaler_name,
             scale_target=args.scale_target
         )
+
+    elif args.task_name =="linear_medical_cost":
+        return FederatedMedicalCostDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            test_frac=args.test_frac,
+            scaler=args.scaler_name,
+            scale_target=args.scale_target,
+            use_linear=True
+        )
     if args.task_name == "income":
         return FederatedIncomeDataset(
             cache_dir=args.data_dir,
@@ -692,6 +706,11 @@ def initialize_trainer(args):
         is_binary_classification = True
 
     elif args.task_name == "medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
+    elif args.task_name == "linear_medical_cost":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
         is_binary_classification = False
