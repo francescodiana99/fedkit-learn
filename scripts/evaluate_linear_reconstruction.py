@@ -435,8 +435,8 @@ def main():
 
         logging.info(f'Reconstructed AIA Score: {recon_aia_score} | Optimal AIA Score: {opt_aia_score}')
         logging.info('+' * 50)
-        empt_opt_params = empt_opt_params.get_param_tensor().cpu().numpy()
-        norm_distance = np.linalg.norm(empt_opt_params - reconstructed_params.numpy())
+        emp_opt_params = emp_opt_trainer.get_param_tensor().cpu().numpy()
+        norm_distance = np.linalg.norm(emp_opt_params - reconstructed_params.numpy())
         if args.reconstructed_models_dir is not None:
             os.makedirs(args.reconstructed_models_dir, exist_ok=True)
             checkpoint = {'model_state_dict': recon_model.state_dict()}
