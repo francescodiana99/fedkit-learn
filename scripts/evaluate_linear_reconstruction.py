@@ -55,13 +55,6 @@ def parse_args():
         default=None
         )
 
-    parser.add_argument(
-        '--log_dir',
-        type=str,
-        default='./logs',
-        help='Log directory'
-        )
-
 
     parser.add_argument(
         '--seed',
