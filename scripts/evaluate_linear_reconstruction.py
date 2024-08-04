@@ -87,7 +87,7 @@ def parse_args():
 
     parser.add_argument(
         '--sensitive_attribute',
-        type='str',
+        type=str,
         help='Sensitive attribute to attack'
         )
 
