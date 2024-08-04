@@ -10,7 +10,7 @@ from tqdm import tqdm
 import torch
 import random
 
-from utils import load_dataset, set_seed, evaluate_aia, initialize_model, get_gpu
+from utils import load_dataset, set_seeds, evaluate_aia, initialize_model, get_gpu
 
 import numpy as np
 import json
@@ -327,7 +327,7 @@ def main():
 
     args = parse_args()
 
-    set_seed(args.seed)
+    set_seeds(args.seed)
 
     rng = np.random.default_rng(args.seed)
 
