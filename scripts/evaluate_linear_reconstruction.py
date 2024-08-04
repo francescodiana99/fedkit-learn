@@ -384,7 +384,8 @@ def main():
         set_param_tensor(model=recon_model, param_tensor=reconstructed_params, device=args.device)
 
         emp_opt_model = model_init_fn()
-        emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'])["model_state_dict"]
+        last_round = max([int(i) for i in metadata_dict[f'{task_id}'].keys()])
+        emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'][f'{last_round}'])["model_state_dict"]
         emp_opt_model.load_state_dict(emp_opt_chkpts)
 
         train_dataset = federated_dataset.get_task_dataset(task_id, mode='train')
