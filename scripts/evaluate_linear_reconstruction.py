@@ -51,7 +51,6 @@ def parse_args():
     parser.add_argument(
         '--reconstructed_models_dir',
         type=str,
-        default='./reconstructed_models',
         help='Reconstructed models directory. If None, the models will not be saved.',
         default=None
         )
@@ -420,6 +419,7 @@ def main():
         empt_opt_params = empt_opt_params.get_param_tensor().cpu().numpy()
         norm_distance = np.linalg.norm(empt_opt_params - reconstructed_params.numpy())
         if args.reconstructed_models_dir is not None:
+            os.makedirs(args.reconstructed_models_dir, exist_ok=True)
             checkpoint = {'model_state_dict': recon_model.state_dict()}
             torch.save(checkpoint, os.path.join(args.reconstructed_models_dir, f'{task_id}.pt'))
 
