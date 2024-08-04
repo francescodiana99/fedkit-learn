@@ -449,7 +449,7 @@ def main():
 
         results_dict['attack_accuracy'][task_id] = recon_aia_score
         results_dict['norm_diff'][task_id] = norm_distance
-        results_dict['loss_diff'][task_id] = abs(emp_opt_loss - recon_loss)
+        results_dict['loss_diff'][task_id] = abs(float(emp_opt_loss - recon_loss))
         results_dict['n_samples'][task_id] = len(train_dataset)
 
     os.makedirs(args.results_dir, exist_ok=True)
