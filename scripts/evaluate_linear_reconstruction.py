@@ -400,10 +400,13 @@ def main():
         logging.info(f'Reconstructed Loss: {recon_loss} | Metric: {recon_metric}')
         logging.info(f'Local Loss: {emp_opt_loss} | Metric: {emp_opt_metric}')
 
+        # TODO: get sensitive attribute type
+        sensitive_attribute_id = train_dataset.column_name_to_id[args.sensitive_attribute]
+
         recon_aia_score = evaluate_aia(
             model=recon_model,
             dataset=train_dataset,
-            sensitive_attribute_id=args.sensitive_attribute,
+            sensitive_attribute_id=sensitive_attribute_id,
             sensitive_attribute_type='binary',
             initialization='normal',
             device=args.device,
@@ -418,7 +421,7 @@ def main():
         opt_aia_score = evaluate_aia(
                 model=emp_opt_model,
                 dataset=train_dataset,
-                sensitive_attribute_id=args.sensitive_attribute,
+                sensitive_attribute_id=sensitive_attribute_id,
                 sensitive_attribute_type='binary',
                 initialization='normal',
                 device=args.device,
