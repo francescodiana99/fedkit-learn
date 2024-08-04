@@ -435,8 +435,13 @@ def main():
 
         logging.info(f'Reconstructed AIA Score: {recon_aia_score} | Optimal AIA Score: {opt_aia_score}')
         logging.info('+' * 50)
+
         emp_opt_params = emp_opt_trainer.get_param_tensor().cpu().numpy()
         norm_distance = np.linalg.norm(emp_opt_params - reconstructed_params.numpy())
+
+        logging.info(f'Norm distance: {norm_distance}')
+        logging.info(f'Loss difference: {abs(emp_opt_loss - recon_loss)}')
+
         if args.reconstructed_models_dir is not None:
             os.makedirs(args.reconstructed_models_dir, exist_ok=True)
             checkpoint = {'model_state_dict': recon_model.state_dict()}
@@ -447,6 +452,7 @@ def main():
         results_dict['loss_diff'][task_id] = abs(emp_opt_loss - recon_loss)
         results_dict['n_samples'][task_id] = len(train_dataset)
 
+    os.makedirs(args.results_dir, exist_ok=True)
     with open(os.path.join(args.results_dir, 'linear_reconstruciton.json'), 'w') as f:
         json.dump(results_dict, f)
 
