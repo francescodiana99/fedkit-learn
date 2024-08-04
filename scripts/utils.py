@@ -269,6 +269,22 @@ def load_dataset(task_name, data_dir, rng):
             split_criterion=split_criterion,
             n_tasks=n_tasks
         )
+
+    elif task_name == "linear_medical_cost":
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        cache_dir = metadata_dict['cache_dir']
+        n_tasks = metadata_dict["n_tasks"]
+        return FederatedMedicalCostDataset(
+            cache_dir=cache_dir,
+            download=False,
+            force_generation=False,
+            rng=rng,
+            split_criterion=split_criterion,
+            n_tasks=n_tasks,
+            use_linear=True
+        )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{task_name}' is not implemented."
