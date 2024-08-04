@@ -510,7 +510,8 @@ def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
         criterion=criterion,
         optimizer=optimizer,
         metric=metric,
-        device=args.device
+        device=args.device,
+        is_binary_classification=is_binary_classification
         )
 
 

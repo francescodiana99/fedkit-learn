@@ -701,6 +701,13 @@ def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep
         }
     return client_messages_metadata
 
-def binarize_dataset(federated_dataset):
-    """Binarize a regression dataset to a binary classification dataset."""
+def get_gpu():
+    """
+    Get the name of the GPU device if available.
+    """
+    if torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        return gpu_name
+    else:
+        return "No GPU found or CUDA is not available."
 

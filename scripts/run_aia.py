@@ -9,6 +9,7 @@ import logging
 import numpy as np
 
 from tqdm import tqdm
+import time
 
 
 from torch.utils.tensorboard import SummaryWriter
@@ -231,6 +232,13 @@ def parse_args(args_list=None):
         help='If set, it will simulate an active server with Adam server'
     )
 
+    parser.add_argument(
+        "--track_time",
+        action="store_true",
+        default=False,
+        help="If set, it will track the time of the attack."
+    )
+
     if args_list is None:
         return parser.parse_args()
     else:
@@ -324,6 +332,7 @@ def main():
     all_clients_scores = []
     all_clients_cos_dis = []
     all_clients_l2_dis = []
+    all_clients_att_time = []
 
     pbar = tqdm(range(num_clients))
     attacked_client_id = 0
@@ -390,8 +399,14 @@ def main():
             flip_percentage=args.flip_percentage,
             test=args.test
         )
-
+        if args.track_time:
+            start_time = time.time()
         all_cos_dis, all_l2_dist = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)
+        if args.track_time:
+            end_time = time.time()
+            logging.info(f"Attack time for client {attacked_client_id}: {end_time - start_time:.3f} seconds")
+            all_clients_att_time.append(end_time - start_time)
+
         cos_dis = all_cos_dis[-1]
         l2_dist = all_l2_dist[-1]
 
@@ -424,6 +439,12 @@ def main():
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
     save_scores(scores_list=all_clients_l2_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_l2_dis.json"))
+    if args.track_time:
+        time_dict = dict()
+        time_dict["results"] =  [{"time": time, "n_samples": n_samples} for time, n_samples in zip(all_clients_att_time, n_samples_list)]
+        time_dict["device"] = get_gpu()
+        with open(args.results_path.replace(".json", "_time.json"), "w") as f:
+            json.dump(time_dict, f)
 
     logging.info(f"Results saved in {args.results_path}")
 if __name__ == "__main__":
