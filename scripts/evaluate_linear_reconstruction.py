@@ -331,13 +331,13 @@ def main():
 
     rng = np.random.default_rng(args.seed)
 
-    with open(os.path.join(args.metadata_dir, 'federated.json', 'r')) as f:
+    with open(os.path.join(args.metadata_dir, 'federated.json'), 'r') as f:
         metadata_dict = json.load(f)
 
-    with open(os.path.join(args.metadata_dir, 'local_trajectories.json', 'r')) as f:
+    with open(os.path.join(args.metadata_dir, 'local_trajectories.json'), 'r') as f:
         local_models_dict = json.load(f)
 
-    with open(os.path.join(args.metadata_dir, 'model_config.json', 'r')) as f:
+    with open(os.path.join(args.metadata_dir, 'model_config.json'), 'r') as f:
         model_config_path = json.load(f)
     model_init_fn = lambda: initialize_model(model_config_path["model_config"])
 
