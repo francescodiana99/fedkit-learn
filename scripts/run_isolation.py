@@ -41,9 +41,9 @@ def parse_args(args_list=None):
         '--task_name',
         type=str,
         choices=['adult', 'purchase', 'toy_classification', 'toy_regression', 'purchase_binary', 'medical_cost',
-                 'income'],
+                 'income', 'linear_income', 'linear_medical_cost'],
         help="Task name. Possible choices are 'adult', 'purchase', 'toy_classification', "
-             "'toy_regression', 'purchase_binary', 'medical_cost', 'income'",
+             "'toy_regression', 'purchase_binary', 'medical_cost', 'income','linear_income', 'linear_medical_cost'",
         required=True)
 
     parser.add_argument(
@@ -263,6 +263,12 @@ def main():
     elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         is_binary_classification = True
+    elif args.task_name == "linear_income":
+        criterion = nn.MSELoss().to(args.device)
+        is_binary_classification = True
+    elif args.task_name == "linear_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        is_binary_classification = True
     else:
         raise NotImplementedError(
             f"Network initialization for task '{args.task_name}' is not implemented"
@@ -307,6 +313,10 @@ def main():
         elif args.task_name == "medical_cost":
             metric = mean_squared_error
         elif args.task_name == "income":
+            metric = mean_squared_error
+        elif args.task_name == "linear_income":
+            metric = mean_squared_error
+        elif args.task_name == "linear_medical_cost":
             metric = mean_squared_error
         elif args.task_name == "toy_regression":
             metric = mean_squared_error
