@@ -172,11 +172,19 @@ def parse_args(args_list=None):
     type=int,
     help="Number of simulated local batch updates")
 
+    parser.add_argument(
+        '--attacked_task',
+        type=str,
+        help="If set, only the specified task will be attacked.",
+        default=None
+    )
+
 
     if args_list is None:
         return parser.parse_args()
     else:
         return parser.parse_args(args_list)
+
 
 
 def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, criterion, metric,
@@ -271,19 +279,23 @@ def main():
     final_isolated_models_metadata_dict = defaultdict(lambda : dict())
 
     pbar = tqdm(range(num_clients))
-    atacked_client_id = 0
+    if args.attacked_task is not None:
+        attacked_client_id = int(federated_dataset.task_id_to_name[args.attacked_task])
+        args.compute_single_client = True
+    else:
+        attacked_client_id = 0
 
-    while atacked_client_id < num_clients:
+    while attacked_client_id < num_clients:
         logging.info("=" * 100)
-        logging.info(f"Isolating client {atacked_client_id}")
+        logging.info(f"Isolating client {attacked_client_id}")
 
 
-        dataset = federated_dataset.get_task_dataset(task_id=atacked_client_id, mode=args.split)
+        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
         dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],
-            "local": all_messages_metadata[f"{atacked_client_id}"]
+            "local": all_messages_metadata[f"{attacked_client_id}"]
         }
 
         if args.task_name == "purchase":
@@ -327,32 +339,32 @@ def main():
 
             if step % args.save_freq == 0:
 
-                os.makedirs(os.path.join(args.isolated_models_dir, f"{atacked_client_id}"), exist_ok=True)
-                path = os.path.join(os.path.join(args.isolated_models_dir, f"{atacked_client_id}", f"{step}.pt"))
+                os.makedirs(os.path.join(args.isolated_models_dir, f"{attacked_client_id}"), exist_ok=True)
+                path = os.path.join(os.path.join(args.isolated_models_dir, f"{attacked_client_id}", f"{step}.pt"))
                 path = os.path.abspath(path)
                 active_trainer.save_checkpoint(path)
-                all_isolated_models_metadata_dict[f"{atacked_client_id}"][f"{step}"] = path
+                all_isolated_models_metadata_dict[f"{attacked_client_id}"][f"{step}"] = path
 
                 if active_trainer.lr_scheduler is not None:
                     active_trainer.lr_scheduler.step()
 
             logging.info("+" * 50)
-            logging.info(f"Task ID: {atacked_client_id}")
+            logging.info(f"Task ID: {attacked_client_id}")
             logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f} |")
             logging.info("+" * 50)
 
-        last_saved_iteration = max(all_isolated_models_metadata_dict[f"{atacked_client_id}"], key=int)
+        last_saved_iteration = max(all_isolated_models_metadata_dict[f"{attacked_client_id}"], key=int)
 
-        final_isolated_models_metadata_dict[f"{atacked_client_id}"] = (
-            all_isolated_models_metadata_dict[f"{atacked_client_id}"][last_saved_iteration]
+        final_isolated_models_metadata_dict[f"{attacked_client_id}"] = (
+            all_isolated_models_metadata_dict[f"{attacked_client_id}"][last_saved_iteration]
         )
 
         logging.info("Local model isolated successfully.")
 
-        atacked_client_id += 1
+        attacked_client_id += 1
         pbar.update(1)
         if args.compute_single_client:
-            atacked_client_id = num_clients
+            attacked_client_id = num_clients
 
     pbar.close()
 
