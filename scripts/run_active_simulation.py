@@ -484,6 +484,16 @@ def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
         metric = mean_absolute_error
         is_binary_classification = False
 
+    elif args.task_name == "linear_income":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
+    elif args.task_name == "linear_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
     else:
         raise NotImplementedError(
             f"Trainer initialization for task '{args.task_name}' is not implemented."
