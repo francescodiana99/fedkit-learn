@@ -368,9 +368,6 @@ def main():
         logging.info('+' * 50)
         logging.info(f'Reconstructing task {task_id}..')
 
-        if args.track_time:
-            start = time.time()
-
         reconstructed_params = reconstruct_model_params(args=args, metadata_dict=metadata_dict, task_id=task_id)
 
         if args.track_time:
