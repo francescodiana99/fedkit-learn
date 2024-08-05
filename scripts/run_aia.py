@@ -199,6 +199,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--attacked_task",
+        type=int,
+        default=None,
+        help="If set, the attack will be computed just for the specified client."
+    )
+
+    parser.add_argument(
         "--flip_percentage",
         type=float,
         default=0.0,
@@ -340,6 +347,10 @@ def main():
     pbar = tqdm(range(num_clients))
     attacked_client_id = 0
 
+    if args.attacked_task is not None:
+        attacked_client_id = args.attacked_task
+        args.compute_single_client = True
+
     while attacked_client_id < num_clients:
 
         logging.info("=" * 100)
@@ -350,7 +361,7 @@ def main():
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
 
         if args.task_name in ["adult", "purchase", "purchase_binary", "medical_cost", "income", "binary_income",
-                              "linear_income", "linear_medical_cost"]: 
+                              "linear_income", "linear_medical_cost"]:
             sensitive_attribute_id = dataset.column_name_to_id[args.sensitive_attribute]
             sensitive_attribute_type = args.sensitive_attribute_type
         elif args.task_name == "toy_classification" or args.task_name == "toy_regression":
