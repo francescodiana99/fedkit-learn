@@ -612,7 +612,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         logging.info("+" * 50)
         for client_id, client in enumerate(self.clients):
             train_loss, train_metric, test_loss, test_metric = client.write_logs()
-            logging.info(f"Client {client_id} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
+            logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
 
             global_train_loss += train_loss * client.n_train_samples
             global_train_metric += train_metric * client.n_train_samples

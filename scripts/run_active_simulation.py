@@ -49,9 +49,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income'],
+                 'income', 'linear_income', 'linear_medical_cost'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
-             " 'income'.",
+             " 'income', linear_income', 'linear_medical_cost'.",
         required=True
     )
 
@@ -356,6 +356,13 @@ def parse_args(args_list=None):
         help="If set, the optimization will be performed to minimize the norm of the pseudo-gradients"
     )
 
+    parser.add_argument(
+        "--attacked_task",
+        type=str,
+        default=None,
+        help="If set, the active attack will be performed on the specified client. Default is None"
+    )
+
 
     if args_list is None:
         return parser.parse_args()
@@ -364,8 +371,12 @@ def parse_args(args_list=None):
 
 # TODO: save for each server model the metadata
 def save_last_round_metadata(all_messages_metadata, metadata_dir, args):
-    last_saved_round_id = max(map(int, all_messages_metadata["0"].keys()))
-    _random_key = list(all_messages_metadata["0"].keys())[0]
+    if args.attacked_task is None:
+        last_saved_round_id = max(map(int, all_messages_metadata["0"].keys()))
+        _random_key = list(all_messages_metadata["0"].keys())[0]
+    else:
+        last_saved_round_id = max(map(int, all_messages_metadata[args.attacked_task].keys()))
+        _random_key = list(all_messages_metadata[args.attacked_task].keys())[0]
     last_saved_round_id = int(last_saved_round_id) if isinstance(_random_key, int) else str(last_saved_round_id)
 
     last_clients_messages_metadata = dict()
@@ -413,7 +424,6 @@ def objective(trial , federated_dataset, rng, args):
     simulator.write_logs(display_only=True)
     for round_id in tqdm(range(args.num_rounds)):
         logs_flag = (round_id % args.log_freq == 0)
-        # TODO: check why when putting save_s = False, results do not correspond
         simulator.simulate_active_round(save_chkpts=False, save_logs=logs_flag)
     logging.info('Search results..')
     train_loss, _, _, _ = simulator.write_logs(display_only=True)
@@ -555,17 +565,38 @@ def load_clients_from_chkpt(federated_dataset, args):
     clients = []
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         models_metadata_dict = json.load(f)
-    for task_id in federated_dataset.task_id_to_name:
+    if args.attacked_task is None:
+        for task_id in federated_dataset.task_id_to_name:
 
-        trainer = initialize_trainer(models_metadata_dict, args, task_id, mode='task')
+            trainer = initialize_trainer(models_metadata_dict, args, task_id, mode='task')
 
-        train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
-        test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
+            train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
+            test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
+
+            train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+            test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+
+            logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
+
+            client = Client(trainer=trainer,
+                            train_loader=train_loader,
+                            test_loader=test_loader,
+                            local_steps=args.local_steps,
+                            by_epoch=args.by_epoch,
+                            logger=logger,
+                            name=task_id
+                            )
+            clients.append(client)
+    else:
+        trainer = initialize_trainer(models_metadata_dict, args, args.attacked_task, mode='task')
+
+        train_dataset = federated_dataset.get_task_dataset(args.attacked_task, mode="train")
+        test_dataset = federated_dataset.get_task_dataset(args.attacked_task, mode="test")
 
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-        logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
+        logger = SummaryWriter(os.path.join(args.logs_dir, f"{args.attacked_task}"))
 
         client = Client(trainer=trainer,
                         train_loader=train_loader,
@@ -573,6 +604,7 @@ def load_clients_from_chkpt(federated_dataset, args):
                         local_steps=args.local_steps,
                         by_epoch=args.by_epoch,
                         logger=logger,
+                        name=args.attacked_task
                         )
         clients.append(client)
     return clients
