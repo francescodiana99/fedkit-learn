@@ -172,6 +172,13 @@ def parse_args(args_list=None):
         help="Compute the scores for a single client"
     )
 
+    parser.add_argument(
+        '--attacked_client',
+        type=int,
+        help="Client to attack. If set, only this client will be evaluated",
+        default=None,
+    )
+
     parser.add_argument("--attacked_rounds",
         nargs="+",
         help="Rounds to test",
@@ -235,7 +242,8 @@ def initialize_metadata_dict_from_checkpoint(metadata_path, round):
 
 def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_attribute_type, split,
     trainers_dict, reference_trainers_dict, criterion, is_binary_classification, learning_rate, optimizer_name,
-    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size, compute_single_client, active_trainers_dict=None):
+    aia_initialization, aia_num_rounds, device, rng, torch_rng, batch_size, compute_single_client, active_trainers_dict=None,
+    attacked_client=None):
 
     logging.info(f"Simulate AIA")
 
@@ -270,6 +278,9 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
     pbar = tqdm(range(num_clients))
     attacked_client_id = 0
+    if attacked_client is not None:
+        attacked_client_id = attacked_client
+        compute_single_client = True
     while attacked_client_id < num_clients:
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
@@ -475,7 +486,8 @@ def main():
             aia_initialization=args.initialization,
             aia_num_rounds=args.num_rounds,
             device=args.device,
-            rng=rng, torch_rng=torch_rng, compute_single_client= args.compute_single_client
+            rng=rng, torch_rng=torch_rng, compute_single_client= args.compute_single_client,
+            attacked_client=args.attacked_client
         )
 
 

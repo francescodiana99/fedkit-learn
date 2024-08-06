@@ -261,7 +261,7 @@ def main():
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
-
+    # TODO: fix this, should take only the clients in the metadata dict
     num_clients = len(federated_dataset.task_id_to_name)
 
     with open(args.metadata_path, "r") as f:
