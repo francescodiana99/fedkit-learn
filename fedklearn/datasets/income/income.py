@@ -177,7 +177,6 @@ class FederatedIncomeDataset:
         self.rng = rng
         self.seed = seed
 
-        # TODO: absolutely to refactor. Consider removing the split criterion file and put everything in the metadata file
 
         if self.split_criterion == 'correlation':
             if self.n_task_samples is None:
@@ -267,6 +266,7 @@ class FederatedIncomeDataset:
         df = df[df['ST'] == STATES[self.state]]
 
         df = df.dropna()
+
         df = df.drop_duplicates()
         df = df.reset_index(drop=True)
 
@@ -700,25 +700,32 @@ class FederatedIncomeDataset:
                                     ((df['PINCP'] <= median_income) & (df['SEX'] == upper_bound)))]
         df_poor_men_rich_women = df.drop(df_rich_men_poor_women.index)
 
+        min_size = min(len(df_poor_men_rich_women), len(df_rich_men_poor_women))
 
-        if self.mixing_coefficient < 0 or self.mixing_coefficient > 1:
-            raise ValueError("The mixing coefficient must be between 0 and 1.")
+        # ensure that the two groups have the same size
+        df_poor_men_rich_women = df_poor_men_rich_women.sample(n=min_size, random_state=self.seed).reset_index(drop=True)
+        df_rich_men_poor_women = df_rich_men_poor_women.sample(n=min_size, random_state=self.seed).reset_index(drop=True)
+
+
+
+        if self.mixing_coefficient < 0 or self.mixing_coefficient > 0.5:
+            raise ValueError("The mixing coefficient must be between 0 and 0.5.")
+
 
         if self.mixing_coefficient > 0:
-            n_mix_samples_rmpw = int(self.mixing_coefficient * len(df_rich_men_poor_women))
-            n_mix_samples_pmrw = int(self.mixing_coefficient * len(df_poor_men_rich_women))
-            mix_sample_rich_men_poor_women = df_rich_men_poor_women.sample(n=n_mix_samples_pmrw, random_state=self.seed)
-            mix_sample_poor_men_rich_women = df_poor_men_rich_women.sample(n=n_mix_samples_rmpw, random_state=self.seed)
+            n_mix_samples = int(min_size * (self.mixing_coefficient))
+            mix_sample_rich_men_poor_women = df_rich_men_poor_women.sample(n=n_mix_samples, random_state=self.seed)
+            mix_sample_poor_men_rich_women = df_poor_men_rich_women.sample(n=n_mix_samples, random_state=self.seed)
 
-            df_rich_men_poor_women = df_rich_men_poor_women[n_mix_samples_rmpw:]
-            df_poor_men_rich_women = df_poor_men_rich_women[n_mix_samples_pmrw:]
+            df_rich_men_poor_women = df_rich_men_poor_women.drop(mix_sample_rich_men_poor_women.index)
+            df_poor_men_rich_women = df_poor_men_rich_women.drop(mix_sample_poor_men_rich_women.index)
 
             df_rich_men_poor_women = pd.concat([df_rich_men_poor_women, mix_sample_poor_men_rich_women], axis=0)
             df_poor_men_rich_women = pd.concat([df_poor_men_rich_women, mix_sample_rich_men_poor_women], axis=0)
 
             # shuffle the data
-            df_rich_men_poor_women = df_rich_men_poor_women.sample(frac=1, random_state=self.seed)
-            df_poor_men_rich_women = df_poor_men_rich_women.sample(frac=1, random_state=self.seed)
+            df_rich_men_poor_women = df_rich_men_poor_women.sample(frac=1, random_state=self.seed).reset_index(drop=True)
+            df_poor_men_rich_women = df_poor_men_rich_women.sample(frac=1, random_state=self.seed).reset_index(drop=True)
 
         if self.n_task_samples is None:
             tasks_dict_poor_men = self._iid_tasks_divide(df_poor_men_rich_women, self.n_tasks // 2)
