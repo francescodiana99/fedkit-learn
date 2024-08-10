@@ -90,6 +90,7 @@ def configure_logging(args):
     """
     Set up logging based on verbosity level
     """
+    logging.getLogger().setLevel(logging.INFO)
     logging.basicConfig(level=logging.INFO - (args.verbose - args.quiet) * 10)
 
 def get_task_type(task_name):
