@@ -111,7 +111,7 @@ class FederatedMedicalCostDataset:
     """
 
     def __init__(self, cache_dir="./", download=True, rng=None, force_generation=True, n_tasks=4, split_criterion="random",
-                 test_frac=None, scaler="standard", scale_target=True, use_linear=False):
+                 test_frac=None, scaler="standard", scale_target=True, use_linear=False, use_dp=False):
         self.cache_dir = cache_dir
         self.download = download
         self.force_generation = force_generation
@@ -123,6 +123,7 @@ class FederatedMedicalCostDataset:
         self.intermediate_data_dir = os.path.join(self.cache_dir, "intermediate")
         self.tasks_folder = os.path.join(self.cache_dir, "tasks")
         self.use_linear = use_linear
+        self.use_dp = use_dp
 
         if rng is None:
             rng = np.random.default_rng()
@@ -212,7 +213,7 @@ class FederatedMedicalCostDataset:
         charges_column = df["charges"]
         features_numerical = features_numerical.drop("charges", axis=1)
 
-        if self.use_linear:
+        if self.use_linear or self.use_dp:
             features_numerical = features_numerical + 1
             features_numerical = pd.concat([features_numerical, charges_column], axis=1)
             numerical_columns = features_numerical.columns
@@ -248,8 +249,6 @@ class FederatedMedicalCostDataset:
             else:
                 df = pd.DataFrame(self.scaler.transform(df), columns=df.columns)
             return df
-
-
     def _preprocess(self):
         """Preprocesses the raw data and saves the intermediate data to the intermediate data folder."""
 
@@ -444,6 +443,8 @@ class FederatedMedicalCostDataset:
         task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion,f'{self.n_tasks}', task_name)
         file_path = os.path.join(task_cache_dir, f"{mode}.csv")
         task_data = pd.read_csv(file_path)
+        if self.scale_target:
+            task_data = self._scale_target(task_data, mode=mode)
         return MedicalCostDataset(task_data, name=task_name)
 
 

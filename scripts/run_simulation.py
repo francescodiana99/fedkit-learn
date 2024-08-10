@@ -120,9 +120,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'binary_income', 'linear_income', 'linear_medical_cost'],
+                 'income', 'binary_income', 'linear_income', 'linear_medical_cost', 'dp_income', 'dp_medical_cost'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
-             " 'income', 'binary_income', 'linear_income', 'linear_medical_cost'.",
+             " 'income', 'binary_income', 'linear_income', 'linear_medical_cost', 'dp_income', 'dp_medical_cost'.",
         required=True
     )
 
@@ -651,6 +651,22 @@ def initialize_dataset(args, rng):
             scale_target=args.scale_target,
             use_linear=True
         )
+
+    elif args.task_name =="dp_medical_cost":
+        return FederatedMedicalCostDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            test_frac=args.test_frac,
+            scaler=args.scaler_name,
+            scale_target=args.scale_target,
+            use_dp=True
+        )
+
+
     if args.task_name == "income":
         return FederatedIncomeDataset(
             cache_dir=args.data_dir,
@@ -705,6 +721,25 @@ def initialize_dataset(args, rng):
             mixing_coefficient=args.mixing_coefficient,
             keep_proportions=args.keep_proportions,
             use_linear=True
+        )
+
+    if args.task_name == "dp_income":
+        return FederatedIncomeDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            test_frac=args.test_frac,
+            scaler_name=args.scaler_name,
+            drop_nationality=not args.use_nationality,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            n_task_samples=args.n_task_samples,
+            seed=args.seed,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            state=args.state,
+            mixing_coefficient=args.mixing_coefficient,
+            keep_proportions=args.keep_proportions,
+            use_dp=True
         )
 
     else:
@@ -764,6 +799,11 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         metric = mean_absolute_error
         is_binary_classification = False
 
+    elif args.task_name == "dp_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
     elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
@@ -775,6 +815,11 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         is_binary_classification = True
 
     elif args.task_name == "linear_income":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
+    elif args.task_name == "dp_income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
         is_binary_classification = False

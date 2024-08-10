@@ -49,9 +49,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'linear_income', 'linear_medical_cost'],
+                 'income', 'linear_income', 'linear_medical_cost', 'dp_medical_cost', 'dp_income'],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
-             " 'income', linear_income', 'linear_medical_cost'.",
+             " 'income', linear_income', 'linear_medical_cost', 'dp_medical_cost', 'dp_income'.",
         required=True
     )
 
@@ -490,6 +490,16 @@ def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
         is_binary_classification = False
 
     elif args.task_name == "linear_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
+    elif args.task_name == "dp_medical_cost":
+        criterion = nn.MSELoss().to(args.device)
+        metric = mean_absolute_error
+        is_binary_classification = False
+
+    elif args.task_name == "dp_income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
         is_binary_classification = False

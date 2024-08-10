@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from collections import defaultdict
+import sys
 
 from tqdm import tqdm
 
@@ -90,8 +91,12 @@ def configure_logging(args):
     """
     Set up logging based on verbosity level
     """
-    logging.getLogger().setLevel(logging.INFO)
+    # TODO: this should be fixed. Opacus changes the default level to WARNING
     logging.basicConfig(level=logging.INFO - (args.verbose - args.quiet) * 10)
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    root_logger.setLevel(logging.INFO - (args.verbose - args.quiet) * 10)
 
 def get_task_type(task_name):
     task_types = {
@@ -221,6 +226,26 @@ def load_dataset(task_name, data_dir, rng):
             use_linear=True
         )
 
+    elif task_name == "dp_income":
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        n_tasks = metadata_dict["n_tasks"]
+        n_task_samples = metadata_dict["n_task_samples"]
+        cache_dir = metadata_dict['cache_dir']
+        state= metadata_dict['state']
+        mixing_coefficient = metadata_dict['mixing_coefficient']
+        return FederatedIncomeDataset(
+            cache_dir=cache_dir,
+            download=False,
+            split_criterion=split_criterion,
+            mixing_coefficient=mixing_coefficient,
+            state=state,
+            n_tasks=n_tasks,
+            n_task_samples=n_task_samples,
+            use_dp=True
+        )
+
     elif task_name == "purchase":
         with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
             split_dict = json.load(f)
@@ -288,6 +313,22 @@ def load_dataset(task_name, data_dir, rng):
             split_criterion=split_criterion,
             n_tasks=n_tasks,
             use_linear=True
+        )
+
+    elif task_name == "dp_medical_cost":
+        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        cache_dir = metadata_dict['cache_dir']
+        n_tasks = metadata_dict["n_tasks"]
+        return FederatedMedicalCostDataset(
+            cache_dir=cache_dir,
+            download=False,
+            force_generation=False,
+            rng=rng,
+            split_criterion=split_criterion,
+            n_tasks=n_tasks,
+            use_dp=True
         )
     else:
         raise NotImplementedError(
