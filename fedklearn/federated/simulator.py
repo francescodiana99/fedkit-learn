@@ -26,6 +26,7 @@ class Simulator(ABC):
         between the clients and the server, with client names as keys.
     - chkpts_folders_dict (dict): Dictionary containing paths to the checkpoint folders for the global model
             and each client, with client names as keys.
+    - use_dp (bool): Flag to determine whether to use differential privacy.
     - rng: Random number generator for reproducibility.
     - c_round (int): Counter to track the current round.
 
@@ -43,7 +44,7 @@ class Simulator(ABC):
     - simulate_round: Method for simulating one round of federated learning.
     """
 
-    def __init__(self, clients, global_trainer, logger, chkpts_dir, rng=None):
+    def __init__(self, clients, global_trainer, logger, chkpts_dir, use_dp=False, rng=None):
         """
          Initialize the federated learning simulator.
 
@@ -63,6 +64,8 @@ class Simulator(ABC):
         self.logger = logger
 
         self.chkpts_dir = chkpts_dir
+
+        self.use_dp = use_dp
 
         if rng is None:
             rng = np.random.default_rng()
@@ -201,8 +204,12 @@ class Simulator(ABC):
         total_n_test_samples = 0
 
         for client_id, client in enumerate(self.clients):
-
-            train_loss, train_metric, test_loss, test_metric = client.write_logs()
+            epsilon_list = []
+            if self.use_dp:
+                train_loss, train_metric, test_loss, test_metric, epsilon = client.write_logs()
+                epsilon_list.append(epsilon)
+            else:
+                train_loss, train_metric, test_loss, test_metric = client.write_logs()
 
             global_train_loss += train_loss * client.n_train_samples
             global_train_metric += train_metric * client.n_train_samples
@@ -220,6 +227,7 @@ class Simulator(ABC):
         logging.info("+" * 50)
         logging.info(f"Train Loss: {global_train_loss:.4f} | Train Metric: {global_train_metric:.4f} |")
         logging.info(f"Test Loss: {global_test_loss:.4f} | Test Metric: {global_test_metric:.4f} |")
+        logging.info(f"Avg. Epsilon: {np.mean(epsilon_list):.4f}")
         logging.info("+" * 50)
 
         self.logger.add_scalar("Train/Loss", global_train_loss, self.c_round)
@@ -611,8 +619,13 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         logging.info("+" * 50)
         for client_id, client in enumerate(self.clients):
-            train_loss, train_metric, test_loss, test_metric = client.write_logs()
-            logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
+            if self.use_dp:
+                train_loss, train_metric, test_loss, test_metric, epsilon = client.write_logs()
+                logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} \
+                             | Epsilon Spent: {epsilon:.4f}")
+            else:
+                train_loss, train_metric, test_loss, test_metric = client.write_logs()
+                logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
 
             global_train_loss += train_loss * client.n_train_samples
             global_train_metric += train_metric * client.n_train_samples
@@ -680,7 +693,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         total_train_loss = 0
         total_n_samples = 0
         for client in self.clients:
-            client_loss, client_metric = client.evaluate_train_loader()
+            client_loss, _ = client.evaluate_train_loader()
             total_train_loss += client_loss * client.n_train_samples
             total_n_samples += client.n_train_samples
         return total_train_loss / total_n_samples

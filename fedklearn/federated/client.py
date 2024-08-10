@@ -119,3 +119,36 @@ class Client:
         """
         return self.trainer.evaluate_loader(loader=self.test_loader)
 
+
+class DPClient(Client):
+    def __init__(self, trainer, train_loader, test_loader, local_steps, by_epoch, logger,  name=None):
+        super().__init__(trainer, train_loader, test_loader, local_steps, by_epoch, logger, name)
+        self.epsilon = 0
+
+    def step(self):
+        """
+         Perform training steps or epochs based on the specified configuration.
+         """
+        self.counter += 1
+
+        if self.by_epoch:
+            self.epsilon = self.trainer.fit_epochs(n_epochs=self.local_steps)
+
+        else:
+            raise NotImplementedError("DPClient does not support training by step")
+
+
+    def write_logs(self):
+        """
+        Log training and testing metrics using the provided logger.
+        """
+        train_loss, train_metric = self.trainer.evaluate_loader(loader=self.train_loader)
+        test_loss, test_metric = self.trainer.evaluate_loader(loader=self.test_loader)
+
+        self.logger.add_scalar("Train/Loss", train_loss, self.counter)
+        self.logger.add_scalar("Train/Metric", train_metric, self.counter)
+        self.logger.add_scalar("Test/Loss", test_loss, self.counter)
+        self.logger.add_scalar("Test/Metric", test_metric, self.counter)
+        self.logger.add_scalar("Privacy/Epsilon", self.epsilon, self.counter)
+
+        return train_loss, train_metric, test_loss, test_metric,self.epsilon

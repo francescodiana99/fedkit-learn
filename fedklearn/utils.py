@@ -21,6 +21,21 @@ def copy_model(target, source):
     target.load_state_dict(source.state_dict())
 
 
+def copy_optimizer(target, source):
+    """
+    Copy the state dictionary from the source optimizer to the target optimizer.
+
+    This function is used to synchronize the state of two PyTorch optimizers by copying
+    the state dictionary from the source optimizer to the target optimizer.
+
+    Parameters
+    ----------
+    - target (torch.optim.Optimizer): The target PyTorch optimizer to be updated.
+    - source (torch.optim.Optimizer): The source PyTorch optimizer from which the state dictionary is copied.
+    """
+    target.load_state_dict(source.state_dict())
+
+
 def get_param_tensor(model):
     """
     Get the parameters of the `model` as a unique flattened tensor.

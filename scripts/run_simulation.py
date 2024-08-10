@@ -12,7 +12,7 @@ Methods/Functions:
     - `binary_accuracy(y_pred, y)`: Calculate binary accuracy given predictions and ground truth.
     - `parse_args(args_list=None)`: Parse command-line arguments.
     - `initialize_dataset(args, rng)`: Initialize the federated dataset based on the specified task.
-    - `initialize_trainer(args)`: Initialize the trainer based on the specified task.
+    - `initialize_trainer(args, use_dp)`: Initialize the trainer based on the specified task.
     - `initialize_clients(federated_dataset, args)`: Initialize clients based on the federated
                                                      dataset and command-line arguments.
     - `initialize_simulator(clients, args, rng)`: Initialize the federated averaging simulator.
@@ -60,10 +60,18 @@ Options:
     --mixing_coefficient: Mixing coefficient for the mixing sample distribution in Adult dataset.
     --scale_target: Flag for scaling the target variable in the medical cost dataset.
     --active_server: Flag for using an active server that computes updates.
+    --alpha: Alpha parameter for the Adam optimizer in the active attack scenario.
     --beta1: Beta1 parameter for the Adam optimizer in the active attack scenario.
     --beta2: Beta2 parameter for the Adam optimizer in the active attack scenario.
     --epsilon: Epsilon parameter for the Adam optimizer in the active attack scenario.
     --attacked_round: Round in which the active attack is performed.
+    --use_dp: Flag for using differential privacy.
+    --noise_multiplier: Noise multiplier for differential privacy.
+    --clip_norm: Clipping norm for differential privacy.
+    --dp_delta: Delta for differential privacy.
+    --dp_epsilon: Epsilon for differential privacy.
+    --max_physical_batch_size: Maximum physical batch size for differential privacy.
+
 """
 import argparse
 import logging
@@ -87,8 +95,8 @@ from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDat
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
-from fedklearn.trainer.trainer import Trainer
-from fedklearn.federated.client import Client
+from fedklearn.trainer.trainer import Trainer, DPTrainer
+from fedklearn.federated.client import Client, DPClient
 from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
 
 from fedklearn.metrics import *
@@ -471,6 +479,47 @@ def parse_args(args_list=None):
         help="Alpha parameter for the Adam optimizer in the active attack scenario"
     )
 
+    parser.add_argument(
+        "--use_dp",
+        action="store_true",
+        default=False,
+        help="Flag for using differential privacy"
+    )
+
+    parser.add_argument(
+        "--noise_multiplier",
+        type=float,
+        default=None,
+        help="Noise multiplier for differential privacy"
+    )
+
+    parser.add_argument(
+        "--clip_norm",
+        type=float,
+        default=None,
+        help="Clipping norm for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_delta",
+        type=float,
+        default=None,
+        help="Delta for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_epsilon",
+        type=float,
+        default=None,
+        help="Epsilon for differential privacy"
+    )
+
+    parser.add_argument(
+        "--max_physical_batch_size",
+        type=int,
+        default=None,
+        help="Maximum physical batch size for differential privacy"
+    )
 
     if args_list is None:
         return parser.parse_args()
@@ -664,7 +713,7 @@ def initialize_dataset(args, rng):
         )
 
 
-def initialize_trainer(args):
+def initialize_trainer(args, use_dp=False, train_loader=None):
     """
     Initialize the trainer based on the specified task.
 
@@ -755,14 +804,31 @@ def initialize_trainer(args):
             f"Optimizer '{args.optimizer}' is not implemented."
         )
 
-    return Trainer(
-        model=model,
-        criterion=criterion,
-        metric=metric,
-        device=args.device,
-        optimizer=optimizer,
-        is_binary_classification=is_binary_classification,
+    if use_dp:
+        return DPTrainer(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=args.device,
+            optimizer=optimizer,
+            is_binary_classification=is_binary_classification,
+            max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size is not None else args.batch_size,
+            noise_multiplier=args.noise_multiplier,
+            epsilon=args.dp_epsilon,
+            delta=args.dp_delta,
+            clip_norm=args.clip_norm,
+            epochs=args.num_rounds * args.local_steps,
+            train_loader=train_loader
     )
+    else:
+        return Trainer(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=args.device,
+            optimizer=optimizer,
+            is_binary_classification=is_binary_classification,
+        )
 
 
 def initialize_clients(federated_dataset, args):
@@ -778,24 +844,35 @@ def initialize_clients(federated_dataset, args):
      """
     clients = []
     for task_id in federated_dataset.task_id_to_name:
-        trainer = initialize_trainer(args)
-
         train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
         test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
 
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
+        trainer = initialize_trainer(args, use_dp=args.use_dp, train_loader=train_loader)
+
         logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
 
-        client = Client(
-            trainer=trainer,
-            train_loader=train_loader,
-            test_loader=test_loader,
-            local_steps=args.local_steps,
-            by_epoch=args.by_epoch,
-            logger=logger,
-        )
+        if args.use_dp:
+            client= DPClient(
+                trainer=trainer,
+                train_loader=train_loader,
+                test_loader=test_loader,
+                local_steps=args.local_steps,
+                by_epoch=args.by_epoch,
+                logger=logger,
+            )
+        else:
+
+            client = Client(
+                trainer=trainer,
+                train_loader=train_loader,
+                test_loader=test_loader,
+                local_steps=args.local_steps,
+                by_epoch=args.by_epoch,
+                logger=logger,
+            )
 
         clients.append(client)
 
@@ -820,7 +897,7 @@ def compute_local_models(federated_dataset, args):
 
     models_dict = dict()
     for task_id in tqdm(federated_dataset.task_id_to_name):
-        trainer = initialize_trainer(args)
+        trainer = initialize_trainer(args, use_dp=False)
 
         train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
         test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
@@ -873,7 +950,7 @@ def initialize_simulator(clients, args, rng):
     Returns:
         FederatedAveraging: Initialized federated averaging simulator.
     """
-    global_trainer = initialize_trainer(args)
+    global_trainer = initialize_trainer(args, use_dp=False)
     global_logger = SummaryWriter(os.path.join(args.logs_dir, "global"))
 
     if args.active_server:
@@ -896,6 +973,7 @@ def initialize_simulator(clients, args, rng):
             global_trainer=global_trainer,
             logger=global_logger,
             chkpts_dir=args.chkpts_dir,
+            use_dp=args.use_dp,
             rng=rng,
         )
 
@@ -947,6 +1025,11 @@ def main():
     set_seeds(seed=args.seed)
 
     rng = np.random.default_rng(seed=args.seed)
+
+    if args.use_dp:
+        if (args.noise_multiplier is None and args.dp_epsilon is None) or args.clip_norm is None or args.dp_delta is None:
+            raise ValueError("'noise_multiplier', 'dp_epsilon'., 'clip_norm', and 'dp_delta' parameters must be specified \
+                             when training with differential privacy")
 
     federated_dataset = initialize_dataset(args, rng)
 

@@ -1,6 +1,9 @@
 import logging
 
 import torch
+from opacus.utils.batch_memory_manager import BatchMemoryManager
+from opacus import PrivacyEngine
+
 
 from ..utils import *
 
@@ -541,6 +544,7 @@ class DebugTrainer(Trainer):
             lr_scheduler=lr_scheduler,
             is_binary_classification=is_binary_classification
         )
+
         self.x_grad = None
 
     def get_grad_by_layer(self):
@@ -637,3 +641,132 @@ class DebugTrainer(Trainer):
 
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
+
+
+class DPTrainer(Trainer):
+
+    def __init__(self, model, criterion, metric, device, optimizer, max_physical_batch_size, clip_norm, delta, train_loader,
+                 model_name=None, epsilon=None, noise_multiplier=None, epochs=None, lr_scheduler=None, is_binary_classification=False):
+        super().__init__(model, criterion, metric, device, optimizer, model_name, lr_scheduler, is_binary_classification)
+
+        self.max_physical_batch_size = max_physical_batch_size
+        self.noise_multiplier = noise_multiplier
+        self.clip_norm = clip_norm
+        self.delta = delta
+        self.epsilon = epsilon
+        self.epochs = epochs
+
+        self.privacy_engine = PrivacyEngine(accountant='rdp',secure_mode=False)
+
+        if self.epsilon is None:
+            (
+                self.privacy_model,
+                self.privacy_optimizer,
+                self.privacy_train_loader) = self.privacy_engine.make_private(
+                    module=self.model,
+                    optimizer=self.optimizer,
+                    data_loader=train_loader,
+                    noise_multiplier=self.noise_multiplier,
+                    max_grad_norm=self.clip_norm,
+                )
+
+        else:
+            (
+                self.privacy_model,
+                self.privacy_optimizer,
+                self.privacy_train_loader) = self.privacy_engine.make_private_with_epsilon(
+                    module=self.model,
+                    optimizer=self.optimizer,
+                    data_loader=train_loader,
+                    target_epsilon=epsilon,
+                    target_delta=self.delta,
+                    max_grad_norm=self.clip_norm,
+                    epochs=self.epochs
+                )
+
+    def set_param_tensor(self, param_tensor):
+        """
+        Set the parameters of the Trainer's model from the provided tensor.
+
+        Parameters
+        ----------
+        param_tensor (torch.Tensor): Tensor of shape (`self.model_dim`) containing the parameters to
+            update the Trainer's model.
+
+        Notes
+        -----
+        This method iterates over all parameters of the Trainer's model, extracts the corresponding portion
+        from the provided tensor, and reshapes it to match the original parameter shape.
+        """
+        set_param_tensor(model=self.model, param_tensor=param_tensor, device=self.device)
+        self.privacy_model.load_state_dict(self.model.state_dict())
+
+
+
+
+    def fit_epochs(self, n_epochs):
+        """Perform multiple training epochs with differential privacy."""
+        for step in range(n_epochs):
+            _ , _ , epsilon = self.fit_epoch()
+
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
+
+        return epsilon
+
+
+    def fit_epoch(self):
+        """
+        Perform multiple optimizer steps on all batches drawn from the provided data loader using differential privacy.
+        """
+
+        self.model.train()
+
+        with BatchMemoryManager(
+            data_loader=self.privacy_train_loader,
+            max_physical_batch_size=self.max_physical_batch_size,
+            optimizer=self.privacy_optimizer,
+        ) as memory_safe_data_loader:
+
+            global_loss = 0.
+            global_metric = 0.
+            n_samples = 0
+
+            for x, y in memory_safe_data_loader:
+                x = x.to(self.device).type(torch.float32)
+                y = y.to(self.device)
+
+                n_samples += y.size(0)
+
+                if self.is_binary_classification:
+                    y = y.type(torch.float32)
+
+                self.privacy_optimizer.zero_grad()
+
+                y_pred = self.privacy_model(x)
+
+                # condition needed to avoid squeezing the batch size if it is 1
+                if y_pred.shape[0] != 1:
+                    y_pred = y_pred.squeeze()
+                else:
+                    y_pred = y_pred.squeeze(dim=tuple(y_pred.shape[1:]))
+
+                loss = self.criterion(y_pred, y)
+
+                loss.backward()
+
+                self.privacy_optimizer.step()
+
+                global_loss += loss.item() * y.size(0)
+                global_metric += self.metric(y_pred, y) * y.size(0)
+
+                epsilon = self.privacy_engine.get_epsilon(self.delta)
+
+            copy_model(target=self.model, source=self.privacy_model._module)
+            copy_optimizer(target=self.optimizer, source=self.privacy_optimizer)
+
+        return global_loss / n_samples, global_metric / n_samples, epsilon
+
+
+    def set_grad_tensor(self, grad_tensor):
+        raise NotImplementedError("set_grad_tensor is not implemented for DPTrainer.")

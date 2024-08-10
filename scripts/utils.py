@@ -514,15 +514,6 @@ def split_data_by_aia(reference_trainers_dict, global_trainer, federated_dataset
     """
     global_model = global_trainer.model
     global_model.eval()
-    # df_dict = get_aia_split(model=global_model, dataset=dataset, sensitive_attribute_id=sensitive_attribute_id,
-    #                         sensitive_attribute_type=sensitive_attribute_type, initialization=initialization,
-    #                         device=device, criterion=criterion, is_binary_classification=is_binary_classification,
-    #                         learning_rate=learning_rate, optimizer_name=optimizer_name, success_metric=success_metric,
-    #                         rng=rng, torch_rng=torch_rng, verbose=verbose)
-
-    # for key in df_dict.keys():
-    #     df_dict[key].to_csv(f"{data_path}/global/{key}.csv", index=False)
-
     num_clients = len(reference_trainers_dict)
 
     for attacked_client_id in tqdm(range(num_clients)):
