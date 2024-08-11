@@ -443,8 +443,6 @@ class FederatedMedicalCostDataset:
         task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion,f'{self.n_tasks}', task_name)
         file_path = os.path.join(task_cache_dir, f"{mode}.csv")
         task_data = pd.read_csv(file_path)
-        if self.scale_target:
-            task_data = self._scale_target(task_data, mode=mode)
         return MedicalCostDataset(task_data, name=task_name)
 
 
