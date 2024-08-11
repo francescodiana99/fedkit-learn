@@ -233,6 +233,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--local_steps",
+        type=int,
+        help="Number of local steps. Used only when the attack is isolated.",
+        default=1
+    )
+
+    parser.add_argument(
         "--active_adam",
         default=False,
         action="store_true",
@@ -271,19 +278,24 @@ def main():
             with open(args.local_models_metadata_path, "r") as f:
                 local_models_metadata = json.load(f)
             if args.isolated:
+                n_rounds = len(local_models_metadata.keys())
+                communication_rounds = [f"{i}" for i in range(0, n_rounds, args.local_steps)]
+
                 if args.keep_first_rounds:
-                    keep_round_ids = get_first_rounds(local_models_metadata.keys(),
+                    keep_round_ids = get_first_rounds(communication_rounds,
                                                       keep_frac=args.keep_rounds_frac)
                 else:
-                    keep_round_ids = get_last_rounds(local_models_metadata.keys(),
+                    keep_round_ids = get_last_rounds(communication_rounds,
                                                      keep_frac=args.keep_rounds_frac)
             elif args.active_adam:
             # TODO: this might be coded better
+                n_rounds = len(local_models_metadata['0'].keys())
+                communication_rounds = [f"{i}" for i in range(0, n_rounds, args.local_steps)]
                 if args.keep_first_rounds:
-                    keep_round_ids = get_first_rounds(local_models_metadata['0'].keys(),
+                    keep_round_ids = get_first_rounds(communication_rounds,
                                                       keep_frac=args.keep_rounds_frac)
                 else:
-                    keep_round_ids = get_last_rounds(local_models_metadata['0'].keys(),
+                    keep_round_ids = get_last_rounds(communication_rounds,
                                                      keep_frac=args.keep_rounds_frac)
 
         else:
