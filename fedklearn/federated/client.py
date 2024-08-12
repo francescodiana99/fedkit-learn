@@ -152,3 +152,9 @@ class DPClient(Client):
         self.logger.add_scalar("Privacy/Epsilon", self.epsilon, self.counter)
 
         return train_loss, train_metric, test_loss, test_metric,self.epsilon
+
+    def update_trainer(self, trainer, optimizer=None):
+        if optimizer is not None:
+            self.trainer.update(trainer, optimizer)
+        else:
+            self.trainer.update(trainer, optimizer)

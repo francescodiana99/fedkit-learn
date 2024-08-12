@@ -285,7 +285,6 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=split)
         if task_name in ["adult", "purchase", "purchase_binary", "income", "binary_income", "linear_income", "linear_medical_cost"]:
-            # TODO: hard-code sensitive attribute_id and type in the federated_dataset
             sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
             sensitive_attribute_type = sensitive_attribute_type
         elif task_name == "toy_classification" or task_name == "toy_regression":

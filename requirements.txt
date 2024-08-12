@@ -11,3 +11,4 @@ imageio
 matplotlib
 optuna
 optuna-dashboard
+opacus

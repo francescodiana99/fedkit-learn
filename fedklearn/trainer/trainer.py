@@ -1,11 +1,14 @@
+import copy
 import logging
 
 import torch
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
-
+from opacus.validators import ModuleValidator
+from opacus import GradSampleModule
 
 from ..utils import *
+
 
 class Trainer:
     """
@@ -646,7 +649,7 @@ class DebugTrainer(Trainer):
 class DPTrainer(Trainer):
 
     def __init__(self, model, criterion, metric, device, optimizer, max_physical_batch_size, clip_norm, delta, train_loader,
-                 model_name=None, epsilon=None, noise_multiplier=None, epochs=None, lr_scheduler=None, is_binary_classification=False):
+                 model_name=None, epsilon=None, noise_multiplier=None, epochs=None, lr_scheduler=None, is_binary_classification=False, rng=None):
         super().__init__(model, criterion, metric, device, optimizer, model_name, lr_scheduler, is_binary_classification)
 
         self.max_physical_batch_size = max_physical_batch_size
@@ -654,35 +657,44 @@ class DPTrainer(Trainer):
         self.clip_norm = clip_norm
         self.delta = delta
         self.epsilon = epsilon
+        print("Epsilon nel client.init: ", self.epsilon)
         self.epochs = epochs
+        self.train_loader = train_loader
+        self.rng = rng if rng is not None else torch.Generator()
+
 
         self.privacy_engine = PrivacyEngine(accountant='rdp',secure_mode=False)
 
+        self._make_private(self.privacy_engine, model, optimizer, train_loader)
+
+
+    def _make_private(self, privacy_engine, model, optimizer, train_loader):
         if self.epsilon is None:
             (
                 self.privacy_model,
                 self.privacy_optimizer,
-                self.privacy_train_loader) = self.privacy_engine.make_private(
-                    module=self.model,
-                    optimizer=self.optimizer,
+                self.privacy_train_loader) = privacy_engine.make_private(
+                    module=model,
+                    optimizer=optimizer,
                     data_loader=train_loader,
                     noise_multiplier=self.noise_multiplier,
                     max_grad_norm=self.clip_norm,
                 )
-
         else:
             (
                 self.privacy_model,
-                self.privacy_optimizer,
-                self.privacy_train_loader) = self.privacy_engine.make_private_with_epsilon(
-                    module=self.model,
-                    optimizer=self.optimizer,
+               self.privacy_optimizer,
+                self.privacy_train_loader) = privacy_engine.make_private_with_epsilon(
+                    module=model,
+                    optimizer=optimizer,
                     data_loader=train_loader,
-                    target_epsilon=epsilon,
+                    target_epsilon=self.epsilon,
                     target_delta=self.delta,
                     max_grad_norm=self.clip_norm,
                     epochs=self.epochs
                 )
+
+
 
     def set_param_tensor(self, param_tensor):
         """
@@ -701,6 +713,17 @@ class DPTrainer(Trainer):
         set_param_tensor(model=self.model, param_tensor=param_tensor, device=self.device)
         self.privacy_model.load_state_dict(self.model.state_dict())
 
+    def update(self, trainer):
+        """
+        Update the trainer's model by copying the state dictionary from a given trainer's model.
+
+        Parameters:
+        - trainer (Trainer): The trainer whose model's state will be copied to update the client's model.
+        """
+
+        # TODO: fixa qua la copia dal server al client (Idea: mantienilo wrapped nel server)
+        copy_model(target=self.model, source=trainer.model)
+        
 
 
 
@@ -720,7 +743,7 @@ class DPTrainer(Trainer):
         Perform multiple optimizer steps on all batches drawn from the provided data loader using differential privacy.
         """
 
-        self.model.train()
+        self.privacy_model.train()
 
         with BatchMemoryManager(
             data_loader=self.privacy_train_loader,
@@ -767,6 +790,54 @@ class DPTrainer(Trainer):
 
         return global_loss / n_samples, global_metric / n_samples, epsilon
 
+    #TODO Implement load_checkpoint considering the privacy engine
+
+    def load_checkpoint(self, path):
+        """
+        Load the Trainer's model, optimizer, privacy_engine, and learning rate scheduler state dictionaries from a checkpoint.
+
+        Parameters
+        ----------
+        path : str
+            The path to a .pt file storing the required data.
+        """
+        checkpoint = torch.load(path)
+
+        """
+        NOTE: calling load_checkpoint should be equivalent to doing the following:
+        self.privacy_model.load_state_dict(checkpoint['module_state_dict'])
+        self.privacy_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.privacy_engine.accountant.load_state_dict(checkpoint['privacy_accountant_state_dict'])
+        """
+        self.privacy_engine.load_checkpoint(path=path,
+                                            module=self.privacy_model,
+                                            optimizer=self.privacy_optimizer,
+                                            )
+
+        copy_model(target=self.model, source=self.privacy_model._module)
+        copy_optimizer(target=self.optimizer, source=self.privacy_optimizer)
+
+        if 'scheduler_state_dict' in checkpoint:
+            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+    def save_checkpoint(self, path):
+        """
+        Save the Trainer's model, optimizer, privacy engine accountant and learning rate scheduler state dictionaries.
+
+        Parameters
+        ----------
+        path : str
+            The path to a .pt file to save the checkpoint.
+        """
+
+        checkpoint = {}
+        if self.lr_scheduler is not None:
+            checkpoint['scheduler_state_dict'] = self.lr_scheduler.state_dict()
+
+        self.privacy_engine.save_checkpoint(path=path,
+                                            module=self.privacy_model,
+                                            optimizer=self.privacy_optimizer,
+                                            checkpoint_dict=checkpoint)
 
     def set_grad_tensor(self, grad_tensor):
         raise NotImplementedError("set_grad_tensor is not implemented for DPTrainer.")

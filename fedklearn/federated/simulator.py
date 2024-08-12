@@ -8,6 +8,7 @@ from copy import copy
 
 from .utils import *
 import torch.optim as optim
+from ..trainer.trainer import Trainer
 
 class Simulator(ABC):
     """
@@ -55,6 +56,7 @@ class Simulator(ABC):
          - chkpts_dir (str): Directory to save simulation checkpoints.
          - log_freq (int): Frequency for logging simulation information.
          - rng: Random number generator for reproducibility.
+         - use_dp (bool): Flag to determine whether to use differential privacy.
          """
 
         self.clients = clients
@@ -227,7 +229,8 @@ class Simulator(ABC):
         logging.info("+" * 50)
         logging.info(f"Train Loss: {global_train_loss:.4f} | Train Metric: {global_train_metric:.4f} |")
         logging.info(f"Test Loss: {global_test_loss:.4f} | Test Metric: {global_test_metric:.4f} |")
-        logging.info(f"Avg. Epsilon: {np.mean(epsilon_list):.4f}")
+        if self.use_dp:
+            logging.info(f"Avg. Epsilon: {np.mean(epsilon_list):.4f}")
         logging.info("+" * 50)
 
         self.logger.add_scalar("Train/Loss", global_train_loss, self.c_round)
@@ -346,7 +349,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
     """
 
     def __init__(self, clients, global_trainer, logger, chkpts_dir, beta1=0.9, beta2=0.999, epsilon=1e-8,
-                 alpha=0.1, attacked_round=99, active_chkpts_dir=None, rng=None):
+                 alpha=0.1, attacked_round=99, active_chkpts_dir=None, use_dp=False, rng=None):
         """
         Initialize the federated learning simulator.
 
@@ -376,7 +379,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         - simulate_round: Simulate one round of federated learning using Federated Averaging.
         """
 
-        super().__init__(clients, global_trainer, logger, chkpts_dir, rng)
+        super().__init__(clients, global_trainer, logger, chkpts_dir, use_dp, rng)
 
         self.beta1 = beta1
         self.beta2 = beta2
@@ -485,12 +488,30 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         """
         server_trainers = []
         for i in range(len(self.clients)):
+            # TODO: maybe can be cleaned. Cannot deepcopy the trainer due to hooks erors with opacus
 
-            server_trainer = copy.deepcopy(self.clients[i].trainer)
-            server_trainer.optimizer = optim.Adam(server_trainer.model.parameters(),
+            model = copy.deepcopy(self.clients[i].trainer.model)
+            criterion = copy.deepcopy(self.clients[i].trainer.criterion)
+            lr_scheduler = copy.deepcopy(self.clients[i].trainer.lr_scheduler)
+            is_binary_classification = copy.deepcopy(self.clients[i].trainer.is_binary_classification)
+            device = copy.deepcopy(self.clients[i].trainer.device)
+            model_name = copy.deepcopy(self.clients[i].trainer.model_name)
+            metric = copy.deepcopy(self.clients[i].trainer.metric)
+            optimizer = optim.Adam(model.parameters(),
                                                   lr=self.alpha,
                                                   betas=(self.beta1, self.beta2)
                                                   )
+            server_trainer = Trainer(
+                model=model,
+                criterion=criterion,
+                metric=metric,
+                device=device,
+                model_name=model_name,
+                lr_scheduler=lr_scheduler,
+                is_binary_classification=is_binary_classification,
+                optimizer=optimizer,
+            )
+            # server_trainer = copy.deepcopy(self.clients[i].trainer)
             server_trainers.append(server_trainer)
         return server_trainers
 
@@ -522,16 +543,15 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         """
         self.server_trainers[task_index] = self._init_gradients(self.server_trainers[task_index])
         pseudo_gradient = self.compute_pseudo_gradient(self.clients[task_index].trainer, self.server_trainers[task_index])
-        # TODO: check this sign
+
         self.server_trainers[task_index].set_grad_tensor(-pseudo_gradient)
         self.pseudo_gradients[task_index] = pseudo_gradient
 
         self.server_trainers[task_index].optimizer.step()
         self.server_trainers[task_index].optimizer.zero_grad()
 
-        self.clients[task_index].trainer.set_param_tensor(self.server_trainers[task_index].get_param_tensor())
-
-
+        # self.clients[task_index].trainer.set_param_tensor(self.server_trainers[task_index].get_param_tensor())
+        self.clients[task_index].update_trainer(self.server_trainers[task_index])
 
     def simulate_server_updates(self):
         """
@@ -541,6 +561,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         """
         for i, client in enumerate(self.clients):
             self.active_update(i)
+
 
     def simulate_active_round(self, save_chkpts=False, save_logs=False):
         """
@@ -573,38 +594,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         self.c_round += 1
 
-    def simulate_round(self, save_chkpts=False, save_logs=False):
-        """
-        Simulate one round of federated learning using Federated Averaging.
-
-        Parameters:
-        - save_chkpts (bool): Flag to determine whether to save checkpoints.
-        - save_logs (bool): Flag to determine whether to save simulation logs.
-
-        """
-
-        self.synchronize()
-        logging.debug(f"Round {self.c_round}:")
-
-        self.simulate_local_updates()
-
-        if save_chkpts:
-            self.save_checkpoints()
-            logging.debug(
-                f"Checkpoint saved and messages metadata updated successfully at communication round {self.c_round}."
-            )
-
-        self.aggregate()
-        logging.debug(f"Global model computed and updated successfully")
-
-        self.synchronize()
-        logging.debug(f"Clients synchronized successfully")
-
-        if save_logs:
-            self.write_logs()
-
-        self.c_round += 1
-
     def write_logs(self, display_only=True):
         """
         Write simulation logs using the logger.
@@ -621,8 +610,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         for client_id, client in enumerate(self.clients):
             if self.use_dp:
                 train_loss, train_metric, test_loss, test_metric, epsilon = client.write_logs()
-                logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} \
-                             | Epsilon Spent: {epsilon:.4f}")
+                logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} | Epsilon Spent: {epsilon:.4f}")
             else:
                 train_loss, train_metric, test_loss, test_metric = client.write_logs()
                 logging.info(f"Client {client.name} | Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
