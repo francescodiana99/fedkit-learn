@@ -707,6 +707,7 @@ class DPTrainer(Trainer):
                     data_loader=train_loader,
                     noise_multiplier=self.noise_multiplier,
                     max_grad_norm=self.clip_norm,
+                    noise_generator=self.rng
                 )
         else:
             (
@@ -719,7 +720,8 @@ class DPTrainer(Trainer):
                     target_epsilon=self.epsilon,
                     target_delta=self.delta,
                     max_grad_norm=self.clip_norm,
-                    epochs=self.epochs
+                    epochs=self.epochs,
+                    noise_generator=self.rng
                 )
 
         accountant_state_dict = privacy_engine.accountant.state_dict()
