@@ -829,6 +829,13 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         )
 
     if args.optimizer == "sgd":
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "momentum": args.momentum,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.SGD
+        }
+
         optimizer = optim.SGD(
             [param for param in model.parameters() if param.requires_grad],
             lr=args.learning_rate,
@@ -836,6 +843,12 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             weight_decay=args.weight_decay,
         )
     elif args.optimizer == "adam":
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.Adam
+        }
+
         optimizer = optim.Adam(
             [param for param in model.parameters() if param.requires_grad],
             lr=args.learning_rate,
@@ -862,7 +875,8 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             delta=args.dp_delta,
             clip_norm=args.clip_norm,
             epochs=args.num_rounds * args.local_steps,
-            train_loader=train_loader
+            train_loader=train_loader,
+            optimizer_init_dict=optimizer_params
     )
     else:
         return Trainer(
@@ -1315,6 +1329,7 @@ def main():
     logging.info(f"The messages metadata dictionary has been saved in {messages_metadata_path}")
     save_last_round_metadata(simulator.messages_metadata, args.metadata_dir)
 
+    # This part is only for the active simulation
     if args.num_active_rounds > 0:
         logging.info("Simulating active rounds...")
 
