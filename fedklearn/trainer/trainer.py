@@ -665,7 +665,7 @@ class DPTrainer(Trainer):
         print("Epsilon nel client.init: ", self.epsilon)
         self.epochs = epochs
         self.train_loader = train_loader
-        self.rng = rng if rng is not None else torch.Generator()
+        self.rng = rng if rng else torch.Generator()
 
         # This is needed only to initializer the accountant
         _, _, _, _, self.accountant_state_dict = self._make_private(
