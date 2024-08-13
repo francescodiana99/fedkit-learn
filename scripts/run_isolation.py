@@ -290,7 +290,7 @@ def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, cri
             clip_norm=args.clip_norm,
             epsilon=args.dp_epsilon,
             delta=args.dp_delta,
-            epochs=args.num_rounds * args.local_steps,
+            epochs=(args.num_rounds + args.attacked_round) * args.local_steps,
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
             rng=torch.Generator(device=args.device).manual_seed(args.seed)
