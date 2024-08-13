@@ -169,6 +169,7 @@ def parse_args(args_list=None):
     action="store_true",
     )
 
+    # TODO: change this in local_steps
     parser.add_argument(
         '--n_local_steps',
     type=int,
@@ -277,23 +278,25 @@ def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, cri
         )
 
     if args.use_dp:
-        return DPTrainer(
+        trainer = DPTrainer(
             model=attacked_model,
             optimizer=optimizer,
             criterion=criterion,
             device=args.device,
             is_binary_classification=is_binary_classification,
             metric=metric,
-            max_physical_batch_size=args.max_physical_batch_size,
+            max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size else args.batch_size,
             noise_multiplier=args.noise_multiplier,
             clip_norm=args.clip_norm,
             epsilon=args.dp_epsilon,
             delta=args.dp_delta,
-            epochs=(args.num_rounds + args.attacked_round) * args.local_steps,
+            epochs=args.num_epochs + args.attacked_round + 1,
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
             rng=torch.Generator(device=args.device).manual_seed(args.seed)
         )
+        trainer.load_checkpoint(client_messages_metadata['local'][f"{args.attacked_round}"])
+        return trainer
 
     else:
         return Trainer(
@@ -314,6 +317,11 @@ def main():
     configure_logging(args)
 
     rng = np.random.default_rng(seed=args.seed)
+
+    if args.use_dp:
+        if (args.noise_multiplier is None and args.dp_epsilon is None) or args.clip_norm is None or args.dp_delta is None:
+            raise ValueError("'noise_multiplier', 'dp_epsilon'., 'clip_norm', and 'dp_delta' parameters must be specified \
+                             when training with differential privacy")
 
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
 
@@ -416,14 +424,20 @@ def main():
                                                     model_init_fn=model_init_fn, criterion=criterion, metric=metric,
                                                     is_binary_classification=is_binary_classification)
 
-        # TODO: refactoring of this part in the run_simulation.py
+        # TODO: refactori this part
         if not args.by_epoch:
+            if args.use_dp:
+                raise NotImplementedError("Simulating local steps with DP is not implemented. Only local epochs are supported.")
             if args.n_local_steps is None:
                 raise ValueError('Please specify a number of local steps to simulate.')
             train_iterator = iter(train_loader)
+
         for step in range(args.num_epochs):
             if args.by_epoch:
-                loss, metric = active_trainer.fit_epoch(loader=train_loader)
+                if args.use_dp:
+                    loss, metric, epsilon = active_trainer.fit_epoch()
+                else:
+                    loss, metric = active_trainer.fit_epoch(loader=train_loader)
             else:
                 for _ in range(args.n_local_steps):
                     try:
@@ -447,6 +461,8 @@ def main():
 
             logging.info("+" * 50)
             logging.info(f"Task ID: {attacked_client_id}")
+            if args.use_dp:
+                logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f} | Epsilon: {epsilon:.4f}")
             logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f} |")
             logging.info("+" * 50)
 

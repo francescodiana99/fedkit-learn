@@ -1399,6 +1399,7 @@ def main():
         save_last_round_active_metadata(all_messages_metadata=simulator.messages_metadata,
                                         metadata_dir=args.metadata_dir,
                                         args=args)
+        # TODO save trainer hyperparameter
 
 if __name__ == "__main__":
     main()
