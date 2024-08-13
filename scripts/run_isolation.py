@@ -11,7 +11,10 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from fedklearn.metrics import multiclass_accuracy
+from opacus.privacy_engine import PrivacyEngine
+from opacus.utils.batch_memory_manager import BatchMemoryManager
 
+from ..fedklearn.trainer import Trainer, DPTrainer
 
 from tqdm import tqdm
 
@@ -179,6 +182,49 @@ def parse_args(args_list=None):
         default=None
     )
 
+    parser.add_argument(
+        "--use_dp",
+        action="store_true",
+        help="Flag for using differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_epsilon",
+        type=float,
+        default=None,
+        help="Epsilon value for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_delta",
+        type=float,
+        default=None,
+        help="Delta value for differential privacy"
+    )
+
+    parser.add_argument(
+        "--noise_multiplier",
+        type=float,
+        default=None,
+        help="Noise multiplier for differential privacy"
+    )
+
+    parser.add_argument(
+        "--clip_norm",
+        type=float,
+        default=None,
+        help="Clip norm for differential privacy"
+    )
+
+    parser.add_argument(
+        "--max_physical_batch_size",
+        type=int,
+        default=None,
+        help="Virtual batch size for differential privacy"
+    )
+
+
+
 
     if args_list is None:
         return parser.parse_args()
@@ -188,17 +234,27 @@ def parse_args(args_list=None):
 
 
 def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, criterion, metric,
-                                  is_binary_classification):
+                                  is_binary_classification, train_loader=None):
     """
     Initialize the trainer for running the active simulation.
 
     """
+    # TODO: fix, this should just use torch.load and load also the optimizer state
+
     local_model_chkpt = torch.load(client_messages_metadata['local'][f"{args.attacked_round}"],
                                     map_location=args.device)["model_state_dict"]
     attacked_model = model_init_fn()
     attacked_model.load_state_dict(local_model_chkpt)
 
     if args.optimizer == "sgd":
+
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "momentum": args.momentum,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.SGD
+        }
+
         optimizer = optim.SGD(
             [param for param in attacked_model.parameters() if param.requires_grad],
             lr=args.learning_rate,
@@ -211,24 +267,50 @@ def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, cri
             lr=args.learning_rate,
             weight_decay=args.weight_decay
         )
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.Adam
+        }
     else:
         raise NotImplementedError(
             f"Optimizer '{args.optimizer}' is not implemented"
         )
 
-    return Trainer(
-        model=attacked_model,
-        optimizer=optimizer,
-        criterion=criterion,
-        device=args.device,
-        is_binary_classification=is_binary_classification,
-        metric=metric
+    if args.use_dp:
+        return DPTrainer(
+            model=attacked_model,
+            optimizer=optimizer,
+            criterion=criterion,
+            device=args.device,
+            is_binary_classification=is_binary_classification,
+            metric=metric,
+            max_physical_batch_size=args.max_physical_batch_size,
+            noise_multiplier=args.noise_multiplier,
+            clip_norm=args.clip_norm,
+            epsilon=args.dp_epsilon,
+            delta=args.dp_delta,
+            epochs=args.num_rounds * args.local_steps,
+            train_loader=train_loader,
+            optimizer_init_dict=optimizer_params,
+            rng=torch.Generator(device=args.device).manual_seed(args.seed)
+        )
 
-    )
+    else:
+        return Trainer(
+            model=attacked_model,
+            optimizer=optimizer,
+            criterion=criterion,
+            device=args.device,
+            is_binary_classification=is_binary_classification,
+            metric=metric
+        )
 
 
 def main():
     args = parse_args()
+
+    set_seeds(args.seed)
 
     configure_logging(args)
 
@@ -241,7 +323,7 @@ def main():
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         all_messages_metadata = json.load(f)
 
-    # TODO : fix is_binary_classification for regression tasks
+    # TODO : fix is_binary_classification for regression tasks and clean up the code
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
@@ -285,6 +367,7 @@ def main():
     final_isolated_models_metadata_dict = defaultdict(lambda : dict())
 
     pbar = tqdm(range(num_clients))
+
     if args.attacked_task is not None:
         attacked_client_id = int(federated_dataset.task_id_to_name[args.attacked_task])
         args.compute_single_client = True
@@ -296,8 +379,8 @@ def main():
         logging.info(f"Isolating client {attacked_client_id}")
 
 
-        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode=args.split)
-        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+        train_dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode='train')
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],
@@ -325,24 +408,29 @@ def main():
                 f"Metric for task '{args.task_name}' is not implemented"
             )
 
-        active_trainer = initialize_attack_trainer(args=args, client_messages_metadata=client_messages_metadata,
+        if args.use_dp:
+            active_trainer = initialize_attack_trainer(args=args, client_messages_metadata=client_messages_metadata,
                                                    model_init_fn=model_init_fn, criterion=criterion, metric=metric,
-                                                   is_binary_classification=is_binary_classification)
+                                                   is_binary_classification=is_binary_classification, train_loader=train_loader)
+        else:
+            active_trainer = initialize_attack_trainer(args=args, client_messages_metadata=client_messages_metadata,
+                                                    model_init_fn=model_init_fn, criterion=criterion, metric=metric,
+                                                    is_binary_classification=is_binary_classification)
 
         # TODO: refactoring of this part in the run_simulation.py
         if not args.by_epoch:
             if args.n_local_steps is None:
                 raise ValueError('Please specify a number of local steps to simulate.')
-            train_iterator = iter(dataloader)
+            train_iterator = iter(train_loader)
         for step in range(args.num_epochs):
             if args.by_epoch:
-                loss, metric = active_trainer.fit_epoch(loader=dataloader)
+                loss, metric = active_trainer.fit_epoch(loader=train_loader)
             else:
                 for _ in range(args.n_local_steps):
                     try:
                         batch = next(train_iterator)
                     except StopIteration:
-                        train_iterator = iter(dataloader)
+                        train_iterator = iter(train_loader)
                         batch = next(train_iterator)
 
                     loss, metric = active_trainer.fit_batch(batch)

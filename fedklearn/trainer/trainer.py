@@ -662,7 +662,6 @@ class DPTrainer(Trainer):
         self.clip_norm = clip_norm
         self.delta = delta
         self.epsilon = epsilon
-        print("Epsilon nel client.init: ", self.epsilon)
         self.epochs = epochs
         self.train_loader = train_loader
         self.rng = rng if rng else torch.Generator()

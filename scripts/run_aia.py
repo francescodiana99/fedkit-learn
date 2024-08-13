@@ -263,6 +263,7 @@ def main():
     args = parse_args()
 
     configure_logging(args)
+    set_seeds(args.seed)
 
     rng = np.random.default_rng(seed=args.seed)
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)

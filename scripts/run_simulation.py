@@ -853,8 +853,6 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             [param for param in model.parameters() if param.requires_grad],
             lr=args.learning_rate,
             weight_decay=args.weight_decay,
-
-
         )
     else:
         raise NotImplementedError(
