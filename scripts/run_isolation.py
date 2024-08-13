@@ -7,14 +7,13 @@ import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+from fedklearn.trainer.trainer import Trainer, DPTrainer
 
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from fedklearn.metrics import multiclass_accuracy
 from opacus.privacy_engine import PrivacyEngine
 from opacus.utils.batch_memory_manager import BatchMemoryManager
-
-from ..fedklearn.trainer import Trainer, DPTrainer
 
 from tqdm import tqdm
 
