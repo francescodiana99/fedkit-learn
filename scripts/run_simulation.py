@@ -862,7 +862,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         )
 
     if use_dp:
-        rng = torch.Generator(device=args.device)
+
         return DPTrainer(
             model=model,
             criterion=criterion,
@@ -878,7 +878,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             epochs=args.num_rounds * args.local_steps,
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
-            rng=rng
+            rng=torch.Generator(device=args.device).manual_seed(args.seed)
     )
     else:
         return Trainer(
