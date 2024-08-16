@@ -22,8 +22,7 @@ from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDat
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
-from fedklearn.trainer.trainer import Trainer
-from fedklearn.federated.client import Client
+from fedklearn.trainer.trainer import Trainer, DPTrainer
 from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
 
 from fedklearn.metrics import *
@@ -174,18 +173,74 @@ def parse_args(args_list=None):
         help='If True, test the best hyperparameters found by Optuna.'
         )
 
+    parser.add_argument(
+        "--use_dp",
+        action="store_true",
+        default=False,
+        help="Flag for using differential privacy"
+    )
+
+    parser.add_argument(
+        "--noise_multiplier",
+        type=float,
+        default=None,
+        help="Noise multiplier for differential privacy"
+    )
+
+    parser.add_argument(
+        "--clip_norm",
+        type=float,
+        default=None,
+        help="Clipping norm for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_delta",
+        type=float,
+        default=None,
+        help="Delta for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_epsilon",
+        type=float,
+        default=None,
+        help="Epsilon for differential privacy"
+    )
+
+    parser.add_argument(
+        "--max_physical_batch_size",
+        type=int,
+        default=None,
+        help="Maximum physical batch size for differential privacy"
+    )
+
+    parser.add_argument(
+        "--optimized_task",
+        type=str,
+        default=None,
+        help="Task to optimize"
+    )
+
+
     if args_list is None:
         return parser.parse_args()
     else:
         return parser.parse_args(args_list)
 
 
-def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2):
+def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2, use_dp=False, train_loader=None):
     """
     Initialize the trainer based on the specified task.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
+        learning_rate (float): Learning rate.
+        weight_decay (float): Weight decay.
+        beta1 (float): Beta1 for Adam optimizer.
+        beta2 (float): Beta2 for Adam optimizer.
+        use_dp (bool): Flag for using differential privacy.
+        train_loader (torch.utils.data.DataLoader): Training data loader.
 
     Returns:
         Trainer: Initialized trainer.
@@ -241,30 +296,61 @@ def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2):
             [param for param in model.parameters() if param.requires_grad],
             lr=learning_rate,
             momentum=args.momentum,
-            weight_decay=args.weight_decay,
+            weight_decay=weight_decay,
         )
+
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "momentum": args.momentum,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.SGD
+        }
+
     elif args.optimizer == "adam":
         optimizer = optim.Adam(
             [param for param in model.parameters() if param.requires_grad],
             lr=learning_rate,
             weight_decay=weight_decay,
             betas=(beta1, beta2)
-
-
         )
+        optimizer_params = {
+            "lr": learning_rate,
+            "weight_decay": weight_decay,
+            "init_fn": optim.Adam,
+            "betas": (beta1, beta2)
+        }
     else:
         raise NotImplementedError(
             f"Optimizer '{args.optimizer}' is not implemented."
         )
 
-    return Trainer(
-        model=model,
-        criterion=criterion,
-        metric=metric,
-        device=args.device,
-        optimizer=optimizer,
-        is_binary_classification=is_binary_classification,
-    )
+    if use_dp:
+        return DPTrainer(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=args.device,
+            optimizer=optimizer,
+            is_binary_classification=is_binary_classification,
+            max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size is not None else args.batch_size,
+            noise_multiplier=args.noise_multiplier,
+            epsilon=args.dp_epsilon,
+            delta=args.dp_delta,
+            clip_norm=args.clip_norm,
+            epochs=args.num_rounds,
+            train_loader=train_loader,
+            optimizer_init_dict=optimizer_params,
+            rng=torch.Generator(device=args.device).manual_seed(args.seed)
+        )
+    else:
+        return Trainer(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=args.device,
+            optimizer=optimizer,
+            is_binary_classification=is_binary_classification,
+        )
 
 
 def objective(trial, train_loader, test_loader, task_id, args):
@@ -275,6 +361,9 @@ def objective(trial, train_loader, test_loader, task_id, args):
 
     Args:
         trial (optuna.Trial): Optuna trial object.
+        train_loader (torch.utils.data.DataLoader): Training data loader.
+        test_loader (torch.utils.data.DataLoader): Testing data loader.
+        task_id (str): Task ID to optimize.
         args (argparse.Namespace): Parsed command-line arguments.
     Returns:
         float: Objective value.
@@ -287,10 +376,14 @@ def objective(trial, train_loader, test_loader, task_id, args):
     weight_decay = trial.suggest_float("weight_decay", hparams_dict['weight_decay'][0], hparams_dict['weight_decay'][1],
                                        log=True)
 
-    trainer = initialize_trainer(args, learning_rate=lr, weight_decay=weight_decay, beta1=beta1, beta2=beta2)
+    trainer = initialize_trainer(args, learning_rate=lr, weight_decay=weight_decay, beta1=beta1, beta2=beta2,
+                                 use_dp=args.use_dp, train_loader=train_loader)
 
     for round in range(args.num_rounds):
-        trainer.fit_epoch(train_loader)
+        if args.use_dp:
+            _ ,_ , epsilon = trainer.fit_epoch()
+        else:
+            trainer.fit_epoch(train_loader)
         if trainer.lr_scheduler is not None:
             trainer.lr_scheduler.step()
 
@@ -301,6 +394,8 @@ def objective(trial, train_loader, test_loader, task_id, args):
     logging.info(f"Task ID: {task_id}")
     logging.info(f"Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
     logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
+    if args.use_dp:
+        logging.info(f"Epsilon: {epsilon:.4f}")
     logging.info("+" * 50)
 
     return train_loss
@@ -327,7 +422,7 @@ def write_logs(args, train_loss, train_metric, test_loss, test_metric, step, log
 
 def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
     """
-    Optimize the hyperparameters for the client model using Optuna.
+    Optimize the hyperparameters for the local model using Optuna.
     Args:
         args:
         train_loader(torch.utils.data.DataLoader):  Training data loader.
@@ -359,18 +454,28 @@ def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
     logging.info(f"Optimization results saved in: hp_dashboard_{task_id}.db")
     logging.info("=" * 100)
 
-    trainer = initialize_trainer(args, learning_rate=best_params['lr'],
-                                 weight_decay=best_params['weight_decay'],
-                                 beta1=best_params['beta1'],
-                                 beta2=best_params['beta2'])
+    if args.use_dp:
+        trainer = initialize_trainer(args, learning_rate=best_params['lr'],
+                                     weight_decay=best_params['weight_decay'],
+                                     beta1=best_params['beta1'],
+                                     beta2=best_params['beta2'],
+                                     use_dp=True,
+                                     train_loader=train_loader)
+    else:
+        trainer = initialize_trainer(args, learning_rate=best_params['lr'],
+                                    weight_decay=best_params['weight_decay'],
+                                    beta1=best_params['beta1'],
+                                    beta2=best_params['beta2'])
 
     trajectory_dict = dict()
 
     logger = SummaryWriter(os.path.join(logs_dir, task_id))
 
     for step in range(args.num_rounds):
-        train_loss, train_metric = trainer.fit_epoch(train_loader)
-
+        if args.use_dp:
+            train_loss, train_metric, epsilon = trainer.fit_epoch()
+        else:
+            train_loss, train_metric = trainer.fit_epoch(train_loader)
         if step % args.save_freq == 0:
             os.makedirs(os.path.join(args.local_models_dir, task_id), exist_ok=True)
 
@@ -386,17 +491,18 @@ def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
         if trainer.lr_scheduler is not None:
             trainer.lr_scheduler.step()
 
-    train_loss, train_metric = trainer.evaluate_loader(train_loader)
-    test_loss, test_metric = trainer.evaluate_loader(test_loader)
+    if args.use_dp:
+        train_loss, train_metric = trainer.evaluate_loader(train_loader)
+    else:
+        test_loss, test_metric = trainer.evaluate_loader(test_loader)
 
     logging.info("+" * 50)
     logging.info(f"Task ID: {task_id}")
     logging.info(f"Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
     logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
+    if args.use_dp:
+        logging.info(f"Epsilon: {epsilon:.4f}")
     logging.info("+" * 50)
-
-    local_model_path = os.path.join(args.local_models_dir, task_id, f"{args.num_rounds - 1}.pt")
-    local_model_path = os.path.abspath(local_model_path)
 
     return trajectory_dict
 
@@ -417,6 +523,11 @@ def main():
 
     configure_logging(args)
 
+    if args.use_dp:
+        if (args.noise_multiplier is None and args.dp_epsilon is None) or args.clip_norm is None or args.dp_delta is None:
+            raise ValueError("'noise_multiplier', 'dp_epsilon'., 'clip_norm', and 'dp_delta' parameters must be specified \
+                             when training with differential privacy")
+
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
 
     if args.hparams_config_path is None:
@@ -430,9 +541,23 @@ def main():
 
     models_trajectory_dict = dict()
 
-    for task_id in tqdm(federated_dataset.task_id_to_name):
-        train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
-        test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
+    if args.optimized_task is not None:
+        for task_id in tqdm(federated_dataset.task_id_to_name):
+            train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
+            test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
+
+            train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+            test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+
+            abs_log_dir = os.path.abspath(args.logs_dir)
+            os.makedirs(abs_log_dir, exist_ok=True)
+
+            task_trajectory_dict = optimize_model(args, train_loader, test_loader, task_id, abs_log_dir)
+            models_trajectory_dict[task_id] = task_trajectory_dict
+    else:
+
+        train_dataset = federated_dataset.get_task_dataset(args.optimized_task, mode="train")
+        test_dataset = federated_dataset.get_task_dataset(args.optimized_task, mode="test")
 
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -440,8 +565,8 @@ def main():
         abs_log_dir = os.path.abspath(args.logs_dir)
         os.makedirs(abs_log_dir, exist_ok=True)
 
-        task_trajectory_dict = optimize_model(args, train_loader, test_loader, task_id, abs_log_dir)
-        models_trajectory_dict[task_id] = task_trajectory_dict
+        task_trajectory_dict = optimize_model(args, train_loader, test_loader, args.optimized_task, abs_log_dir)
+        models_trajectory_dict[args.optimized_task] = task_trajectory_dict
 
     local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
     with open(local_models_trajectory_path, "w") as f:
