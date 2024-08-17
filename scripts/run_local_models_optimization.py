@@ -541,7 +541,7 @@ def main():
 
     models_trajectory_dict = dict()
 
-    if args.optimized_task is not None:
+    if args.optimized_task is None:
         for task_id in tqdm(federated_dataset.task_id_to_name):
             train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
             test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
