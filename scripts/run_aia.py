@@ -466,10 +466,8 @@ def main():
     logging.info(f"Average L2 distance: {avg_l2_dis}")
 
     # TODO: remove this, only to check the results
-    with open("predictions.json", "w") as f:
-        json.dump(predictions, f)
-    with open("true_labels.json", "w") as f:
-        json.dump(true_labels, f)
+    torch.save(predictions, "predictions.pt")
+    torch.save(true_labels, "true_labels.pt")
 
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
