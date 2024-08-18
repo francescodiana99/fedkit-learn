@@ -429,6 +429,9 @@ def main():
         if args.track_time:
             start_time = time.time()
         all_cos_dis, all_l2_dist = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)
+        # TODO: remove this, only to check the results
+        predictions = (attack_simulator.predicted_features)
+        true_labels = (attack_simulator.true_labels)
         if args.track_time:
             end_time = time.time()
             logging.info(f"Attack time for client {attacked_client_id}: {end_time - start_time:.3f} seconds")
@@ -436,6 +439,7 @@ def main():
 
         cos_dis = all_cos_dis[-1]
         l2_dist = all_l2_dist[-1]
+
 
         score = attack_simulator.evaluate_attack()
         all_clients_scores.append(score)
@@ -460,6 +464,12 @@ def main():
     logging.info(f"Average score: {avg_score}")
     logging.info(f"Average cosine dissimilarity: {avg_cos_dis}")
     logging.info(f"Average L2 distance: {avg_l2_dis}")
+
+    # TODO: remove this, only to check the results
+    with open("predictions.json", "w") as f:
+        json.dump(predictions, f)
+    with open("true_labels.json", "w") as f:
+        json.dump(true_labels, f)
 
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
