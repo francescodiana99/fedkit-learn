@@ -514,7 +514,7 @@ class Trainer:
         path : str
             The path to a .pt file storing the required data.
         """
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=self.device)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -856,7 +856,7 @@ class DPTrainer(Trainer):
         path : str
             The path to a .pt file storing the required data.
         """
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=self.device)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
