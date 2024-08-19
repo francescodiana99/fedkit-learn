@@ -83,4 +83,4 @@ docs/_build/
 target/
 
 
-!fedklearn/configs/*/*.json
+!../fedklearn/configs/*/*.json

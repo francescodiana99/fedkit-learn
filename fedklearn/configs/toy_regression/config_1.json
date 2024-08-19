@@ -1,1 +1,0 @@
-{"model_class": "SequentialNet", "init_args": {"input_dimension": 51, "output_dimension": 1, "hidden_layers":  [128]}}

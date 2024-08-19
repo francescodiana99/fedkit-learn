@@ -16,12 +16,9 @@ SHORT_DESCRIPTION = (
 setup(
     name='fedklearn',
     version='0.1.0',
-    author='Othmane Marfoq',
-    author_email='othmane.marfoq@inria.fr',
     description=SHORT_DESCRIPTION,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/omarfoq/fedkit-learn',
     classifiers=[
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache License',

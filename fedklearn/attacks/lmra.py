@@ -387,7 +387,6 @@ class LocalModelReconstructionAttack:
         return loss, metric
 
     def verify_gradient_predictor(self, scaling_coeff):
-        # TODO (OTHMANE): clarify docs for this function
         for round_id in self.round_ids:
             model_params = self.global_models_dict[round_id].to(self.device)
 
