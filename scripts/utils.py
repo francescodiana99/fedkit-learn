@@ -118,7 +118,6 @@ def get_task_type(task_name):
 
     return task_types[task_name]
 
-#TODO: fix this method for all the datasets respect to the split criterion (refactor)
 def load_dataset(task_name, data_dir, rng):
     """
     Load a federated dataset based on the specified task name.
@@ -426,23 +425,19 @@ def get_trainer_parameters(task_name, device, model_config_path):
         metric = binary_accuracy_with_sigmoid
     elif task_name == "medical_cost":
         criterion = nn.MSELoss(reduction="none").to(device)
-        # TODO: need this for output shape and type, fix_later
         is_binary_classification = True
         metric = mean_squared_error
 
     elif task_name == "income":
         criterion = nn.MSELoss(reduction="none").to(device)
-        # TODO: need this for output shape and type, fix_later
         is_binary_classification = True
         metric = mean_squared_error
     elif task_name == "linear_income":
         criterion = nn.MSELoss(reduction="none").to(device)
-        # TODO: need this for output shape and type, fix_later
         is_binary_classification = True
         metric = mean_squared_error
     elif task_name == "linear_medical_cost":
         criterion = nn.MSELoss(reduction="none").to(device)
-        # TODO: need this for output shape and type, fix_later
         is_binary_classification = True
         metric = mean_squared_error
 
@@ -547,70 +542,6 @@ def evaluate_aia(
         logging.info(f"{all_losses[:20].argmax(axis=1)}")
     return float(score)
 
-def split_data_by_aia(reference_trainers_dict, global_trainer, federated_dataset, sensitive_attribute,
-                      sensitive_attribute_type, initialization, device,criterion,
-                      is_binary_classification, learning_rate, optimizer_name, success_metric, data_path,
-                      rng=None, torch_rng=None, verbose=False):
-    """
-    Split data in multiple datasets based on the AIA results.
-    """
-    global_model = global_trainer.model
-    global_model.eval()
-    num_clients = len(reference_trainers_dict)
-
-    for attacked_client_id in tqdm(range(num_clients)):
-        dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode="train")
-        sensitive_attribute_id = dataset.column_name_to_id[sensitive_attribute]
-        attacked_model = reference_trainers_dict[f"{attacked_client_id}"].model
-        attacked_model.eval()
-        df_dict_global = get_aia_split(model=global_model, dataset=dataset, sensitive_attribute_id=sensitive_attribute_id,
-                                sensitive_attribute_type=sensitive_attribute_type, initialization=initialization,
-                                device=device, criterion=criterion, is_binary_classification=is_binary_classification,
-                                learning_rate=learning_rate, optimizer_name=optimizer_name,
-                                success_metric=success_metric,
-                                rng=rng, torch_rng=torch_rng, verbose=verbose)
-        df_dict = get_aia_split(model=attacked_model, dataset=dataset,
-                                sensitive_attribute_id=sensitive_attribute_id,
-                                sensitive_attribute_type=sensitive_attribute_type, initialization=initialization,
-                                device=device, criterion=criterion, is_binary_classification=is_binary_classification,
-                                learning_rate=learning_rate, optimizer_name=optimizer_name, success_metric=success_metric,
-                                rng=rng, torch_rng=torch_rng, verbose=verbose)
-        for key in df_dict.keys():
-            os.makedirs(os.path.join(data_path, f"{attacked_client_id}"), exist_ok=True)
-            df_dict[key].to_csv(f"{data_path}/{attacked_client_id}/{key}.csv", index=False)
-
-            # TODO: fix this
-        for key in df_dict_global.keys():
-            os.makedirs(os.path.join(data_path, "global", f"{attacked_client_id}",), exist_ok=True)
-            df_dict_global[key].to_csv(f"{data_path}/global/{attacked_client_id}/{key}.csv", index=False)
-
-
-def get_aia_split(model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device,
-                  criterion, is_binary_classification, learning_rate, optimizer_name,
-                  success_metric, rng=None, torch_rng=None, verbose=False
-                  ):
-
-    """
-    Split data according to the AIA.
-    """
-    attack_simulator = ModelDrivenAttributeInferenceAttack(
-        model=model,
-        dataset=dataset,
-        sensitive_attribute_id=sensitive_attribute_id,
-        sensitive_attribute_type=sensitive_attribute_type,
-        initialization=initialization,
-        device=device,
-        criterion=criterion,
-        is_binary_classification=is_binary_classification,
-        learning_rate=learning_rate,
-        optimizer_name=optimizer_name,
-        success_metric=success_metric,
-        rng=rng,
-        torch_rng=torch_rng
-    )
-
-    return attack_simulator.execute_attack_and_split_data(verbose=verbose)
-
 def weighted_average(scores, n_samples):
     if len(scores) != len(n_samples):
         raise ValueError("The lengths of 'scores' and 'n_samples' must be the same.")
@@ -632,48 +563,6 @@ def save_scores(scores_list, n_samples_list, results_path):
     with open(results_path, 'w') as f:
         json.dump(results, f)
 
-
-def save_avg_scores_adult(scores_list, attack_name, results_path, n_samples_list, n_tasks, split_criterion, seed):
-
-    seed = str(seed)
-    avg_score = weighted_average(scores=scores_list, n_samples=n_samples_list)
-
-    if os.path.exists(results_path):
-        with open(results_path, 'r') as f:
-            results = json.load(f)
-    else:
-        results = defaultdict()
-    if seed not in results:
-        results[seed] = dict()
-
-    if split_criterion not in results[seed]:
-        results[seed][split_criterion] = dict()
-    if n_tasks not in results[seed][split_criterion]:
-        results[seed][split_criterion][str(n_tasks)] = dict()
-
-    if split_criterion == ["n_task_samples"]:
-        results[seed][split_criterion][str(n_tasks)][str(n_samples_list[-1])][attack_name] = avg_score
-    else:
-        results[seed][split_criterion][str(n_tasks)][attack_name] = avg_score
-    with open(results_path, 'w') as f:
-        json.dump(results, f)
-
-    logging.info(f"Average Score={avg_score:.3f}")
-
-
-def load_and_save_result_history(data_dir, scores_list, results_path, attack_name, n_samples_list,seed ):
-    """Save average results for all the attacks in a json file."""
-
-    with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
-        split_dict = json.load(f)
-    split_criterion = split_dict["split_criterion"]
-    n_tasks = split_dict["n_tasks"]
-    save_avg_scores_adult(scores_list=scores_list, attack_name=attack_name, results_path=results_path,
-                          n_samples_list=n_samples_list, n_tasks=n_tasks, split_criterion=split_criterion, seed=seed)
-
-
-
-    logging.info(f"The results dictionary has been saved in {results_path}")
 
 def initialize_model(model_config_path):
     """

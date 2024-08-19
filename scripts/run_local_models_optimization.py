@@ -569,6 +569,7 @@ def main():
         models_trajectory_dict[args.optimized_task] = task_trajectory_dict
 
     local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
+    os.mkdirs(args.metadata_dir, exist_ok=True)
     with open(local_models_trajectory_path, "w") as f:
         json.dump(models_trajectory_dict, f)
 

@@ -648,6 +648,57 @@ class DebugTrainer(Trainer):
 
 
 class DPTrainer(Trainer):
+    """
+    Trainer with sample-level Differential Privacy support.
+
+    Attributes
+    ----------
+    model (nn.Module): The model trained by the Trainer.
+    criterion (torch.nn.modules.loss): Loss function used to train the `model`. Should have reduction="none".
+    metric (callable): Function to compute the metric. Should accept two vectors and return a scalar.
+    device (str or torch.Device): Device on which to perform computations.
+    optimizer (torch.optim.Optimizer): Optimization algorithm.
+    max_physical_batch_size (int): Maximum physical batch size.
+    clip_norm (float): Norm used to clip gradients.
+    delta (float): Delta value for differential privacy.
+    train_loader (torch.utils.data.DataLoader): DataLoader providing batches of input features and corresponding labels.
+    optimizer_init_dict (dict): Dictionary containing the optimizer initialization parameters.
+    model_name (str): Optional name for the model.
+    epsilon (float): Epsilon value for differential privacy.
+    noise_multiplier (float): Noise multiplier for differential privacy.
+    epochs (int): Number of epochs for differential privacy training.
+    lr_scheduler (torch.optim.lr_scheduler): Learning rate scheduler.
+    is_binary_classification (bool): Whether to cast labels to float or not. Set to True if using BCELoss.
+    rng (torch.Generator): Random number generator for differential privacy.
+
+    Methods
+    -------
+    fit_epochs(n_epochs):
+        Perform multiple training epochs with differential privacy.
+
+    fit_epoch():
+        Perform multiple optimizer steps on all batches drawn from the provided data loader using differential privacy.
+
+    load_checkpoint(path):
+        Load the Trainer's model, optimizer, privacy_engine, and learning rate scheduler state dictionaries from a checkpoint.
+
+    save_checkpoint(path):
+        Save the Trainer's model, optimizer, privacy engine accountant and learning rate scheduler state dictionaries.
+
+    set_param_tensor(param_tensor):
+        raise NotImplementedError`.
+
+    set_grad_tensor(grad_tensor):
+        raise NotImplementedError.
+
+    _make_private(model, optimizer, train_loader):
+        Wrap model, optimizer and train loader to train using Differential Privacy.
+
+    _init_optimizer():
+        Initialize an optimizer instance to correctly use the PrivacyEngine.
+
+
+    """
 
     def __init__(self, model, criterion, metric, device, optimizer, max_physical_batch_size, clip_norm, delta, train_loader,
                 optimizer_init_dict, model_name=None, epsilon=None, noise_multiplier=None, epochs=None, lr_scheduler=None,

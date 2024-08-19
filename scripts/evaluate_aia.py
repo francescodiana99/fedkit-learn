@@ -1,3 +1,6 @@
+"""Model Based Attribute Inference Attack Evaluation Script
+"""
+
 import argparse
 import copy
 import logging
@@ -143,7 +146,7 @@ def parse_args(args_list=None):
         "--reference_models_metadata_path",
         type=str,
         help="Path to the metadata file of the models to use as a reference for the attack performance",
-        required=True
+        default=None
     )
 
     parser.add_argument(
@@ -252,8 +255,6 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
     num_clients = len(trainers_dict) - 1
 
     global_model = trainers_dict["global"].model
-    # DEBUG
-    # global_model.fc.weight.data[:,39] = 0.0
 
     scores_per_client_dict = {
         "reference": dict(),
@@ -300,54 +301,59 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
 
         success_metric = threshold_binary_accuracy if sensitive_attribute_type == "binary" else mean_squared_error
 
-        try:
-            reference_model = reference_trainers_dict[f"{attacked_client_id}"].model
+        if reference_trainers_dict:
+            try:
+                reference_model = reference_trainers_dict[f"{attacked_client_id}"].model
 
-        except KeyError:
-            reference_model = reference_trainers_dict[attacked_client_id].model
+            except KeyError:
+                reference_model = reference_trainers_dict[attacked_client_id].model
 
         client_model = trainers_dict[f"{attacked_client_id}"].model
         if active_trainers_dict:
             active_model = active_trainers_dict[f"{attacked_client_id}"].model
 
-
-        reference_model.eval()
         global_model.eval()
         client_model.eval()
+
         if active_trainers_dict:
             active_model.eval()
 
-        # Evaluate the models before the attack
+        if reference_trainers_dict:
+            reference_model.eval()
+
         dataloader = DataLoader(dataset, batch_size=batch_size)
+
         global_loss, global_metric = evaluate_trainer(trainers_dict["global"], dataloader)
-        reference_model_loss, reference_model_metric = evaluate_trainer(reference_trainers_dict[f"{attacked_client_id}"], dataloader)
         client_model_loss, client_model_metric = evaluate_trainer(trainers_dict[f"{attacked_client_id}"], dataloader)
+
+        if reference_trainers_dict:
+            reference_model_loss, reference_model_metric = evaluate_trainer(reference_trainers_dict[f"{attacked_client_id}"], dataloader)
         if active_trainers_dict:
             active_model_loss, active_model_metric = evaluate_trainer(active_trainers_dict[f"{attacked_client_id}"], dataloader)
-        # logging.info(f"reference model {split} loss={reference_model_loss:.3f},  {split} metric={reference_model_metric:.3f}")
-        # logging.info(f"Global model {split} loss={global_loss:.3f},  {split} metric={global_metric:.3f}")
 
-        metrics_dict["reference"][attacked_client_id] = reference_model_metric.item()
+
         metrics_dict["global"][attacked_client_id] = global_metric.item()
         metrics_dict["client"][attacked_client_id] = client_model_metric.item()
         if active_trainers_dict:
             metrics_dict["active"][attacked_client_id] = active_model_metric.item()
+        if reference_trainers_dict:
+            metrics_dict["reference"][attacked_client_id] = reference_model_metric.item()
 
-        loss_dict["reference"][attacked_client_id] = reference_model_loss
         loss_dict["global"][attacked_client_id] = global_loss
         loss_dict["client"][attacked_client_id] = client_model_loss
         if active_trainers_dict:
             loss_dict["active"][attacked_client_id] = active_model_loss
+        if reference_trainers_dict:
+            loss_dict["reference"][attacked_client_id] = reference_model_loss
 
 
-        # logging.info("Attack with the REFERENCE model...")
-        aia_score_reference = evaluate_aia(model=reference_model, dataset=dataset, num_iterations=aia_num_rounds,
-            sensitive_attribute_id=sensitive_attribute_id, sensitive_attribute_type=sensitive_attribute_type,
-            initialization=aia_initialization, device=device, criterion=criterion,
-            is_binary_classification=is_binary_classification, learning_rate=learning_rate,
-            optimizer_name=optimizer_name, success_metric=success_metric, rng=rng, torch_rng=torch_rng)
+        if reference_trainers_dict:
+            aia_score_reference = evaluate_aia(model=reference_model, dataset=dataset, num_iterations=aia_num_rounds,
+                sensitive_attribute_id=sensitive_attribute_id, sensitive_attribute_type=sensitive_attribute_type,
+                initialization=aia_initialization, device=device, criterion=criterion,
+                is_binary_classification=is_binary_classification, learning_rate=learning_rate,
+                optimizer_name=optimizer_name, success_metric=success_metric, rng=rng, torch_rng=torch_rng)
 
-        # logging.info("Attack with the GLOBAL model...")
         aia_score_global = evaluate_aia(model=global_model, dataset=dataset,
                                         sensitive_attribute_id=sensitive_attribute_id,
                                         sensitive_attribute_type=sensitive_attribute_type,
@@ -376,15 +382,18 @@ def compute_scores(task_name, federated_dataset, sensitive_attribute, sensitive_
                                             optimizer_name=optimizer_name, success_metric=success_metric, rng=rng,
                                             torch_rng=torch_rng)
         logging.info('=' * 50)
-        logging.info(f"Score={aia_score_reference:.4f} for task {attacked_client_id} with reference model")
         logging.info(f"Score={aia_score_global:.4f} for task {attacked_client_id} with global model")
         logging.info(f"Score={aia_score_client:.4f} for task {attacked_client_id} with client model")
+        if reference_trainers_dict:
+            logging.info(f"Score={aia_score_reference:.4f} for task {attacked_client_id} with reference model")
+
         if active_trainers_dict:
             logging.info(f"Score={aia_score_active:.4f} for task {attacked_client_id} with active model")
 
-        scores_per_client_dict["reference"][attacked_client_id] = aia_score_reference
         scores_per_client_dict["global"][attacked_client_id] = aia_score_global
         scores_per_client_dict["client"][attacked_client_id] = aia_score_client
+        if reference_trainers_dict:
+            scores_per_client_dict["reference"][attacked_client_id] = aia_score_reference
         if active_trainers_dict:
             scores_per_client_dict["active"][attacked_client_id] = aia_score_active
 
@@ -429,9 +438,10 @@ def main():
     with open(args.models_config_metadata_path, "r") as f:
         models_config_metadata_dict = json.load(f)
 
-    with open(args.reference_models_metadata_path, "r") as f:
-        all_reference_models_metadata_dict = json.load(f)
-        all_reference_models_metadata_dict = swap_dict_levels(all_reference_models_metadata_dict)
+    if args.reference_models_metadata_path is None:
+        with open(args.reference_models_metadata_path, "r") as f:
+            all_reference_models_metadata_dict = json.load(f)
+            all_reference_models_metadata_dict = swap_dict_levels(all_reference_models_metadata_dict)
 
     if args.active_round is not None:
         all_models_metadata_dict = {k: v for k, v in all_models_metadata_dict.items() if k in args.attacked_rounds}
@@ -441,8 +451,9 @@ def main():
         all_scores[iteration_id] = dict()
 
         models_metadata_dict = all_models_metadata_dict[iteration_id]
-        reference_models_metadata_dict = all_reference_models_metadata_dict[iteration_id]
-        # last_active_round = max([int(k) for k in all_active_models_metadata_dict.keys()])
+
+        if args.reference_models_metadata_path is None:
+            reference_models_metadata_dict = all_reference_models_metadata_dict[iteration_id]
         if args.active_round is not None:
             active_models_metadata_dict = all_active_models_metadata_dict[f'{args.active_round}']
 
@@ -463,10 +474,13 @@ def main():
         else:
             active_trainers_dict = None
 
-        reference_trainers_dict = initialize_trainers_dict(
-            reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
-            is_binary_classification=is_binary_classification, metric=metric, device=args.device
-        )
+        if args.reference_models_metadata_path is not None:
+            reference_trainers_dict = initialize_trainers_dict(
+                reference_models_metadata_dict, criterion=criterion, model_init_fn=model_init_fn,
+                is_binary_classification=is_binary_classification, metric=metric, device=args.device
+            )
+        else:
+            reference_trainers_dict = None
 
         scores_per_client_dict, metrics_dict, loss_dict, n_samples_list = compute_scores(
             task_name=args.task_name,
@@ -503,23 +517,26 @@ def main():
         avg_global_metric = weighted_average(global_metric, n_samples_list)
         avg_global_loss = weighted_average(global_losses, n_samples_list)
 
-        reference_scores = list(scores_per_client_dict["reference"].values())
-        reference_metric = list(metrics_dict["reference"].values())
-        reference_losses = list(loss_dict["reference"].values())
-
-        all_scores[iteration_id]["reference"] = {"scores": reference_scores, "metrics": reference_metric,
-                                                 "losses": reference_losses, "n_samples": n_samples_list}
-
-        avg_reference_score = weighted_average(reference_scores, n_samples_list)
-        avg_reference_metric = weighted_average(reference_metric, n_samples_list)
-        avg_reference_loss = weighted_average(reference_losses, n_samples_list)
-
         client_scores = list(scores_per_client_dict["client"].values())
         client_metric = list(metrics_dict["client"].values())
         client_losses = list(loss_dict["client"].values())
-
         all_scores[iteration_id]["client"] = {"scores": client_scores, "metrics": client_metric,
                                               "losses": client_losses, "n_samples": n_samples_list}
+        avg_client_score = weighted_average(client_scores, n_samples_list)
+        avg_client_metric = weighted_average(client_metric, n_samples_list)
+        avg_client_loss = weighted_average(client_losses, n_samples_list)
+
+        if args.reference_models_metadata_path is not None:
+            reference_scores = list(scores_per_client_dict["reference"].values())
+            reference_metric = list(metrics_dict["reference"].values())
+            reference_losses = list(loss_dict["reference"].values())
+
+            all_scores[iteration_id]["reference"] = {"scores": reference_scores, "metrics": reference_metric,
+                                                    "losses": reference_losses, "n_samples": n_samples_list}
+
+            avg_reference_score = weighted_average(reference_scores, n_samples_list)
+            avg_reference_metric = weighted_average(reference_metric, n_samples_list)
+            avg_reference_loss = weighted_average(reference_losses, n_samples_list)
 
         if args.active_round is not None:
 
@@ -529,44 +546,47 @@ def main():
 
             all_scores[iteration_id]["active"] = {"scores": active_scores, "metrics": active_metric,
                                                   "losses": active_losses, "n_samples": n_samples_list}
-
             avg_active_score = weighted_average(active_scores, n_samples_list)
             avg_active_metric = weighted_average(active_metric, n_samples_list)
             avg_active_loss = weighted_average(active_losses, n_samples_list)
 
-        avg_client_score = weighted_average(client_scores, n_samples_list)
-        avg_client_metric = weighted_average(client_metric, n_samples_list)
-        avg_client_loss = weighted_average(client_losses, n_samples_list)
+
 
 
         logging.info(f"Scores for round {iteration_id}")
         logging.info(f"Average metric for global model: {avg_global_metric:.4f}")
-        logging.info(f"Average metric for reference model: {avg_reference_metric:.4f}")
         logging.info(f"Average metric for client model: {avg_client_metric:.4f}")
+        if args.reference_models_metadata_path is not None:
+            logging.info(f"Average metric for reference model: {avg_reference_metric:.4f}")
+
         if args.active_round is not None:
             logging.info(f"Average metric for active model: {avg_active_metric:.4f}")
 
 
 
         logging.info(f"Average loss for global model: {avg_global_loss:.4f}")
-        logging.info(f"Average loss for reference model: {avg_reference_loss:.4f}")
         logging.info(f"Average loss for client model: {avg_client_loss:.4f}")
+        if args.reference_models_metadata_path is not None:
+            logging.info(f"Average loss for reference model: {avg_reference_loss:.4f}")
         if args.active_round is not None:
             logging.info(f"Average loss for active model: {avg_active_loss:.4f}")
 
 
         logging.info(f"Average score for global model: {avg_global_score:.4f}")
-        logging.info(f"Average score for reference model: {avg_reference_score:.4f}")
         logging.info(f"Average score for client model: {avg_client_score:.4f}")
+        if args.reference_models_metadata_path is not None:
+            logging.info(f"Average score for reference model: {avg_reference_score:.4f}")
         if args.active_round is not None:
             logging.info(f"Average score for active model: {avg_active_score:.4f}")
 
     logging.info("Saving scores..")
+
     os.makedirs(args.results_dir, exist_ok=True)
     if args.active_round is not None:
         scores_path = os.path.join(args.results_dir, f"lmra_round_{args.active_round}.json")
     else:
         scores_path = os.path.join(args.results_dir, "lmra.json")
+
     if os.path.exists(scores_path):
         with open(scores_path, "r") as f:
             scores_dict = json.load(f)

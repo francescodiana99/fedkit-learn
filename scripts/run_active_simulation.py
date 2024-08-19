@@ -23,8 +23,8 @@ from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDat
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
-from fedklearn.trainer.trainer import Trainer
-from fedklearn.federated.client import Client
+from fedklearn.trainer.trainer import Trainer, DPTrainer
+from fedklearn.federated.client import Client, DPClient
 from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
 
 from fedklearn.metrics import *
@@ -363,13 +363,54 @@ def parse_args(args_list=None):
         help="If set, the active attack will be performed on the specified client. Default is None"
     )
 
+    parser.add_argument(
+        "--use_dp",
+        action="store_true",
+        default=False,
+        help="Flag for using differential privacy"
+    )
+
+    parser.add_argument(
+        "--noise_multiplier",
+        type=float,
+        default=None,
+        help="Noise multiplier for differential privacy"
+    )
+
+    parser.add_argument(
+        "--clip_norm",
+        type=float,
+        default=None,
+        help="Clipping norm for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_delta",
+        type=float,
+        default=None,
+        help="Delta for differential privacy"
+    )
+
+    parser.add_argument(
+        "--dp_epsilon",
+        type=float,
+        default=None,
+        help="Epsilon for differential privacy"
+    )
+
+    parser.add_argument(
+        "--max_physical_batch_size",
+        type=int,
+        default=None,
+        help="Maximum physical batch size for differential privacy"
+    )
+
 
     if args_list is None:
         return parser.parse_args()
     else:
         return parser.parse_args(args_list)
 
-# TODO: save for each server model the metadata
 def save_last_round_metadata(all_messages_metadata, metadata_dir, args):
     if args.attacked_task is None:
         last_saved_round_id = max(map(int, all_messages_metadata["0"].keys()))
@@ -436,7 +477,7 @@ def objective(trial , federated_dataset, rng, args):
         return train_loss
 
 
-def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
+def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global', train_loader=None):
     """
     Initialize the trainer based on the specified model metadata.
     Args:
@@ -516,12 +557,28 @@ def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
             momentum=args.momentum,
             weight_decay=args.weight_decay,
         )
+
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "momentum": args.momentum,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.SGD
+        }
+
     elif args.optimizer == "adam":
         optimizer = optim.Adam(
             [param for param in model.parameters() if param.requires_grad],
             lr=args.learning_rate,
             weight_decay=args.weight_decay,
         )
+
+        optimizer_params = {
+            "lr": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "init_fn": optim.Adam,
+            "betas": (0.99, 0.999)
+        }
+
     else:
         raise NotImplementedError(
             f"Optimizer '{args.optimizer}' is not implemented."
@@ -535,14 +592,35 @@ def initialize_trainer(models_metadata_dict, args, task_id=None, mode='global'):
     model_chkpts = torch.load(model_chkpt_path, map_location=args.device)["model_state_dict"]
     model.load_state_dict(model_chkpts)
 
-    return Trainer(
-        model=model,
-        criterion=criterion,
-        optimizer=optimizer,
-        metric=metric,
-        device=args.device,
-        is_binary_classification=is_binary_classification
+    if mode == 'task' and args.use_dp:
+        trainer = DPTrainer(
+            model=model,
+            criterion=criterion,
+            metric=metric,
+            device=args.device,
+            optimizer=optimizer,
+            is_binary_classification=is_binary_classification,
+            max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size is not None else args.batch_size,
+            noise_multiplier=args.noise_multiplier,
+            epsilon=args.dp_epsilon,
+            delta=args.dp_delta,
+            clip_norm=args.clip_norm,
+            epochs=args.num_rounds * args.local_steps,
+            train_loader=train_loader,
+            optimizer_init_dict=optimizer_params,
+            rng=torch.Generator(device=args.device).manual_seed(args.seed)
         )
+    else:
+        trainer =  Trainer(
+            model=model,
+            criterion=criterion,
+            optimizer=optimizer,
+            metric=metric,
+            device=args.device,
+            is_binary_classification=is_binary_classification
+            )
+
+    return trainer
 
 
 def initialize_active_simulator(clients, rng, beta1, beta2, alpha, args):
@@ -565,7 +643,8 @@ def initialize_active_simulator(clients, rng, beta1, beta2, alpha, args):
         epsilon=args.epsilon,
         alpha=alpha,
         attacked_round=args.attacked_round,
-        active_chkpts_dir=args.active_chkpts_dir
+        active_chkpts_dir=args.active_chkpts_dir,
+        use_dp=args.use_dp
     )
 
     return simulator
@@ -588,13 +667,16 @@ def load_clients_from_chkpt(federated_dataset, args):
     if args.attacked_task is None:
         for task_id in federated_dataset.task_id_to_name:
 
-            trainer = initialize_trainer(models_metadata_dict, args, task_id, mode='task')
-
             train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
             test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
 
             train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+
+            if args.use_dp:
+                trainer = initialize_trainer(models_metadata_dict, args, task_id, mode='task', train_loader=train_loader)
+            else:
+                trainer = initialize_trainer(models_metadata_dict, args, task_id, mode='task')
 
             logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
 
@@ -608,7 +690,6 @@ def load_clients_from_chkpt(federated_dataset, args):
                             )
             clients.append(client)
     else:
-        trainer = initialize_trainer(models_metadata_dict, args, args.attacked_task, mode='task')
 
         train_dataset = federated_dataset.get_task_dataset(args.attacked_task, mode="train")
         test_dataset = federated_dataset.get_task_dataset(args.attacked_task, mode="test")
@@ -616,9 +697,23 @@ def load_clients_from_chkpt(federated_dataset, args):
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-        logger = SummaryWriter(os.path.join(args.logs_dir, f"{args.attacked_task}"))
+        if args.use_dp:
+            trainer = initialize_trainer(models_metadata_dict, args, args.attacked_task, mode='task', train_loader=train_loader)
+        else:
+            trainer = initialize_trainer(models_metadata_dict, args, args.attacked_task, mode='task')
 
-        client = Client(trainer=trainer,
+        logger = SummaryWriter(os.path.join(args.logs_dir, f"{args.attacked_task}"))
+        if args.use_dp:
+            client = DPClient(trainer=trainer,
+                            train_loader=train_loader,
+                            test_loader=test_loader,
+                            local_steps=args.local_steps,
+                            by_epoch=args.by_epoch,
+                            logger=logger,
+                            name=args.attacked_task
+                            )
+        else:
+            client = Client(trainer=trainer,
                         train_loader=train_loader,
                         test_loader=test_loader,
                         local_steps=args.local_steps,

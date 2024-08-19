@@ -171,7 +171,7 @@ def parse_args(args_list=None):
 
     # TODO: change this in local_steps
     parser.add_argument(
-        '--n_local_steps',
+        '--local_steps',
     type=int,
     help="Number of simulated local batch updates")
 
@@ -239,8 +239,7 @@ def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, cri
     Initialize the trainer for running the active simulation.
 
     """
-    # TODO: fix, this should just use torch.load and load also the optimizer state
-
+    
     local_model_chkpt = torch.load(client_messages_metadata['local'][f"{args.attacked_round}"],
                                     map_location=args.device)["model_state_dict"]
     attacked_model = model_init_fn()
@@ -424,11 +423,10 @@ def main():
                                                     model_init_fn=model_init_fn, criterion=criterion, metric=metric,
                                                     is_binary_classification=is_binary_classification)
 
-        # TODO: refactori this part
         if not args.by_epoch:
             if args.use_dp:
                 raise NotImplementedError("Simulating local steps with DP is not implemented. Only local epochs are supported.")
-            if args.n_local_steps is None:
+            if args.local_steps is None:
                 raise ValueError('Please specify a number of local steps to simulate.')
             train_iterator = iter(train_loader)
 
@@ -439,7 +437,7 @@ def main():
                 else:
                     loss, metric = active_trainer.fit_epoch(loader=train_loader)
             else:
-                for _ in range(args.n_local_steps):
+                for _ in range(args.local_steps):
                     try:
                         batch = next(train_iterator)
                     except StopIteration:

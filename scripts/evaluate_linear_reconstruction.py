@@ -1,5 +1,6 @@
+"Reconstruction and Evaluation of Linear Models script "
+
 import os
-import time
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer
 from fedklearn.metrics import binary_accuracy_with_sigmoid, mean_squared_error, mean_absolute_error
@@ -89,12 +90,6 @@ def parse_args():
         type=str,
         default='./results',
         help='Results directory'
-        )
-
-    parser.add_argument(
-        '--track_time',
-        action='store_true',
-        help='Track time'
         )
 
     parser.add_argument(
@@ -334,8 +329,6 @@ def compute_pseudo_grads(messages_metadata, round_ids):
 
 def main():
 
-    # TODO: this should be refactored, creating a class for linear reconstruction
-
     args = parse_args()
 
     configure_logging(args)
@@ -360,8 +353,10 @@ def main():
                     'norm_diff': dict(),
                     'loss_diff': dict(),
                     'n_samples': dict(),
-                    'exec_time': dict(),
-                    'device': get_gpu()}
+                    'reconstructed_loss': dict(),
+                    'optimal_loss': dict(),
+                    'device': get_gpu()
+                    }
 
 
     for task_id in tqdm(federated_dataset.task_id_to_name):
@@ -369,11 +364,6 @@ def main():
         logging.info(f'Reconstructing task {task_id}..')
 
         reconstructed_params = reconstruct_model_params(args=args, metadata_dict=metadata_dict, task_id=task_id)
-
-        if args.track_time:
-            end = time.time()
-            logging.info(f'Execution time: {end - start} seconds')
-            results_dict['exec_time'][f'{task_id}'] = f'{end - start}'
 
         recon_model = model_init_fn()
         set_param_tensor(model=recon_model, param_tensor=reconstructed_params, device=args.device)
@@ -395,7 +385,6 @@ def main():
         logging.info(f'Reconstructed Loss: {recon_loss} | Metric: {recon_metric}')
         logging.info(f'Local Loss: {emp_opt_loss} | Metric: {emp_opt_metric}')
 
-        # TODO: get sensitive attribute type
         sensitive_attribute_id = train_dataset.column_name_to_id[args.sensitive_attribute]
 
         recon_aia_score = evaluate_aia(
@@ -443,15 +432,18 @@ def main():
             torch.save(checkpoint, os.path.join(args.reconstructed_models_dir, f'{task_id}.pt'))
 
         results_dict['attack_accuracy'][f'{task_id}'] = str(recon_aia_score)
+        results_dict['attack_accuracy'][f'{task_id}'] = str(opt_aia_score)
         results_dict['norm_diff'][f'{task_id}'] = str(norm_distance)
         results_dict['loss_diff'][f'{task_id}'] = str(abs((emp_opt_loss - recon_loss)))
         results_dict['n_samples'][f'{task_id}'] = str(len(train_dataset))
+        results_dict['reconstructed_loss'][f'{task_id}'] = str(recon_loss)
+        results_dict['optimal_loss'][f'{task_id}'] = str(emp_opt_loss)
 
     os.makedirs(args.results_dir, exist_ok=True)
-    with open(os.path.join(args.results_dir, 'linear_reconstruciton.json'), 'w') as f:
+    with open(os.path.join(args.results_dir, 'linear_reconstruction.json'), 'w') as f:
         json.dump(results_dict, f)
 
-    logging.info(f'Results correctly saved in {os.path.join(args.results_dir, 'linear_reconstruciton.json')}')
+    logging.info(f'Results correctly saved in {os.path.join(args.results_dir, 'linear_reconstruction.json')}')
 
 
 if __name__ == '__main__':

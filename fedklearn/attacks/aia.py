@@ -145,7 +145,6 @@ class BaseAttributeInferenceAttack(ABC):
 
         return num_classes
 
-    # TODO: note that this method require both the values to be in the dataset, and this could not happen in some splits
     def _get_sensitive_attribute_interval(self):
         """
         Calculate the interval of the sensitive attribute values in the dataset.
@@ -266,8 +265,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
     def __init__(
             self, messages_metadata, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization,
             device, model_init_fn, criterion, is_binary_classification, learning_rate, optimizer_name, success_metric,
-            logger, log_freq, gumbel_temperature=1.0, gumbel_threshold=0.5, rng=None, torch_rng=None, flip_percentage=0,
-            test=False
+            logger, log_freq, gumbel_temperature=1.0, gumbel_threshold=0.5, rng=None, torch_rng=None
     ):
         """
         Initialize the AttributeInferenceAttack.
@@ -291,8 +289,6 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         - gumbel_threshold (float): non-negative scalar, between 0 and 1, used as a threshold in the binary case
         - rng: Random number generator for reproducibility.
         - torch_rng (torch.Generator): Random number generator for reproducibility.
-        - flip_percentage: Percentage of sensitive features to flip. Used only when "test" option is true.
-        - test: Boolean flag to indicate whether to use the true sensitive features instead of the predicted ones.
         """
         super(AttributeInferenceAttack, self).__init__(
             dataset=dataset,
@@ -330,10 +326,6 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         self.pseudo_gradients_dict = self._compute_pseudo_gradients_dict()
 
-        # TODO: remove these two args, here just for testing purposes
-        self.flip_percentage = flip_percentage
-
-        self.test = test
 
     def _get_round_ids(self):
         """
@@ -548,17 +540,6 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         # plug here the true value for the feature
         self.predicted_features[:, self.sensitive_attribute_id] = self.sensitive_attribute
 
-        # TODO: remove these lines ********************************
-        if self.test is True:
-            self.predicted_features[:, self.sensitive_attribute_id] = self.true_features[:, self.sensitive_attribute_id]
-            n_flip = int(self.predicted_features.shape[0] * self.flip_percentage)
-            random_idx = torch.randperm(self.predicted_features.shape[0])[:n_flip]
-            self.predicted_features[random_idx, self.sensitive_attribute_id] = \
-                torch.where(self.predicted_features[random_idx, self.sensitive_attribute_id] == \
-                            self.sensitive_attribute_interval[0],
-                            self.sensitive_attribute_interval[1],
-                            self.sensitive_attribute_interval[0])
-
         loss = torch.tensor(0., device=self.device)
 
         for round_id in self.round_ids:
@@ -594,7 +575,6 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 
         self.logger.add_scalar("Loss", loss, c_iteration)
         self.logger.add_scalar("Metric", metric, c_iteration)
-
         return loss, metric, l2_dist
 
     def execute_attack(self, num_iterations, output_losses=False):
@@ -604,7 +584,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         Parameters:
         - num_iterations (int): The number of iterations to perform the attack.
         """
-        # TODO: remove all_losses and l2_dist, only for debug
+
         all_losses = []
         all_l2_dist = []
         for c_iteration in tqdm(range(num_iterations), leave=False):

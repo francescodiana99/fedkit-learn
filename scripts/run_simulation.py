@@ -20,6 +20,7 @@ Methods/Functions:
     - `load_clients_from_chkpt(federated_dataset, args)`: Load clients from given checkpoints.
     - `compute_local_models(federated_dataset, args)`: Compute and save local models.
     - `initialize_active_simulator(clients, args, rng)`: Initialize the active federated averaging simulator.
+
     - `main()`: Execute the federated learning simulation.
 
 Usage:
@@ -55,6 +56,7 @@ Options:
     --seed: Random seed for reproducibility.
     --binarize_marital_status: Flag for binarizing the marital status.
     --force_generation: Flag for forcing the generation of the dataset.
+    --download: Flag for forcing data downloading.
     --sensitive_attribute_id: Sensitive attribute id.
     --is_binary_classification: Flag for binary classification.
     --target_item: Target item for binary classification with Purchase.
@@ -75,6 +77,7 @@ Options:
     --dp_delta: Delta for differential privacy.
     --dp_epsilon: Epsilon for differential privacy.
     --max_physical_batch_size: Maximum physical batch size for differential privacy.
+
 
 """
 import argparse
@@ -125,9 +128,9 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'binary_income', 'linear_income', 'linear_medical_cost', 'dp_income', 'dp_medical_cost'],
+                 'income', 'binary_income', 'linear_income', 'linear_medical_cost', ],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
-             " 'income', 'binary_income', 'linear_income', 'linear_medical_cost', 'dp_income', 'dp_medical_cost'.",
+             " 'income', 'binary_income', 'linear_income', 'linear_medical_cost'.",
         required=True
     )
 
@@ -651,20 +654,6 @@ def initialize_dataset(args, rng):
             use_linear=True
         )
 
-    elif args.task_name =="dp_medical_cost":
-        return FederatedMedicalCostDataset(
-            cache_dir=args.data_dir,
-            download=args.download,
-            force_generation=args.force_generation,
-            n_tasks=args.n_tasks,
-            rng=rng,
-            split_criterion=args.split_criterion,
-            test_frac=args.test_frac,
-            scaler=args.scaler_name,
-            scale_target=args.scale_target,
-            use_dp=True
-        )
-
 
     if args.task_name == "income":
         return FederatedIncomeDataset(
@@ -720,25 +709,6 @@ def initialize_dataset(args, rng):
             mixing_coefficient=args.mixing_coefficient,
             keep_proportions=args.keep_proportions,
             use_linear=True
-        )
-
-    if args.task_name == "dp_income":
-        return FederatedIncomeDataset(
-            cache_dir=args.data_dir,
-            download=args.download,
-            test_frac=args.test_frac,
-            scaler_name=args.scaler_name,
-            drop_nationality=not args.use_nationality,
-            force_generation=args.force_generation,
-            n_tasks=args.n_tasks,
-            n_task_samples=args.n_task_samples,
-            seed=args.seed,
-            rng=rng,
-            split_criterion=args.split_criterion,
-            state=args.state,
-            mixing_coefficient=args.mixing_coefficient,
-            keep_proportions=args.keep_proportions,
-            use_dp=True
         )
 
     else:
@@ -798,11 +768,6 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         metric = mean_absolute_error
         is_binary_classification = False
 
-    elif args.task_name == "dp_medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
     elif args.task_name == "income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
@@ -814,11 +779,6 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         is_binary_classification = True
 
     elif args.task_name == "linear_income":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "dp_income":
         criterion = nn.MSELoss().to(args.device)
         metric = mean_absolute_error
         is_binary_classification = False
@@ -843,10 +803,12 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             weight_decay=args.weight_decay,
         )
     elif args.optimizer == "adam":
+
         optimizer_params = {
             "lr": args.learning_rate,
             "weight_decay": args.weight_decay,
-            "init_fn": optim.Adam
+            "init_fn": optim.Adam,
+            "betas": (0.99, 0.999)
         }
 
         optimizer = optim.Adam(
@@ -1024,6 +986,13 @@ def initialize_simulator(clients, args, rng):
 
 
 def save_last_round_metadata(all_messages_metadata, metadata_dir):
+    """
+    Save simulation last round metadata.
+
+    Args:
+        all_messages_metadata (dict): Dictionary of all messages metadata.
+        metadata_dir (str): Metadata directory.
+    """
     last_saved_round_id = max(map(int, all_messages_metadata["global"].keys()))
     _random_key = list(all_messages_metadata["global"].keys())[0]
     last_saved_round_id = int(last_saved_round_id) if isinstance(_random_key, int) else str(last_saved_round_id)
@@ -1138,6 +1107,14 @@ def load_clients_from_chkpt(federated_dataset, args):
 
 
 def save_last_round_active_metadata(args, all_messages_metadata, metadata_dir):
+    """
+    Save the last round active metadata.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments.
+        all_messages_metadata (dict): Dictionary of all messages metadata.
+        metadata_dir (str): Metadata directory.
+    """
     if args.attacked_task is None:
         last_saved_round_id = max(map(int, all_messages_metadata["0"].keys()))
         _random_key = list(all_messages_metadata["0"].keys())[0]
@@ -1399,7 +1376,6 @@ def main():
         save_last_round_active_metadata(all_messages_metadata=simulator.messages_metadata,
                                         metadata_dir=args.metadata_dir,
                                         args=args)
-        # TODO save trainer hyperparameter
 
 if __name__ == "__main__":
     main()

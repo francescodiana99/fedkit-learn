@@ -1,4 +1,4 @@
-"""Attribute Inference Attack Simulation Script
+"""Gradient Based Attribute Inference Attack Simulation Script
 
 Implementation based on the technique present in (https://arxiv.org/abs/2108.06910)_
 """
@@ -212,11 +212,6 @@ def parse_args(args_list=None):
         help="Percentage of the sensitive attribute to flip")
 
     parser.add_argument(
-        "--test",
-        default=False,
-        action="store_true")
-
-    parser.add_argument(
         "--active_server",
         default=False,
         action="store_true",
@@ -269,7 +264,6 @@ def main():
     torch_rng = torch.Generator(device=args.device).manual_seed(args.seed)
 
     federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
-    # TODO: fix this, should take only the clients in the metadata dict
     num_clients = len(federated_dataset.task_id_to_name)
 
     with open(args.metadata_path, "r") as f:
@@ -308,7 +302,7 @@ def main():
         else:
             keep_round_ids = get_last_rounds(all_messages_metadata["global"].keys(), keep_frac=args.keep_rounds_frac)
 
-    # TODO: fix, it is not a binary classification but we need the shape transformation
+    # NOTE: it is not a binary classification but we need the shape transformation given by the flag
     if args.task_name == "adult":
         criterion = nn.BCEWithLogitsLoss().to(args.device)
         is_binary_classification = True
@@ -423,15 +417,11 @@ def main():
             log_freq=args.log_freq,
             rng=rng,
             torch_rng=torch_rng,
-            flip_percentage=args.flip_percentage,
-            test=args.test
         )
         if args.track_time:
             start_time = time.time()
         all_cos_dis, all_l2_dist = attack_simulator.execute_attack(num_iterations=args.num_rounds, output_losses=True)
-        # TODO: remove this, only to check the results
-        predictions = (attack_simulator.predicted_features)
-        true_labels = (attack_simulator.true_labels)
+
         if args.track_time:
             end_time = time.time()
             logging.info(f"Attack time for client {attacked_client_id}: {end_time - start_time:.3f} seconds")
@@ -465,15 +455,19 @@ def main():
     logging.info(f"Average cosine dissimilarity: {avg_cos_dis}")
     logging.info(f"Average L2 distance: {avg_l2_dis}")
 
-    # TODO: remove this, only to check the results
-    torch.save(predictions, "predictions.pt")
-    torch.save(true_labels, "true_labels.pt")
-
     save_scores(scores_list=scores_list, n_samples_list=n_samples_list, results_path=args.results_path)
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
-    save_scores(scores_list=all_clients_l2_dis, n_samples_list=n_samples_list,
-                results_path=args.results_path.replace(".json", "_l2_dis.json"))
+
+    if os.exists(os.path.join(args.results_path, "aia_all.json")):
+        with open(os.path.join(args.results_path, "aia_all.json"), "r") as f:
+            all_results = json.load(f)
+        all_results[f"{args.learning_rate}"][f"{args.keep_rounds_frac}"] = (avg_score, avg_cos_dis)
+    else:
+        all_results = {f"{args.learning_rate}": {f"{args.keep_rounds_frac}": (avg_score, avg_cos_dis)}}
+    with open(os.path.join(args.results_path, "aia_all.json"), "w") as f:
+        json.dump(all_results, f)
+
     if args.track_time:
         time_dict = dict()
         time_dict["results"] =  [{"time": time, "n_samples": n_samples} for time, n_samples in zip(all_clients_att_time, n_samples_list)]

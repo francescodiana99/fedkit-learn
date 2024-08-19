@@ -57,13 +57,12 @@ class FederatedIncomeDataset:
             If 'full', the full dataset will be used. Default is full.
 
         mixing_coefficient (float, optional): Mixing coefficient used to manage the correlation between 'SEX' and target
-            variable, when using  'correlation' as split criterion. Default is 0.
+            variable, when using  'correlation' as split criterion. Default is 0. Corresponds to h in the paper (See Appendix B.3).
 
         binarize (bool, optional): Whether to binarize the target variable. Default is False.
 
         use_linear (bool, optional): Flag to check if preprocess the data for a liner model.
 
-        use_dp (bool, optional): Flag to check if preprocess the data for a differential privacy model.
 
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
@@ -141,7 +140,7 @@ class FederatedIncomeDataset:
 
     def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False, use_linear=False, use_dp=False):
+            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False, use_linear=False):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -159,7 +158,6 @@ class FederatedIncomeDataset:
         self.keep_proportions = keep_proportions
         self.binarize = binarize
         self.use_linear = use_linear
-        self.use_dp = use_dp
 
         if self.binarize:
             raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
@@ -249,7 +247,7 @@ class FederatedIncomeDataset:
 
 
     def _download_data(self):
-        """Download the raw data from OpenML."""
+        """Download the raw data from OpenML, tranform in .csv format and save in the raw data directory."""
         os.makedirs(self._raw_data_dir, exist_ok=True)
         _, _ = urllib.request.urlretrieve(URL, os.path.join(self._raw_data_dir, "income.arff"))
 
@@ -286,12 +284,8 @@ class FederatedIncomeDataset:
         test_df = df.drop(train_df.index).reset_index(drop=True)
         train_df.reset_index(drop=True, inplace=True)
 
-        if self.use_dp:
-            train_df = self._scale_features_dp(train_df, mode='train')
-            test_df = self._scale_features_dp(test_df, mode='test')
-        else:
-            train_df = self._scale_features(train_df, self.scaler, mode='train')
-            test_df = self._scale_features(test_df, self.scaler, mode='test')
+        train_df = self._scale_features(train_df, self.scaler, mode='train')
+        test_df = self._scale_features(test_df, self.scaler, mode='test')
 
         os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
@@ -314,6 +308,7 @@ class FederatedIncomeDataset:
 
     @staticmethod
     def _group_cow(x):
+        """Group the 'COW' feature into three categories."""
         if x in [1, 2]:
             x = 0.
         elif x in [3, 4, 5]:
@@ -325,6 +320,7 @@ class FederatedIncomeDataset:
     def _preprocess_linear(self):
         """
         Prepare the raw data for a linear model.
+        Details on the preprocessing steps can be found in the paper in Appendix C.1.
         Returns:
             pd.DataFrame: Processed training data.
             """
@@ -376,7 +372,10 @@ class FederatedIncomeDataset:
 
 
     def _process_full_for_linear_model(self, df, mode='train'):
-        """Process data from all the states for linear models"""
+        """
+        Process data from all the states for linear models.
+        Details on the preprocessing steps can be found in the paper in Appendix C.1.
+        """
 
         for col in ['OCCP', 'RELP',]:
             dummy_cols = [c for c in df.columns if col in c]
@@ -389,10 +388,8 @@ class FederatedIncomeDataset:
         df['COW'] = df[cow_cols].idxmax(axis=1).str.replace('COW_', '').astype('float')
         df['COW'][cow_1_rows] = 1.
 
-        mar_1_rows = (df[mar_cols] == 0).all(axis=1)
         df['MAR'] = df[mar_cols].any(axis=1).astype(float)
 
-        race_1_rows = (df[race_cols] == 0).all(axis=1)
         df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
 
         df = df.drop(columns=mar_cols)
@@ -406,7 +403,7 @@ class FederatedIncomeDataset:
         df['MAR'] = df['MAR'].apply(lambda x: 1. if x == 0 else 2.)
         df['COW'] = df['COW'].apply(self._group_cow)
 
-        # note, the one-hot encoding is done only on 'COW' because for binary feature is better to not have 0 values
+        # note, the one-hot encoding is done only on 'COW'
         df = pd.get_dummies(df, columns=['COW'], dtype=np.float64, drop_first=False)
 
         if mode == 'train':
@@ -420,7 +417,7 @@ class FederatedIncomeDataset:
     def _preprocess_full_data(self):
         """
         Prepare the raw data for scaling when using the full data.
-
+        This corresponds to preprocessing the data for Income-A dataset in the paper.
         Returns:
             pd.DataFrame: Sampled and preocessed training data.
 
@@ -488,12 +485,8 @@ class FederatedIncomeDataset:
             test_df = df.drop(train_df.index).reset_index(drop=True)
             train_df.reset_index(drop=True, inplace=True)
 
-            if self.use_dp:
-                train_df = self._scale_features_dp(train_df, mode='train')
-                test_df = self._scale_features_dp(test_df, mode='test')
-            else:
-                train_df = self._scale_features(train_df, self.scaler, mode='train')
-                test_df = self._scale_features(test_df, self.scaler, mode='test')
+            train_df = self._scale_features(train_df, self.scaler, mode='train')
+            test_df = self._scale_features(test_df, self.scaler, mode='test')
 
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
 
@@ -512,37 +505,6 @@ class FederatedIncomeDataset:
             return MinMaxScaler()
         else:
             raise ValueError(f"Scaler {scaler_name} not found.")
-
-
-    def _scale_features_dp(self, df, mode='train'):
-        dummy_columns = df.select_dtypes(include=['Sparse']).columns
-        dummy_columns = list(set(dummy_columns) - set(NON_CATEGORICAL_COLUMNS))
-        if 'ST' in dummy_columns:
-            dummy_columns.remove('ST')
-
-        if self.state == 'full':
-            state_col = df['ST']
-
-        features_numerical = df[NON_CATEGORICAL_COLUMNS]
-
-        features_dummy = df[dummy_columns]
-
-        numerical_columns = features_numerical.columns
-
-        log_features = np.log(features_numerical)
-
-        if mode == 'train':
-            features_numerical_scaled = pd.DataFrame(self.scaler.fit_transform(log_features), columns=numerical_columns)
-        else:
-            features_numerical_scaled = pd.DataFrame(self.scaler.transform(log_features), columns=numerical_columns)
-
-        features_scaled = pd.concat([features_dummy, features_numerical_scaled], axis=1)
-
-        if self.state == 'full':
-            features_scaled = pd.concat([state_col, features_scaled], axis=1)
-
-        return features_scaled
-
 
 
     def _scale_features(self, df, scaler, mode='train'):
@@ -639,7 +601,7 @@ class FederatedIncomeDataset:
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
                 task_data.to_csv(file_path, index=False)
-                # TODO: this should be not in the loop, and coded better
+                # TODO: this might be refactored later
 
         logging.info(f"Tasks generated and saved to {self._tasks_dir}.")
 
@@ -660,29 +622,6 @@ class FederatedIncomeDataset:
                 task_cache_dir = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', task_name)
 
         return task_cache_dir
-
-    # def _process_for_linear_model(self, df):
-    #     """
-    #     Process the data to prepare them for a linear model. Drops the 'OCCP' and 'RELP' columns, and binarizes
-    #     the 'RAC1P' FEATURE.
-    #     Args:
-    #         df(pd.DataFrame): The DataFrame to process.
-    #
-    #     Returns:
-    #         pd.DataFrame: The processed DataFrame.
-    #
-    #     """
-    #
-    #     for col in ['OCCP', 'RELP']:
-    #         dummy_cols = [c for c in df.columns if col in c]
-    #         df = df.drop(columns=dummy_cols)
-    #     race_cols = [c for c in df.columns if c.startswith('RAC1P')]
-    #     df['RAC1P'] = df[race_cols].any(axis=1).astype(float)
-    #     df = df.drop(columns=race_cols)
-    #     # df = df.drop(['OCCP', 'RELP'], axis=1)
-    #
-    #
-    #     return df
 
 
     def _save_metadata(self):
@@ -733,6 +672,10 @@ class FederatedIncomeDataset:
         return tasks_dict
 
     def _split_by_correlation(self, df, mode='train'):
+        """
+        Split the data based on the correlation between the target variable and SEX feature.
+        Implements Algorithm 5 in the paper.
+        """
 
         lower_bound = min(df['SEX'])
         upper_bound = max(df['SEX'])
@@ -870,6 +813,10 @@ class FederatedIncomeDataset:
         return tasks_dict
 
     def _split_by_state(self, df):
+        """
+        Split the data based on the state feature.
+        Generates client's datasets for Income-A experimental setting.
+        """
         if self.state != 'full':
             raise ValueError("The state split criterion is supported only for the full dataset. ")
         if self.n_tasks is None:
@@ -890,6 +837,15 @@ class FederatedIncomeDataset:
         return tasks_dict
 
     def _split_data_into_tasks(self, df, mode='train'):
+        """
+        Split the data into tasks based on the split criterion.
+        Args:
+            df(pd.DataFrame): DataFrame to split into tasks.
+            mode(str): Split mode, either 'train' or 'test'.
+
+        Returns:
+            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
+        """
         split_criterion_dict = {
             'random': self._random_split,
             'correlation': self._split_by_correlation,
@@ -905,6 +861,16 @@ class FederatedIncomeDataset:
 
 
     def get_task_dataset(self, task_id, mode='train'):
+        """
+        Returns the dataset for a specific task.
+
+        Args:
+            task_id (int): The ID of the task.
+            mode (str, optional): The type of data split, either 'train' or 'test'. Default is 'train'.
+
+        Returns:
+            IncomeDataset: An instance of the `IncomeDataset` class containing the task data.
+        """
 
         task_id = f'{task_id}'
 
@@ -958,6 +924,19 @@ class FederatedIncomeDataset:
 
 
 class IncomeDataset(Dataset):
+    """PyTorch dataset for the Income dataset.
+
+    Args:
+        dataframe (pd.DataFrame): The dataset as a pandas DataFrame.
+        name (str, optional): The name of the dataset. Default is None.
+
+    Attributes:
+        column_names (List[str]): The names of the columns in the dataset.
+        column_name_to_id (Dict[str, int]): A mapping from column names to column IDs.
+        features (np.ndarray): The features of the dataset.
+        targets (np.ndarray): The targets of the dataset.
+        name (str): The name of the dataset.
+    """
 
     def __init__(self, dataframe, name=None):
 

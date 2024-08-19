@@ -358,25 +358,42 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         - global_trainer: The global trainer responsible for model aggregation.
         - logger: The logger for recording simulation logs.
         - chkpts_dir (str): Directory to save simulation checkpoints.
-        - log_freq (int): Frequency for logging simulation information.
-        - rng: Random number generator for reproducibility.
         - beta1 (float): The exponential decay rate for the first moment estimates.
         - beta2 (float): The exponential decay rate for the second moment estimates.
         - epsilon (float): A small constant for numerical stability.
         - alpha (float): The learning rate for the server.
         - attacked_round (int): The round in which the active simulation starts.
-        - pseudo_gradients (list): List of each client current pseudo-gradient value.
         - active_chkpts_dir (str, opt): Directory to save simulation checkpoints for the active server.
+        - use_dp (bool): Flag to determine whether to use differential privacy.
+        - rng: Random number generator for reproducibility.
 
         Methods:
-        - _initialize_server_trainers: Initialize server models to actively update clients' weights.
-        - simulate_server_updates: Update the server's copies of the clients' weights.
+        - _init_pseudo_gradients: Initialize the pseudo-gradients of the clients.
+        - _create_active_chkpts_folders: Create checkpoint folders for the global model and each client.
+        - _init_messages_metadata: Initialize metadata for messages exchanged between the global server and clients.
+        - _init_gradients: Initialize the gradients of the pseudo-gradients.
+        - _init_server_trainers: Initialize server trainers to actively update clients' weights.
         - compute_pseudo_gradient: Compute the pseudo-gradient for the client model based on the server model.
-        - active_update: Update client's weights to accelerate clients' convergence.
+        - active_update: Update client's parameters to accelerate clients' convergence.
+        - simulate_server_updates: Simulate server updates on each client.
         - simulate_active_round: Simulate one round of federated learning using an active malicious server.
         - write_logs: Write simulation logs using the logger.
-        - save_checkpoints: Save simulation checkpoints to the specified directory.
-        - simulate_round: Simulate one round of federated learning using Federated Averaging.
+        - save_active_checkpoints: Save simulation checkpoints for the active server.
+        - get_client_avg_train_loss: Get the average train loss of the clients.
+        - compute_pseudo_grad_norm: Get the average norm of the pseudo-gradients of the clients.
+
+        Attributes:
+        - Inherits attributes from the base Simulator class.
+        - beta1 (float): The exponential decay rate for the first moment estimates.
+        - beta2 (float): The exponential decay rate for the second moment estimates.
+        - epsilon (float): A small constant for numerical stability.
+        - alpha (float): The learning rate for the server.
+        - server_trainers (list): List of server trainers to actively update clients' weights.
+        - attacked_round (int): The round in which the active simulation starts.
+        - active_chkpts_folders_dict (dict): Dictionary containing paths to the checkpoint folders for the global model
+            and each client, with client names as keys.
+        - messages_metadata (dict): Dictionary containing metadata for messages exchanged between the global server and clients.
+        - pseudo_gradients (list): List of pseudo-gradients for the clients.
         """
 
         super().__init__(clients, global_trainer, logger, chkpts_dir, use_dp, rng)
@@ -393,11 +410,14 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
 
     def _init_pseudo_gradients(self):
+        """
+        Initialize the pseudo-gradients of the clients.
+        """
         pseudo_gradients = []
         for i in range(len(self.clients)):
             pseudo_gradients.append(torch.zeros_like(self.clients[i].trainer.get_param_tensor()))
-
         return pseudo_gradients
+
 
     def _create_active_chkpts_folders(self, active_chkpts_folder=None):
         """
@@ -464,7 +484,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
     def _init_gradients(self, trainer):
         """
-        Initialize the gradients of the pseudo-gradients.
+        Initialize the gradients' tenrors of the pseudo-gradients.
 
         Args:
         - trainer: Trainer of the client.
@@ -481,15 +501,14 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
     def _init_server_trainers(self):
         """
-        Initialize server models to actively update clients' weights.
+        Initialize server trainers to actively update clients' weights.
         Returns:
         - list: List of  trainers.
 
         """
         server_trainers = []
         for i in range(len(self.clients)):
-            # TODO: maybe can be cleaned. Cannot deepcopy the trainer due to hooks erors with opacus
-
+            # NOTE: Cannot deepcopy the trainer due to hooks erors with opacus
             model = copy.deepcopy(self.clients[i].trainer.model)
             criterion = copy.deepcopy(self.clients[i].trainer.criterion)
             lr_scheduler = copy.deepcopy(self.clients[i].trainer.lr_scheduler)
@@ -511,7 +530,6 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
                 is_binary_classification=is_binary_classification,
                 optimizer=optimizer,
             )
-            # server_trainer = copy.deepcopy(self.clients[i].trainer)
             server_trainers.append(server_trainer)
         return server_trainers
 
@@ -527,7 +545,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         Returns:
             - torch.Tensor: The pseudo-gradient for the client model.
         """
-        return client_trainer.get_param_tensor() - server_trainer.get_param_tensor()
+        return server_trainer.get_param_tensor() - client_trainer.get_param_tensor()
 
 
     def active_update(self, task_index):
@@ -537,6 +555,8 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         2. Compute an Adam update for each client copy.
         3. Update the client's parameters using the ones received from the server.
 
+        Step 5 in Algorithm 4 of the paper.
+
         Args:
             task_index(int): Index of the client in the clients list.
 
@@ -544,13 +564,12 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         self.server_trainers[task_index] = self._init_gradients(self.server_trainers[task_index])
         pseudo_gradient = self.compute_pseudo_gradient(self.clients[task_index].trainer, self.server_trainers[task_index])
 
-        self.server_trainers[task_index].set_grad_tensor(-pseudo_gradient)
+        self.server_trainers[task_index].set_grad_tensor(pseudo_gradient)
         self.pseudo_gradients[task_index] = pseudo_gradient
 
         self.server_trainers[task_index].optimizer.step()
         self.server_trainers[task_index].optimizer.zero_grad()
 
-        # self.clients[task_index].trainer.set_param_tensor(self.server_trainers[task_index].get_param_tensor())
         self.clients[task_index].update_trainer(self.server_trainers[task_index])
 
     def simulate_server_updates(self):
@@ -566,6 +585,14 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
     def simulate_active_round(self, save_chkpts=False, save_logs=False):
         """
         Simulate one round of federated learning using an active malicious server.
+        Implementation of Algorithm 4 in the paper.
+
+        Performs the following steps:
+        1. Smimulate local model updates.
+        2. Save checkpoints for the active server.
+        3. Simulate server active updates.
+        4. Save checkpoints for the active server.
+        5. Write simulation logs.
 
         Parameters:
         - save_chkpts (bool): Flag to determine whether to save checkpoints.
@@ -597,6 +624,9 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
     def write_logs(self, display_only=True):
         """
         Write simulation logs using the logger.
+
+        Args:
+        - display_only (bool): Flag to determine whether to display the logs only or save them.
         """
         global_train_loss = 0.
         global_train_metric = 0.
