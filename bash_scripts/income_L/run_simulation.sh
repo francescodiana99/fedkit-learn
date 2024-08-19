@@ -40,7 +40,7 @@ while [ "$#" -gt 0 ]; do  # Use single brackets here
             force_generation="true"
             shift 2
             ;;
-        --download_flag)
+        --download)
             download_flag="true"
             shift 2
             ;;
@@ -79,13 +79,13 @@ while [ "$#" -gt 0 ]; do  # Use single brackets here
 done
 
 cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standard --optimizer sgd \
---batch_size $batch_size --local_epochs $local_epochs --learning_rate $learning_rate --device $device \
+--batch_size $batch_size  --learning_rate $learning_rate --device $device \
 --by_epoch --local_steps $local_epochs --num_rounds $num_rounds --seed $seed \
 --data_dir ./data/income  --log_freq 5 --save_freq 1 \
 --model_config_path $SCRIPT_DIR/../fedklearn/configs/income/$state/models/net_config.json --split_criterion correlation \
 --n_tasks 10 --state $state --mixing_coefficient $heterogeneity \
 --chkpts_dir $SCRIPT_DIR/income/$state/heter/$heterogeneity/10/32/1/ \
- --log_dir $SCRIPT_DIR/logs/income/$state/heter/$heterogeneity/10/32/1/ \
+ --logs_dir $SCRIPT_DIR/logs/income/$state/heter/$heterogeneity/10/32/1/ \
  --metadata_dir $SCRIPT_DIR/metadata/income/$state/heter/$heterogeneity/10/32/1/"
 
  if [ "$force_generation" = "true" ]; then
