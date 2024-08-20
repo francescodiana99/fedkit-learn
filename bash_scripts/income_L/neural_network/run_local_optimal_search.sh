@@ -1,5 +1,5 @@
+#!/bin/bash
 cd ../../../scripts
-
 
 if [ -z "$1" ]; then
     batch_size=32

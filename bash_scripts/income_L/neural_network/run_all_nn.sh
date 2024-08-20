@@ -1,6 +1,6 @@
 #!bin/bash
 
-cd ../scripts
+cd ../../../scripts
 
 device=$1
 force_flag=$2
@@ -15,7 +15,7 @@ echo "Running passive Gradient Based Attack"
 
 cd ../bash_scripts/income_L/neural_network
 
-sh run_aia_passive_gb.sh ew q qo louisiana sgd 42
+sh run_aia_passive_gb.sh 32 1 10 louisiana sgd 42
 
 echo Gradient Based Attack is complete
 

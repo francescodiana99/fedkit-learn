@@ -200,7 +200,7 @@ class FederatedIncomeDataset:
             self._load_task_mapping()
 
         elif not self.download and self.force_generation:
-            if use_linear and not self.state == 'full':
+            if self.use_linear and not self.state == 'full':
                 logging.info(f"Processing data for linear models..")
                 self._preprocess_linear()
             else:
@@ -235,7 +235,7 @@ class FederatedIncomeDataset:
 
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
-            if use_linear and not self.state == 'full':
+            if self.use_linear and not self.state == 'full':
                 train_df, test_df = self._preprocess_linear()
             else:
                 if self.state == 'full':
@@ -894,8 +894,6 @@ class FederatedIncomeDataset:
                                          f"{mode}.csv")
         task_data = pd.read_csv(file_path)
 
-        # if self.use_linear:
-        #     task_data = self._process_for_linear_model(task_data)
 
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)

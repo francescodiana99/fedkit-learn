@@ -1,6 +1,6 @@
 #!/bin/bash
-cd ../../scripts
-#!/bin/bash
+cd ../../../scripts
+
 
 force_flag=false
 

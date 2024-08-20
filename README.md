@@ -66,7 +66,7 @@ To replicate the results in Table 1, navigate to `bash_scripts/` and launch the 
 
 
 ## Additional Experiments
-To run additional experiments, it is possible to use and customize the following scripts, in `bash_scripts/`
+To run additional experiments, it is possible to use and customize the following scripts, in `bash_scripts/income_L`
 ### Simulate Federated Learning
 
 These script simulate a Federated Learning simulation, and generate the following files\directories:
@@ -74,52 +74,71 @@ These script simulate a Federated Learning simulation, and generate the followin
 * chkpts folder: models exchanged between the clients and the server
 * metadata folder: metadata associated to the simulation
 
-Flag `--download` has to be set to download the data, and  `--force_generation` to force task data splitting
+Flag `download` has to be set to download the data, and  `force_generation` to force task data splitting
 
 #### Income-L
 To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/income`, and run the following script:
 ```bash
-sh run_simulation.sh  --batch_size 32 --local_epochs 1 --learning_rate 5e-7 --device cuda --heterogeneity 0.1 --num_rounds 100 --seed 42 --split_criterion "correlation" --force_generation  --download
+sh run_simulation.sh  BATCH_SIZE  LOCAL_EPOCHS LR N_ROUNDS SEED HETEROGENEITY force_flag download
+```
+Example:
+```bash
+sh run_simulation.sh  32 1 5e-7 100 42 0.1 force_flag download
 ```
 This will generate the same setting presented in Table 1.
 The simulation will create data folder, chkpts folder and metadata folder in the following locations:
-* data folder: `./data/income`
-* chkpts folder: `./chkpts/income/louisiana/$batch_size/$local_epochs/`
-* metadata folder: `./metadata/income/louisiana/$batch_size/$local_epochs/`
+* data folder: `./data/seeds/$seed/income/`
+* chkpts folder: `/chkpts/seeds/$seed/income/louisiana/mixed/$heterogeneity/$n_tasks/$batch_size/$local_epochs/sgd`
+* metadata folder: `./metadata/seeds/$seed/income/louisiana/mixed$heterogeneity/$n_tasks/$batch_size$local_epochs/sgd `
 
 To run experiments using a linear model, launch:
 ```bash
-sh run_simulation_linear.sh --batch_size 32 --local_epochs 1 --learning_rate 5e-3 --device cuda ---num_rounds 300 --seed 42 --split_criterion "random" --force_generation  --download
+sh run_simulation.sh  BATCH_SIZE LR N_ROUNDS  SEED  force_flage download
+```
+Our configuration:
+```bash
+sh run_simulation_linear.sh  32 5e-3 300  42 force_generation download
 ```
 This will generate the same setting presented in Table 2.
-Folder will be located in:
-* data folder: `./data/linear_income`
-* chkpts folder: `./chkpts/linear_income/louisiana/$batch_size/$local_epochs/`
-* metadata folder: `./metadata/linear_income/louisiana/$batch_size/$local_epochs/`
 
 
 #### Income-A
 
-To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/income`, and run the following script:
+To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/income_A`, and run the following script:
 ```bash
-sh run_simulation.sh  --batch_size 32 --local_epochs 1 --learning_rate 1e-6 --device cuda --heterogeneity 0.1 --num_rounds 100 --seed 42 --split_criterion "state" --force_generation  --download
+sh run_simulation.sh  BATCH_SIZE LOCAL_EPOCHS LR N_ROUNDS SEED force_flag download
+```
+Our configuration
+```bash
+sh run_simulation.sh  32 1 1e-6 1 42 force_flag download
 ```
 
 To run experiments using a linear model, launch:
 ```bash
-sh run_simulation_linear.sh --batch_size 32 --local_epochs 1 --learning_rate 5e-3 --device cuda ---num_rounds 300 --seed 42 --split_criterion "state" --force_generation  --download
+sh run_simulation_linear.sh  BATCH_SIZE LR N_ROUNDS SEED force_flag download
+```
+Our configuration:
+```bash
+sh run_simulation_linear.sh  32 0.005 300 42 force_flag download
 ```
 
 #### Medical
 
 To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/medical_cost`, and run the following script:
 ```bash
-sh run_simulation.sh  --batch_size 32 --local_epochs 1 --learning_rate 2e-6 --device cuda  --num_rounds 100 --seed 42  --force_generation  --download
+sh run_simulation.sh  BATCH_SIZE  LOCAL_EPOCHS LR  N_ROUNDS N_TASKS OPTIMIZER SPLIT_CRITERION SEED force_flag download
 ```
-
+```
+Our configuration:
+```bash
+sh run_simulation_linear.sh  32 1 0.005 300 2 sgd random 42 force_flag download
+```
 To run experiments using a linear model, launch:
 ```bash
-sh run_simulation_linear.sh --batch_size 32 --local_epochs 1 --learning_rate 5e-3 --device cuda ---num_rounds 300 --seed 42 --force_generation  --download
+sh run_simulation_linear.sh BATCH_SIZE  LOCAL_EPOCHS LR SEED force_flag download
+```
+```bash
+sh run_simulation_linear.sh  32 1 0.005 300 42 force_flag download
 ```
 
 ### Gradient Based Attacks
@@ -127,7 +146,7 @@ After simulating federated learning, and generating the metadata files, you can 
 
 #### Attribute Inference Attack
 
-To execute AIA attacks, navigate to examples directory (`bash_scripts/`), and execute
+To execute AIA attacks, navigate to examples directory (`bash_scripts/$dataset_name`), and execute
 the Python script `run_aia.sh`. This script will generate three results file: the first one, whose name is given in `--results_path`, that by default is `aia_{LR}_{ROUND_FRAC}.json`,  is a dictionary of the form `{"score": SCORE, "n_samples": N_SAMPLES}`. The second, store the cosine dissimilarity accumulated over the optimization process in the form `{"score": SCORE, "n_samples": N_SAMPLES}`. Its name will be the same as the first file, but with the appendix `_cos_sim`. Finally, there will be a third JSON file, storing the history of all the trials in the form `{"LR":{"ROUND_FRAC": (AVG SCORE, AVG COS DIS)}}`, where `AVG COS DIS` indicates the average cosine dissimilarity loss. Note that while the first two files keep information for all the client, the latter keeps track only of averge values.
 
 #### Income-L
@@ -228,141 +247,6 @@ run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin
 ### Active Gradient Based Attribute Inference Attack
 
 
-### Execute Local Model Reconstruction Attack
-
-To execute LMRA attack, navigate to examples directory (`scripts/`), and execute
-the Python script `run_lmra.py`. The script generates the following files\directories:
-* reconstructed models folder: contains a folder for each client. Each folder stores the reconstructed models of each
-client at different iterations.
-* reconstruction metadata files:
-  * `reconstructed.json`:
-  * `trajectory.json`:
-* results file: The results are saved in a JSON file, storing a list of the same size as the
-number of clients. Each element is a dictionary of the form `{"score": SCORE, "n_samples": N_SAMPLES}`.
-
-The script also takes an option `--use_oracle`. If selected, the local model reconstruction attack uses
-an oracle to compute the gradients instead of estimating them.
-Note that using the oracle is almost equivalent to using SGD with the full gradient.
-
-#### Adult Dataset
-
-```bash
-cd scripts/
-
-python run_lmra.py \
-  --task_name adult \
-  --data_dir ./data/adult \
-  --split train \
-  --metadata_dir ./metadata/adult/ \
-  --hidden_layers 1024 \
-  --use_oracle \
-  --optimizer sgd \
-  --estimation_learning_rate 0.01 \
-  --reconstruction_learning_rate 0.03 \
-  --momentum 0.0 \
-  --weight_decay 0.0 \
-  --batch_size 1024 \
-  --num_rounds 100
-  --device cpu \
-  --logs_dir ./logs/adult \
-  --log_freq 1 \
-  --reconstructed_models_dir ./reconstructed_models/adult \
-  --save_freq 1 \
-  --results_path ./results/toy_classification/lmra.json \
-  --seed 42 \
-  --debug \
-  -v
-```
-
-#### Toy Classification Dataset
-
-```bash
-cd scripts/
-
-python run_lmra.py \
-  --task_name toy_classification \
-  --data_dir ./data/toy_classification \
-  --split train \
-  --metadata_dir ./metadata/toy_classification/ \
-  --hidden_layers 1024 \
-  --use_oracle \
-  --optimizer sgd \
-  --estimation_learning_rate 0.01 \
-  --reconstruction_learning_rate 0.03 \
-  --momentum 0.0 \
-  --weight_decay 0.0 \
-  --batch_size 1024 \
-  --num_rounds 100 \
-  --device cpu \
-  --logs_dir ./logs/toy_classification \
-  --log_freq 1 \
-  --reconstructed_models_dir ./reconstructed_models/toy_classification \
-  --save_freq 1 \
-  --results_path ./results/toy_classification/lmra.json \
-  --seed 42 \
-  --debug \
-  -v
-```
-
-### Evaluate Local Model Reconstruction Attack
-
-Once LMRA is executed, you can evaluate the performance of the reconstructed model when used in other attacks.
-
-#### Adult Dataset
-
-```bash
-cd scripts/
-
-python evaluate_reconstruction.py \
-  --task_name adult \
-  --data_dir ../data/adult \
-  --split train \
-  --models_metadata_path ./metadata/adult/reconstructed.json \
-  --reference_models_metadata_path ./metadata/adult/local.json \
-  --models_config_metadata_path ./metadata/adult/model_config.json \
-  --sensitive_attribute sex_Male \
-  --sensitive_attribute_type binary \
-  --results_dir ./results/adult/reconstructed \
-  --seed 42 \
-  -v
-```
-
-#### Synthetic Dataset
-
-```bash
-cd scripts/
-
-python evaluate_reconstruction.py \
-  --task_name toy_classification  \
-  --data_dir ./data/toy_classification \
-  --split train \
-  --models_metadata_path ./metadata/toy_classification/reconstructed.json \
-  --reference_models_metadata_path ./metadata/toy_classification/local.json \
-  --models_config_metadata_path ./metadata/toy_classification/model_config.json \
-  --results_dir ./results/toy_classification/reconstructed \
-  --seed 42 \
-  -v
-```
-**Evaluate Trajectory.** One can also evaluate each reconstructed model
-
-#### Adult Dataset (Evaluate Trajectory)
-```bash
-cd scripts/
-
-python evaluate_trajectory.py \
-  --task_name adult \
-  --data_dir ../data/adult \
-  --split train \
-  --models_metadata_path ./metadata/adult/trajectory.json \
-  --reference_models_metadata_path ./metadata/adult/local.json \
-  --models_config_metadata_path ./metadata/adult/model_config.json \
-  --sensitive_attribute sex_Male \
-  --sensitive_attribute_type binary \
-  --results_dir ./results/adult/reconstructed \
-  --plots_dir ../plots/adult/reconstructed \
-  --seed 42 \
-  -v
-```
 
 
 ## Contributing

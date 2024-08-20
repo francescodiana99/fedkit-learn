@@ -1,6 +1,6 @@
 #!/bin/bash
-cd ../../scripts
-SCRIPT_DIR='../../scripts'
+cd ../../../scripts
+
 
 #!/bin/bash
 force_flag=false

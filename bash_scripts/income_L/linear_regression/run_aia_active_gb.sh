@@ -1,5 +1,7 @@
 
 #!/bin/bash
+cd ../../../scripts
+
 # Check if batch_size and local_epochs are provided as command line arguments, otherwise use default values
 if [ -z "$1" ]; then
     batch_size=32
