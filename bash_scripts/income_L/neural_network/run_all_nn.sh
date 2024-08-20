@@ -1,14 +1,12 @@
 #!bin/bash
 
 device=$1
-force_flag=$2
-download=$3
+
 
 
 
 echo "Running simulation for Income-L"
-sh run_simulation.sh 32 1 5e-7 100 42 0.1 $force_flag $download
-
+sh run_simulation.sh 32 1 5e-7 100 42 0.1 force_generation download
 echo "Running passive Gradient Based Attack"
 
 cd ../bash_scripts/income_L/neural_network

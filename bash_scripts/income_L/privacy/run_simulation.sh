@@ -52,7 +52,7 @@ else
 fi
 
 if [ -z "$9" ]; then
-    device="cpu"
+    device="cuda"
 else
     device=$9
 fi
