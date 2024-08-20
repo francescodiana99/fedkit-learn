@@ -87,7 +87,7 @@ cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standa
   --chkpts_dir ./chkpts/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_scaled/10/$batch_size/$n_local_steps/$optimizer \
   --logs_dir ./logs/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_scaled/10/$batch_size/$n_local_steps/$optimizer \
   --metadata_dir ./metadata/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_scaled/10/$batch_size/$n_local_steps/$optimizer \
-  --hparams_config_path ../fedklearn/configs/income/$state/hyperparams/hp_space_attack.json"
+  --hparams_config_path ../fedklearn/configs/income/$state/hyperparameters/hp_space_attack.json"
 
     if [ $force_flag == true ]; then
         full_cmd="$full_cmd --force_generation"

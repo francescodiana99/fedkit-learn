@@ -63,7 +63,7 @@ cmd="python run_local_models_optimization.py --task_name income --optimizer $opt
 --metadata_dir  ./metadata/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_coefficient/10/$batch_size/$local_epochs/sgd/ \
 --log_freq 1 --save_freq 1 --num_rounds $n_rounds --seed $seed --use_dp --dp_epsilon $epsilon  --dp_delta 1e-5 --clip_norm $clip --optimized_task 3 \
 --model_config_path ../fedklearn/configs/income/$state/models/net_config.json --n_trials $n_trials \
---hparams_config_path ../fedklearn/configs/income/$state/hyperparams/local/hp_space_local.json \
+--hparams_config_path ../fedklearn/configs/income/$state/hyperparameters/local/hp_space_local.json \
 --local_models_dir ./local_models/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_coefficient/10/$batch_size/optimized/$optimizer"
 
 eval $cmd

@@ -42,7 +42,7 @@ cmd="python run_local_models_optimization.py --task_name income --optimizer $opt
 --metadata_dir ./metadata/seeds/$seed/income/$state/mixed/$mix_coefficient/$n_tasks/$batch_size/1/sgd \
 --log_freq 1 --save_freq 1 --num_rounds $n_rounds --seed $seed \
 --model_config_path ../fedklearn/configs/income/$state/models/config_1.json --n_trials $n_trials \
---hparams_config_path ../fedklearn/configs/income/$state/hyperparams/local/hp_space_local.json \
+--hparams_config_path ../fedklearn/configs/income/$state/hyperparameters/local/hp_space_local.json \
 --local_models_dir ./local_models/seeds/$seed/income/$state/mixed/$mix_coefficient/10/$batch_size/optimized/$optimizer"
 
 eval $cmd

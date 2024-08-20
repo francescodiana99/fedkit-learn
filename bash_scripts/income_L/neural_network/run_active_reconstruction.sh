@@ -107,7 +107,7 @@ cmd="python run_active_simulation.py --task_name income --test_frac 0.1 --scaler
   --chkpts_dir ./chkpts/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_task_samples/$n_local_steps/sgd \
   --logs_dir ./logs/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/sgd/active \
   --metadata_dir ./metadata/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/sgd \
-  --hparams_config_path ../fedklearn/configs/income/$state/hyperparams/hp_space_attack.json
+  --hparams_config_path ../fedklearn/configs/income/$state/hyperparameters/hp_space_attack.json
   "
   echo $full_cmd
   eval $full_cmd

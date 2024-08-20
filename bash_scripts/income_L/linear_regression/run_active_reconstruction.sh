@@ -68,7 +68,7 @@ full_cmd=" $cmd \
   --chkpts_dir ./chkpts/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$n_local_steps/$optimizer \
   --logs_dir ./logs/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$n_local_steps/$optimizer/active \
   --metadata_dir ./metadata/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$n_local_steps/$optimizer \
-  --hparams_config_path ../fedklearn/configs/income/$state/hyperparams/hp_space_attack.json
+  --hparams_config_path ../fedklearn/configs/income/$state/hyperparameters/hp_space_attack.json
   "
   echo $full_cmd
   eval $full_cmd

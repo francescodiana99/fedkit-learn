@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ../../scripts
+cd ../../../scripts
 
 if [ -z "$1" ]; then
     batch_size=32
@@ -32,15 +32,20 @@ else
     seed=$5
 fi
 
-if [ "${6}" == "force_generation" ]; then
+if [ -z "$6" ]; then
+    device="cuda"
+else
+    device=$6
+fi
+
+if [ "${7}" == "force_generation" ]; then
     force_flag=true
 fi
 
-if [ "${7}" == "download" ]; then
+if [ "${8}" == "download" ]; then
     download=true
 fi
 
-device="cuda"
 state="full"
 optimizer="sgd"
 split_criterion="state"

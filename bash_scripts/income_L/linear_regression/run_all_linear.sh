@@ -20,7 +20,7 @@ cd ../bash_scripts/income_L/neural_network
 
 echo "Running isolation"
 
-sh run_isolation.sh 32 10 5e-3 42 3 $device
+sh run_isolation.sh 32 5e-3 42 3 $device
 
 echo Isolation is complete
 
@@ -28,7 +28,7 @@ cd ../bash_scripts/income_L/neural_network
 
 echo "Running Gradient based active attack"
 
-sh run_aia_active_gb.sh 32 10 42 3 $device
+sh run_aia_active_gb.sh 32 1  42 3 $device
 
 echo Gradient based active attack is complete
 

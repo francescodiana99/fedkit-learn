@@ -35,7 +35,7 @@ cmd="python evaluate_linear_reconstruction.py  --data_dir data/seeds/42/linear_i
  --seed $seed --device $device --n_trials $n_trials --sensitive_attribute SEX \
  --results_dir results/seeds/$seed/linear_income_louisiana/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/sgd/reconstructed \
  --reconstructed_models_dir ./reconstructed_models/seeds/$seed/linear_income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/sgd/
- --track_time --verbose "
+  --verbose "
 
 echo $cmd
 eval $cmd
