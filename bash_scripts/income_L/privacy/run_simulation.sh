@@ -57,6 +57,13 @@ else
     device=$9
 fi
 
+if [ ${10} == "force_generation" ]; then
+    force_flag=true
+fi
+
+if [ ${11} == "download" ]; then
+    down_flag=true
+fi
 
 
 state="louisiana"
@@ -82,5 +89,13 @@ cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standa
   --logs_dir ./logs/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_scaled/10/$batch_size/$n_local_steps/$optimizer \
   --metadata_dir ./metadata/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_scaled/10/$batch_size/$n_local_steps/$optimizer \
   --hparams_config_path ../fedklearn/configs/income/$state/hyperparams/hp_space_attack.json"
+
+    if [ $force_flag == true ]; then
+        full_cmd="$full_cmd --force_generation"
+    fi
+
+    if [ $down_flag == true ]; then
+        full_cmd="$full_cmd --download"
+    fi
   echo $full_cmd
   eval $full_cmd

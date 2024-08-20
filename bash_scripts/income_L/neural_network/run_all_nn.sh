@@ -4,7 +4,6 @@ device=$1
 
 
 
-
 echo "Running simulation for Income-L"
 
 sh run_simulation.sh 32 1 5e-7 100 42 0.1 force_generation download
@@ -20,7 +19,7 @@ cd ../bash_scripts/income_L/neural_network
 
 echo "Running active attack"
 
-sh run__active_reconstruction 32 1 5e-7 1 99 99 10 all louisiana  99 50 5e-7 42 50 10 $device
+sh run_active_reconstruction 32 1 5e-7 1 99 99 10 all louisiana  99 50 5e-7 42 50 10 $device
 
 echo Active reconstruction is complete
 
