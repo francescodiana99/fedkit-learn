@@ -65,12 +65,12 @@ n_trials=50
 attacked_task=3
 active_rounds=50
 delta=1e-5
-
+echo "Currently In directory: $(pwd)"
 
 cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standard --optimizer $optimizer --learning_rate $lr \
 --momentum 0.0  --weight_decay 0.0 --batch_size $batch_size --local_steps $n_local_steps --by_epoch --device $device \
 --data_dir ./data/seeds/$seed/income  --log_freq 5 --save_freq 1 --num_rounds $num_rounds --seed $seed \
---model_config_path ../fedklearn/configs/income/$state/models/config_1.json --split_criterion correlation \
+--model_config_path ../fedklearn/configs/income/$state/models/net_config.json --split_criterion correlation \
 --n_tasks 10 --state $state --dp_epsilon $epsilon --dp_delta $delta --clip_norm $clip  --use_dp \
 --dp_delta 1e-5 --dp_epsilon $epsilon --num_active_rounds $active_rounds \
 --attacked_task $attacked_task  --n_trials $n_trials "
