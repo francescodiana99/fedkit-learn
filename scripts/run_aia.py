@@ -459,13 +459,14 @@ def main():
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
 
-    if os.path.exists(os.path.join(args.results_path, "aia_all.json")):
-        with open(os.path.join(args.results_path, "aia_all.json"), "r") as f:
+    results_dir = os.path.dirname(args.results_path)
+    if os.path.exists(os.path.join(results_dir, "aia_all.json")):
+        with open(os.path.join(results_dir, "aia_all.json"), "r") as f:
             all_results = json.load(f)
         all_results[f"{args.learning_rate}"][f"{args.keep_rounds_frac}"] = (avg_score, avg_cos_dis)
     else:
         all_results = {f"{args.learning_rate}": {f"{args.keep_rounds_frac}": (avg_score, avg_cos_dis)}}
-    with open(os.path.join(args.results_path, "aia_all.json"), "w") as f:
+    with open(os.path.join(results_dir, "aia_all.json"), "w") as f:
         json.dump(all_results, f)
 
     if args.track_time:
