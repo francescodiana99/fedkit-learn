@@ -1,7 +1,5 @@
 #!bin/bash
 
-cd ../../../scripts
-
 device=$1
 force_flag=$2
 download=$3
