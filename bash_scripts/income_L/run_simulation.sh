@@ -86,7 +86,6 @@ if [ "$split_criterion" = "correlation" ]; then
  --logs_dir ./logs/$task_name/$state/heter/$heterogeneity/$batch_size/$local_epochs/ \
  --metadata_dir ./metadata/$task_name/$state/heter/$heterogeneity/$batch_size/$local_epochs/ \
   --mixing_coefficient $heterogeneity"
-then
 elif [ "$split_criterion" = "state" ]; then
     state="full"
     dirs="--chkpts_dir ./$task_name/$state/$batch_size/$local_epochs/ \
@@ -95,14 +94,12 @@ elif [ "$split_criterion" = "state" ]; then
 fi
 
 if [ "$state" != "full" ]; then
-    n_task=10
+    n_tasks=10
 fi
 
 if  [ "$state" = "full" ]; then
-    n_task=51
+    n_tasks=51
 fi
-
-
 
 
 
@@ -112,14 +109,12 @@ cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standa
 --by_epoch --local_steps $local_epochs --num_rounds $num_rounds --seed $seed \
 --data_dir ./data/$task_name  --log_freq 10 --save_freq 1 \
 --model_config_path ./../fedklearn/configs/$task_name/$state/models/net_config.json --split_criterion $split_criterion \
- --state $state  $dirs"
+ --state $state  --n_tasks $n_tasks $dirs"
 
 
-
-
- if [ "$force_generation" = "true" ]; then
+ f [ "$force_generation" = "true" ]; then
     cmd="$cmd --force_generation"
- fi
+fi
 
 if [ "$download_flag" = "true" ]; then
         cmd="$cmd --download"
