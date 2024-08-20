@@ -6,6 +6,7 @@ device=$1
 
 
 echo "Running simulation for Income-L"
+
 sh run_simulation.sh 32 1 5e-7 100 42 0.1 force_generation download
 echo "Running passive Gradient Based Attack"
 
@@ -44,6 +45,6 @@ cd ../bash_scripts/income_L/neural_network
 
 echo "Running Model Based Attack"
 
-sh run_aia_model_based.sh 32 1 99 42 49 10 $device
+sh run_aia_mb.sh 32 1 99 42 49 10 $device
 
 
