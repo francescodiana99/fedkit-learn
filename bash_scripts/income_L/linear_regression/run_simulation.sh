@@ -28,18 +28,22 @@ if [ -z "$4" ]; then
 else
     seed=$4
 fi
+if [ -z "$5" ]; then
+    device="cpu"
+else
+    device=$5
+fi
 
-if [ "$5" == "force_generation" ]; then
+if [ "$6" == "force_generation" ]; then
     force_flag=true
 fi
 
-if [ "$6" == "download" ]; then
+if [ "$7" == "download" ]; then
     down_flag=true
 fi
 
 echo $force_flag
 
-device="cuda"
 optimizer="sgd"
 n_local_steps=1
 state="louisiana"

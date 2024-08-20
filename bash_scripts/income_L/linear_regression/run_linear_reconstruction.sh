@@ -19,11 +19,16 @@ else
     n_trials=$3
 fi
 
+if [ -z "$4" ]; then
+    device="cuda"
+else
+    device=$4
+fi
+
 split_criterion="random"
 n_tasks=10
 state="louisiana"
 n_local_steps=1
-device='cuda'
 
 cmd="python evaluate_linear_reconstruction.py  --data_dir data/seeds/42/linear_income/tasks/$split_criterion/$state/$n_tasks/all/ \
 --metadata_dir metadata/seeds/$seed/linear_income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/sgd/  \

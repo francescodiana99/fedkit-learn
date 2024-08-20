@@ -27,6 +27,12 @@ else
     attacked_task=$4
 fi
 
+if [ -z "$5" ]; then
+    device="cpu"
+else
+    device=$5
+fi
+
 n_tasks=10
 state='louisiana'
 optimizer='sgd'
@@ -42,7 +48,7 @@ base_cmd="python run_aia.py \
   --split train \
   --optimizer sgd \
   --num_rounds 100 \
-  --device cuda \
+  --device $device \
   --log_freq 1 \
   --seed $seed \
   --sensitive_attribute_type binary \

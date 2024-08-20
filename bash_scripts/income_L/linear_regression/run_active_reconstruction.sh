@@ -38,8 +38,12 @@ else
     attacked_task=${6}
 fi
 
+if [ -z "${7}" ]; then
+    device="cuda"
+else
+    device=${7}
+fi
 
-device="cuda"
 num_rounds=50
 n_local_steps=1
 state="louisiana"

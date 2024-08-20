@@ -31,6 +31,12 @@ else
     attacked_client=$5
 fi
 
+if [ -z $6 ];then
+    device=0
+else
+    device=$6
+fi
+
 n_tasks=10
 local_epochs=1
 state="louisiana"
@@ -39,7 +45,7 @@ active_rounds=(9 49)
 
 for active_round in "${active_rounds[@]}"; do
     script="python evaluate_aia.py --task_name linear_income \
-    --models_metadata_path  ./metadata/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$local_epochs/$optimizer/federated.json --device cuda --seed $seed \
+    --models_metadata_path  ./metadata/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$local_epochs/$optimizer/federated.json --device $device --seed $seed \
     --results_dir ./results/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$local_epochs/$optimizer/active --batch_size $batch_size \
     --sensitive_attribute SEX --sensitive_attribute_type binary --split train \
     --reference_models_metadata_path ./metadata/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$local_epochs/$optimizer/local_trajectories.json \
