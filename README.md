@@ -12,9 +12,6 @@ exploring federated learning, federated attack simulations, and working with fed
 - [Installation](#installation)
 - [Usage](#usage)
 - [Paper Experiments](#paper-experiments)
-- [Additional Experiments](#additional-experiments)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## Introduction
 
