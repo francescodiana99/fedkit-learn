@@ -459,7 +459,7 @@ def main():
     save_scores(scores_list=all_clients_cos_dis, n_samples_list=n_samples_list,
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
 
-    if os.exists(os.path.join(args.results_path, "aia_all.json")):
+    if os.path.exists(os.path.join(args.results_path, "aia_all.json")):
         with open(os.path.join(args.results_path, "aia_all.json"), "r") as f:
             all_results = json.load(f)
         all_results[f"{args.learning_rate}"][f"{args.keep_rounds_frac}"] = (avg_score, avg_cos_dis)
