@@ -2,91 +2,87 @@
 cd ../../scripts
 SCRIPT_DIR='../../scripts'
 
-batch_size=32
-local_epochs=1
-learning_rate=2e-6
+#!/bin/bash
+
+force_flag=false
+
+if [ -z "$1" ]; then
+    batch_size=32
+else
+    batch_size=$1
+fi
+
+if [ -z "$2" ]; then
+    n_local_steps=1
+else
+    n_local_steps=$2
+fi
+
+if [ -z "$3" ]; then
+    lr=0.5
+else
+    lr=$3
+fi
+
+if [ -z "$4" ]; then
+    num_rounds=100
+else
+    num_rounds=$4
+fi
+
+if [ -z "$5" ]; then
+    n_tasks=2
+else
+    n_tasks=$5
+fi
+
+if [ -z "$6" ]; then
+    optimizer="sgd"
+else
+    optimizer=$6
+fi
+
+if [ -z "$7" ]; then
+    split_criterion='random'
+else
+    split_criterion=$7
+fi
+
+if [ -z "$7" ]; then
+    seed=0
+else
+    seed=$8
+fi
+
+
+if [ "$9" == "force_generation" ]; then
+    force_flag=true
+fi
+
+if [ "${10}" == "download" ]; then
+    download=true
+fi
+
 device="cpu"
-num_rounds=100
-seed=42
-force_generation=False
-download_flag=False
-optimizer="sgd"
-task_name="medical_cost"
-split_criterion="random"
-n_tasks=2
 
-# Function to display help message
-usage() {
-    echo "Usage: $0  --batch_size BATCH_SIZE --local_epochs LOCAL_EPOCHS --learning_rate LEARNING_RATE --device DEVICE \
-     --num_rounds NUM_ROUNDS --seed SEED --force_generation FORCE_GENERATION --download_flag DOWNLOAD_FLAG \
-    --split_criterion SPLIT_CRITERION "
-    exit 1
-}
+cmd="python run_simulation.py --task_name medical_cost --test_frac none --scaler standard --optimizer $optimizer --learning_rate $lr \
+--momentum 0.0 --weight_decay 0.0 --batch_size $batch_size --device $device  --log_freq 10 \
+  --save_freq 1 --num_rounds $num_rounds --seed $seed --model_config_path ../fedklearn/configs/medical_cost/models/net_config.json \
+  --split_criterion $split_criterion --device $device --n_tasks $n_tasks --by_epoch\
+   --data_dir ./data/seeds/$seed/medical_cost --test_frac 0.1"
 
-while [ "$#" -gt 0 ]; do  # Use single brackets here
-    case $1 in
-
-        --num_rounds)
-            num_rounds="$2"
-            shift 2
-            ;;
-        --seed)
-            seed="$2"
-            shift 2
-            ;;
-        --force_generation)
-            force_generation="true"
-            shift 1
-            ;;
-        --download)
-            download_flag="true"
-            shift 1
-            ;;
-        --batch_size)
-            batch_size="$2"
-            shift 2
-            ;;
-        --local_epochs)
-            local_epochs="$2"
-            shift 2
-            ;;
-        --learning_rate)
-            learning_rate="$2"
-            shift 2
-            ;;
-        --device)
-            device="$2"
-            shift 2
-            ;;
-        --help)
-            usage
-            ;;
-        *)
-            echo "Unknown parameter passed: $1"
-            usage
-            ;;
-    esac
-done
-
-
-cmd="python run_simulation.py --task_name medical_cost --test_frac 0.1 --scaler standard --optimizer sgd \
---batch_size $batch_size  --learning_rate $learning_rate --device $device \
---by_epoch --local_steps $local_epochs --num_rounds $num_rounds --seed $seed \
---data_dir ./data/$task_name  --log_freq 10 --save_freq 1 \
---model_config_path ./../fedklearn/configs/$task_name/models/net_config.json --split_criterion $split_criterion \
-  --n_tasks $n_tasks --chkpts_dir ./$task_name/$batch_size/$local_epochs/  \
-    --logs_dir ./logs/$task_name/$batch_size/$local_epochs/ \
-    --metadata_dir ./metadata/$task_name/$batch_size/$local_epochs/ "
-
-
- if [ "$force_generation" = "true" ]; then
+if $force_flag; then
     cmd="$cmd --force_generation"
-fi
 
-if [ "$download_flag" = "true" ]; then
-        cmd="$cmd --download"
+if $download; then
+    cmd="$cmd --download"
 fi
+fi
+  echo $cmd
 
-echo "Running command: "
-echo $cmd
-eval $cmd
+  full_cmd=" $cmd
+  --chkpts_dir ./chkpts/seeds/$seed/medical_cost/$split_criterion/$n_tasks/$batch_size/local_epochs/$n_local_steps/$optimizer  \
+  --logs_dir ./logs/seeds/$seed/medical_cost/$split_criterion/$n_tasks/$batch_size/local_epochs/$n_local_steps/$optimizer  \
+  --metadata_dir ./metadata/seeds/$seed/medical_cost/$split_criterion/$n_tasks/$batch_size/local_epochs/$n_local_steps/$optimizer  \
+  "
+  eval $full_cmd
