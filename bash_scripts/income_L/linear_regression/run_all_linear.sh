@@ -39,7 +39,7 @@ echo "Running Active reconstruction"
 sh run_active_reconstruction.sh 32 99 50 5e-3 42 3 $device
 
 echo Model Based Attack evaluation is complete
-
+. start.h
 cd ../bash_scripts/income_L/neural_network
 
 sh run_aia_mb.sh 32 1 99 42 3 $device

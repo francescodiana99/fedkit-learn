@@ -59,7 +59,7 @@ optimizer="sgd"
 cmd="python run_active_simulation.py --task_name linear_income --test_frac 0.1 --scaler standard --optimizer sgd --alpha $alpha \
 --momentum 0.0  --weight_decay 0.0 --batch_size $batch_size --local_steps $n_local_steps --by_epoch --device $device \
   --log_freq 10 --save_freq 1 --num_rounds $num_rounds --seed $seed --learning_rate $lr \
---model_config_path ../fedklearn/configs/income/$state/models/config_linear.json \
+--model_config_path ../fedklearn/configs/income/$state/models/linear_config.json \
  --n_tasks $n_tasks --beta1 $beta1 --beta2 $beta2  --epsilon 1e-8 --attacked_round $attacked_round \
  --n_trials $n_trials  --optimize_hyperparams --attacked_task $attacked_task"
 

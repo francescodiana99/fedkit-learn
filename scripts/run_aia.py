@@ -460,14 +460,6 @@ def main():
                 results_path=args.results_path.replace(".json", "_cos_dis.json"))
 
     results_dir = os.path.dirname(args.results_path)
-    if os.path.exists(os.path.join(results_dir, "aia_all.json")):
-        with open(os.path.join(results_dir, "aia_all.json"), "r") as f:
-            all_results = json.load(f)
-        all_results[f"{args.learning_rate}"][f"{args.keep_rounds_frac}"] = (avg_score, avg_cos_dis)
-    else:
-        all_results = {f"{args.learning_rate}": {f"{args.keep_rounds_frac}": (avg_score, avg_cos_dis)}}
-    with open(os.path.join(results_dir, "aia_all.json"), "w") as f:
-        json.dump(all_results, f)
 
     if args.track_time:
         time_dict = dict()
@@ -475,6 +467,18 @@ def main():
         time_dict["device"] = get_gpu()
         with open(args.results_path.replace(".json", "_time.json"), "w") as f:
             json.dump(time_dict, f)
+
+    if os.path.exists(os.path.join(results_dir, "aia_all.json")):
+        with open(os.path.join(results_dir, "aia_all.json"), "r") as f:
+            all_results = json.load(f)
+        if f"{args.learning_rate}" not in all_results.keys():
+            all_results[f"{args.learning_rate}"] = {f"{args.keep_rounds_frac}": (avg_score, avg_cos_dis)}
+        else:
+            all_results[f"{args.learning_rate}"][f"{args.keep_rounds_frac}"] = (avg_score, avg_cos_dis)
+    else:
+        all_results = {f"{args.learning_rate}": {f"{args.keep_rounds_frac}": (avg_score, avg_cos_dis)}}
+    with open(os.path.join(results_dir, "aia_all.json"), "w") as f:
+        json.dump(all_results, f)
 
     logging.info(f"Results saved in {args.results_path}")
 if __name__ == "__main__":
