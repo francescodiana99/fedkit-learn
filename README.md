@@ -47,213 +47,122 @@ machine learning attacks (`attacks/`). Moreover, we implement standard federated
 For experiments on toy dataset, you can check [Toy Experiments](toy_experiments.ipynb).
 
 In `bash_scripts/`, we provide scripts to simulate the experiments presented in the paper.
-To replicate the results in Table 1, navigate to `bash_scripts/` and launch the following commands:
-
+To replicate the results on Income-L, navigate to `bash_scripts/Income-L` and launch the following commands:
+From `Income-L/neural_network` launch
 ### Income-L
 ```bash
-./run_experiments_income_l.sh
+sh run_all_nn.sh  cuda
 ```
-
-### Income-A
+to launch all the script to perform the experiments presented in the main Table of the paper.
+It is also possible to launch the script using the CPU, by calling:
 ```bash
-./run_experiments_income_a.sh
+sh run_all_nn.sh  cpu
 ```
 
-### Medical
+For the linear approach proposed in Appendix C.1, you can launch:
 ```bash
-./run_experiments_medical.sh
+sh run_all_linear.sh  cuda force_generation download
+```
+Adding `force_generation`, forces to compute each clients' dataset, while `download` forces to download the data.
+
+```bash
+sh run_all_linear.sh  cuda force_generation download
+```
+Finally, for the experiments on the effect of Differential Privacy, you can launch:
+```bash
+sh run_all_privacy.sh  cuda force_generation download
 ```
 
+Note that each of these script calls a series of scripts that allow to customize and perform each operation separately.
 
 ## Additional Experiments
-To run additional experiments, it is possible to use and customize the following scripts, in `bash_scripts/income_L`
-### Simulate Federated Learning
+To run additional experiments on Income-A and Medical, it is possible to use and customize all the scripts in `bash_scripts/`. Here we show some example. Note thaat the parameters have to be passed in the same order as reported in the examples.
 
-These script simulate a Federated Learning simulation, and generate the following files\directories:
-* data folder
-* chkpts folder: models exchanged between the clients and the server
-* metadata folder: metadata associated to the simulation
+### Income-A
 
-Flag `download` has to be set to download the data, and  `force_generation` to force task data splitting
-
-#### Income-L
-To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/income`, and run the following script:
+#### Simulation
+To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/income_A/neural_network`, and run the following script:
 ```bash
-sh run_simulation.sh  BATCH_SIZE  LOCAL_EPOCHS LR N_ROUNDS SEED HETEROGENEITY force_flag download
-```
-Example:
-```bash
-sh run_simulation.sh  32 1 5e-7 100 42 0.1 force_flag download
-```
-This will generate the same setting presented in Table 1.
-The simulation will create data folder, chkpts folder and metadata folder in the following locations:
-* data folder: `./data/seeds/$seed/income/`
-* chkpts folder: `/chkpts/seeds/$seed/income/louisiana/mixed/$heterogeneity/$n_tasks/$batch_size/$local_epochs/sgd`
-* metadata folder: `./metadata/seeds/$seed/income/louisiana/mixed$heterogeneity/$n_tasks/$batch_size$local_epochs/sgd `
-
-To run experiments using a linear model, launch:
-```bash
-sh run_simulation.sh  BATCH_SIZE LR N_ROUNDS  SEED  force_flage download
-```
-Our configuration:
-```bash
-sh run_simulation_linear.sh  32 5e-3 300  42 force_generation download
-```
-This will generate the same setting presented in Table 2.
-
-
-#### Income-A
-
-To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/income_A`, and run the following script:
-```bash
-sh run_simulation.sh  BATCH_SIZE LOCAL_EPOCHS LR N_ROUNDS SEED force_flag download
+sh run_simulation.sh  BATCH_SIZE LOCAL_EPOCHS LR N_ROUNDS SEED DEVICE force_flag download
 ```
 Our configuration
 ```bash
 sh run_simulation.sh  32 1 1e-6 1 42 force_flag download
 ```
 
-To run experiments using a linear model, launch:
+#### Passive Gradient Based Attack
+
+This attack will generate a dictionary called `all_aia.json` containing the average performance of all the tested settings. It also will create for each combination of learning rate and fraction of observed rounds, two specific json files: `aia_{lr}_{frac}.json`, containing the scores for each client, and `aia_{lr}_{frac}_cos_dis.json`, containing the cosine dissimilarity loss correspondent to each client.
+
 ```bash
-sh run_simulation_linear.sh  BATCH_SIZE LR N_ROUNDS SEED force_flag download
+sh run_aia_passive_gb.sh  BATCH_SIZE LOCAL_EPOCHS OPTIMIZER SEED DEVICE
 ```
 Our configuration:
 ```bash
-sh run_simulation_linear.sh  32 0.005 300 42 force_flag download
+sh run_aia_passive_gb.sh  32 1 sgd 42 cuda
 ```
+#### Active Gradient Based Attack
 
-#### Medical
+ This attacks relies on two steps:
+ * Isolate a client and train for additional 50 rounds.
+ * Perform the gradient based attack
 
-To launch Federated Learning simulation for a neural network model, navigate to `bash_scripts/medical_cost`, and run the following script:
+The first script train the attacked client, saving the metadata in `./metadata` folder, while the second produces the same outputs of the passive attack.
+
 ```bash
-sh run_simulation.sh  BATCH_SIZE  LOCAL_EPOCHS LR  N_ROUNDS N_TASKS OPTIMIZER SPLIT_CRITERION SEED force_flag download
-```
+sh run_isolation.sh  BATCH_SIZE LOCAL_EPOCHS LR  DEVICE SEED
 ```
 Our configuration:
 ```bash
-sh run_simulation_linear.sh  32 1 0.005 300 2 sgd random 42 force_flag download
+sh run_isolation.sh  32 1 1e-6  cuda 42
 ```
-To run experiments using a linear model, launch:
-```bash
-sh run_simulation_linear.sh BATCH_SIZE  LOCAL_EPOCHS LR SEED force_flag download
-```
-```bash
-sh run_simulation_linear.sh  32 1 0.005 300 42 force_flag download
-```
-
-### Gradient Based Attacks
-After simulating federated learning, and generating the metadata files, you can execute state-of-the-art gradient based attack.
-
-#### Attribute Inference Attack
-
-To execute AIA attacks, navigate to examples directory (`bash_scripts/$dataset_name`), and execute
-the Python script `run_aia.sh`. This script will generate three results file: the first one, whose name is given in `--results_path`, that by default is `aia_{LR}_{ROUND_FRAC}.json`,  is a dictionary of the form `{"score": SCORE, "n_samples": N_SAMPLES}`. The second, store the cosine dissimilarity accumulated over the optimization process in the form `{"score": SCORE, "n_samples": N_SAMPLES}`. Its name will be the same as the first file, but with the appendix `_cos_sim`. Finally, there will be a third JSON file, storing the history of all the trials in the form `{"LR":{"ROUND_FRAC": (AVG SCORE, AVG COS DIS)}}`, where `AVG COS DIS` indicates the average cosine dissimilarity loss. Note that while the first two files keep information for all the client, the latter keeps track only of averge values.
-
-#### Income-L
-To run a single attack trial, with a specific learning rate and a specific fraction of rounds to consider, launch:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 10000 --device cpu --heterogeneity 0.1 --split_criterion correlation --frac 0.10 --task_name income
-```
-To run multiple optimization trial, replicating our effort in the paper, you can run:
-```bash
-run_all_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --device cpu --heterogeneity 0.1 --split_criterion correlation  --task_name income
-```
-
-To run the experiments on linear models, use:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 10000 --device cpu --heterogeneity 0.1 --split_criterion random --frac 0.10 --task_name linear_income
-```
-```bash
-run_all_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --device cpu --heterogeneity 0.1 --split_criterion random  --task_name linear_income
-```
-
-#### Income-A
-To run a single attack trial, with a specific learning rate and a specific fraction of rounds to consider, launch:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 10000 --device cpu --heterogeneity 0.1 --split_criterion state --frac 0.10 --task_name income
-```
-To run multiple optimization trial, replicating our effort in the paper, you can run:
-```bash
-run_all_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --device cpu --heterogeneity 0.1 --split_criterion state  --task_name income
-```
-
-To run the experiments on linear models, use:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 10000 --device cpu --heterogeneity 0.1 --split_criterion state --frac 0.10 --task_name linear_income
-```
-```bash
-run_all_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --device cpu --heterogeneity 0.1 --split_criterion state  --task_name linear_income
-```
-
-#### Medical
-
-To run a single attack trial, with a specific learning rate and a specific fraction of rounds to consider, launch:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 10000 --device cpu --heterogeneity 0.1 --split_criterion random --frac 0.10 --task_name medical_cost
-```
-To run multiple optimization trial, replicating our effort in the paper, you can run:
-```bash
-run_all_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --device cpu --heterogeneity 0.1 --split_criterion strandomate  --task_name medical_cost
-```
-
-To run the experiments on linear models, use:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 10000 --device cpu --heterogeneity 0.1 --split_criterion random --frac 0.10 --task_name linear_medical_cost
-```
-```bash
-run_all_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --device cpu --heterogeneity 0.1 --split_criterion random  --task_name linear_medical_cost
-```
-
-### Isolation
-Simulate an active adversary isolating a single client. To  execute the isolation, navigate to examples directory (`bash_scripts/income`) and execute the script `run_isolation.sh" This will generate the following metadata files/directories:
-* `scripts/isolated`: directory containing the isolated models.
-* `isolated_trajectories_{ROUND}.json`: dictionary containing models' trajectories of the isolated models, when the attack starts from ROUND.
-* `isolated_{ROUND}.json` dictionary containing last round models' of the attack starting from ROUND.
-
-#### Income-L
-
-This script also takes the option `--attacked_task`, which allows to execute the isolation process only on one client, to reduce the execution time.
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 5e-7 --device cpu --heterogeneity 0.1 --split_criterion correlation --attacked_round 99 --task_name income --attacked_task 1
-```
-
-To isolate the linear model, run:
-```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 5e-3 --device cpu --split_criterion random --attacked_round 99 --task_name linear_income --attacked_task 1
-```
-
-#### Income-A
 
 ```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 1e-6 --device cpu  --split_criterion state --attacked_round 99 --task_name income --attacked_task 1
+sh run_aia_active_gb.sh  BATCH_SIZE LOCAL_EPOCHS  SEED  ATTACKED_ROUND DEVICE
 ```
-
-To isolate the linear model, run:
+Our configuration:
 ```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 5e-3 --device cpu  --split_criterion state --attacked_round 99 --task_name linear_income --attacked_task 1
+sh run_aia_active_gb.sh  32 1  42 99 cuda
 ```
 
-#### Medical
+#### Active Reconstruction
+
+ Then, we simulate the active adversary scenario, proposed in Algorithm 4. This script will savve models' trajectories in the `./metadata` folder. Note that here, when running the optimization, ALPHA, BETA1 and BETA2 are placeholders
 
 ```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 2e-6 --device cpu    --attacked_round 99 --task_name medical_cost --attacked_task 1
+sh run_active_reconstruction.sh  BATCH_SIZE LOCAL_EPOCHS  ALPHA BETA1 Beta2 N_TASKS N_TASK_SAMPLES STATE ATTACKED_ROUNDS N_TRIALS LR SEED   DEVICE
 ```
-
-To isolate the linear model, run:
+Our configuration:
 ```bash
-run_aia.sh --num_rounds 100 --seed 42 -batch_size 32  --local_epochs 1 --learnin_rate 5e-3 --device cpu   --attacked_round 99 --task_name linear_medical_cost --attacked_task 1
+sh run_aia_active_gb.sh  32 1  0 0 0 51 39133 full 99 50 1e-6 42  cuda
 ```
 
-### Active Gradient Based Attribute Inference Attack
+#### Model-w-O Generation
+To generate the empirical optimal model, run the following script, that will create the metadata in `./metadata` folder :
+
+```bash
+sh run_active_reconstruction.sh  BATCH_SIZE N_ROUNDS TRIALS SEED DEVICE
+```
+Our configuration:
+```bash
+sh run_active_reconstruction.sh  32 200 50 42 cuda
+```
 
 
+#### Evaluate the reconstruction
+
+Finally to evaluate our model-based attack, launch:
+
+```bash
+sh run_aia_mb.sh  BATCH_SIZE LOCAL_EPOCHS ATTACKED_ROUND SEED   DEVICE
+```
+Our configuration:
+```bash
+sh run_active_reconstruction.sh  32 1 99 42 cuda
+```
+This wil evaluate the attack after 1, 10 and 50 Active Rounds
 
 
-## Contributing
-We welcome contributions! To contribute to FedKit-Learn, please follow the guidelines
-outlined in `CONTRIBUTING.md`.
-We appreciate bug reports, feature requests, and pull requests.
+### Medical
 
-## License
-FedKit-Learn is released under the Apache License 2.0. Feel free to use, modify,
-and distribute this package in accordance with the terms of the Apache License 2.0.
+Additional experiments have been performed on Medical dataset. To perform them, refer to the `bash_scripts/medical_cost` directory.

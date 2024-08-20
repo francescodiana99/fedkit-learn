@@ -26,6 +26,12 @@ else
     device=$4
 fi
 
+if [ -z "$5" ]; then
+    seed=0
+else
+    seed=$5
+fi
+
 # Hyperparameter options
 attacked_rounds=(99)
 n_tasks=51
@@ -47,7 +53,7 @@ base_cmd="python run_isolation.py \
   --logs_dir ./logs/income/full/$n_tasks/$n_task_samples/$batch_size/$local_epochs/sgd/isolated \
   --log_freq 1 \
   --save_freq 1 \
-  --seed 42 "
+  --seed $seed "
 
 # Iterate over finetune rounds
 for round in "${attacked_rounds[@]}"; do
