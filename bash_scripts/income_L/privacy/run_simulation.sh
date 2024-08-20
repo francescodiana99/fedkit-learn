@@ -72,7 +72,6 @@ n_trials=50
 attacked_task=3
 active_rounds=50
 delta=1e-5
-echo "Currently In directory: $(pwd)"
 
 cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standard --optimizer $optimizer --learning_rate $lr \
 --momentum 0.0  --weight_decay 0.0 --batch_size $batch_size --local_steps $n_local_steps --by_epoch --device $device \

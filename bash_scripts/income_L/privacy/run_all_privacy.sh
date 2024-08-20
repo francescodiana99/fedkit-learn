@@ -7,7 +7,7 @@ download=$3
 
 echo "Running simulation using DP for Income-L"
 
-sh run_simulation.sh 32 1 5e-7 100 42 0.1 1 3e6 $device $force_generation $download
+sh run_simulation.sh 32 1 5e-7 150 42 0.1 1 3e6 $device $force_generation $download
 
 echo "Running passive Gradient Based Attack"
 
