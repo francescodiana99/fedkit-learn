@@ -670,7 +670,8 @@ def initialize_dataset(args, rng):
             split_criterion=args.split_criterion,
             state=args.state,
             mixing_coefficient=args.mixing_coefficient,
-            keep_proportions=args.keep_proportions
+            keep_proportions=args.keep_proportions,
+            scale_target=args.scale_target
         )
 
     if args.task_name == "binary_income":

@@ -140,7 +140,7 @@ class FederatedIncomeDataset:
 
     def __init__(self, cache_dir='./', download=True, test_frac=0.1, scaler_name="standard", drop_nationality=True,
             rng=None, split_criterion='random', n_tasks=None, n_task_samples=None, force_generation=False,
-            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False, use_linear=False):
+            seed=42, state='full', mixing_coefficient=0., keep_proportions=False, binarize=False, use_linear=False, scale_target=False):
 
         self.cache_dir = cache_dir
         self.download = download
@@ -158,15 +158,20 @@ class FederatedIncomeDataset:
         self.keep_proportions = keep_proportions
         self.binarize = binarize
         self.use_linear = use_linear
+        self.scale_target = scale_target
 
         if self.binarize:
             raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
             self.median_income = raw_df['PINCP'].median()
 
-
-
         if self.state is None:
             raise ValueError("The 'state' is None. Please specify a value.")
+        
+        # TODO: remove this part later when you add scaling in the dataset
+        if self.scale_target:
+            raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
+            self.std_income = raw_df['PINCP'].std()
+            self.mean_income = raw_df['PINCP'].mean()
 
 
         self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
@@ -898,8 +903,23 @@ class FederatedIncomeDataset:
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
 
+        # TODO: Incorporate in the preprocessing part
+        if self.scale_target:
+            task_data = self._scale_output(task_data)
+
         return IncomeDataset(task_data, name=task_name)
 
+
+    def _scale_output(self, df):
+        """
+        Scale the target variable.
+        Args:
+            df(pd.DataFrame): DataFrame to scale.
+        Returns:
+            df(pd.DataFrame): Scaled DataFrame.
+        """
+        df['PINCP'] = (df['PINCP'] - self.mean_income) / self.std_income
+        return df
 
     def get_pooled_data(self, mode="train"):
         """
