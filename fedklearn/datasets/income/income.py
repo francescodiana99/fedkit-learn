@@ -1,12 +1,9 @@
 import os
 import shutil
-import ssl
 import json
 import urllib
 import logging
-from io import StringIO
 
-import matplotlib.pyplot as plt
 import torch
 
 import numpy as np
@@ -15,7 +12,6 @@ from scipy.io.arff import loadarff
 
 from torch.utils.data import Dataset
 
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from fedklearn.datasets.income.constants import *
@@ -63,6 +59,9 @@ class FederatedIncomeDataset:
 
         use_linear (bool, optional): Flag to check if preprocess the data for a liner model.
 
+        scale_target (bool, optional): Flag to check if the target variable should be scaled. Default is False.
+
+
 
     Attributes:
         cache_dir (str): The directory path for caching downloaded and preprocessed data.
@@ -97,11 +96,12 @@ class FederatedIncomeDataset:
 
         mixing_coefficient (float): Mixing coefficient used to manage the correlation.
 
-        _metadata_path (str): The path to the metadata file.
+        metadata_path (str): The path to the metadata file.
 
         scaler (sklearn.preprocessing): The scaler used for feature scaling.
 
         task_id_to_name (dict): A dictionary mapping task IDs to task names.
+        
 
     Methods:
         _download_data: Download the raw data from OpenML.
@@ -109,6 +109,10 @@ class FederatedIncomeDataset:
         _preprocess: Preprocess the raw data when using a specific state.
 
         _preprocess_full_data: Preprocess the raw data when using the full dataset.
+
+        _process_linear: Preprocess the raw data for linear models.
+
+        _process_full_for_linear_model: Process data from all the states for linear models.
 
         _sample_state: Sample data from a DataFrame group.
 
@@ -186,16 +190,16 @@ class FederatedIncomeDataset:
 
         if self.split_criterion == 'correlation':
             if self.n_task_samples is None:
-                self._metadata_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                self.metadata_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
                                               f'{self.n_tasks}', 'all', 'metadata.json')
             else:
-                self._metadata_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
+                self.metadata_path = os.path.join(self._tasks_dir, f'{int(self.mixing_coefficient * 100)}',
                                               f'{self.n_tasks}', f'{self.n_task_samples}', 'metadata.json')
         else:
             if self.n_task_samples is None:
-                self._metadata_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', 'metadata.json')
+                self.metadata_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', 'all', 'metadata.json')
             else:
-                self._metadata_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', 'metadata.json')
+                self.metadata_path = os.path.join(self._tasks_dir, f'{self.n_tasks}', f'{self.n_task_samples}', 'metadata.json')
 
 
         self.scaler = self._set_scaler(self.scaler_name)
@@ -207,10 +211,10 @@ class FederatedIncomeDataset:
         elif not self.download and self.force_generation:
             if self.use_linear and not self.state == 'full':
                 logging.info(f"Processing data for linear models..")
-                self._preprocess_linear()
+                self._process_linear()
             else:
                 if state == 'full':
-                    logging.info(f'Using full split criterion. Processing data..')
+                    logging.info(f'Using Income-A dataset. Processing data..')
                     self._preprocess_full_data()
                 else:
                     if not os.path.exists(self._intermediate_data_dir):
@@ -240,13 +244,13 @@ class FederatedIncomeDataset:
 
             os.makedirs(self._intermediate_data_dir, exist_ok=True)
             logging.info("Download complete. Processing data..")
-            if self.use_linear and not self.state == 'full':
-                train_df, test_df = self._preprocess_linear()
+            if self.state == 'full':
+                train_df, test_df = self._preprocess_full_data()
             else:
-                if self.state == 'full':
-                   train_df, test_df = self._preprocess_full_data()
+                if self.use_linear:
+                    train_df, test_df = self._process_linear()
                 else:
-                   train_df, test_df =  self._preprocess()
+                    train_df, test_df =  self._preprocess()
 
             self._generate_tasks(train_df, test_df)
 
@@ -263,7 +267,16 @@ class FederatedIncomeDataset:
 
 
     def _preprocess(self):
-        """Prepare the raw data for splitting in tasks."""
+        """Prepare the raw data for splitting in tasks, selecting a single State.
+        Perform the following preprocessing steps:
+        1. Drop null values and duplicates.
+        2. Filter the data based on the state.
+        3. One-hot encode the categorical columns.
+        4. Split the data into training and testing sets.
+        5. Scale the features using the specified scaler (minmax or standard).
+        Returns:
+            train_df (pd.DataFrame): Processed training data.
+            test_df (pd.DataFrame): Processed testing data."""
         df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
 
         if self.state.lower() not in STATES:
@@ -322,16 +335,20 @@ class FederatedIncomeDataset:
             x = 2.
         return x
 
-    def _preprocess_linear(self):
+    def _process_linear(self):
         """
-        Prepare the raw data for a linear model.
-        Details on the preprocessing steps can be found in the paper in Appendix C.1.
+        Prepare the raw data to train a linear model.
+        The following preprocessing steps are applied:
+        1. Drop null values and duplicates.
+        2. Remove columns 'OCCP', 'RELP', 'POBP'.
+        3. Binarize the 'RAC1P' and 'MAR' columns.
+        4. Group the 'COW' column into three categories.
         Returns:
             pd.DataFrame: Processed training data.
             """
 
         if self.split_criterion not in  ['correlation', 'random']:
-            raise ValueError("Linear model is  supported only for split criterion: 'correlation', 'random.")
+            raise ValueError("Preprocessing for linear models is supported only for split criterions: 'correlation', 'random.")
 
         if self.state.lower() not in STATES:
             raise ValueError(f"State {self.state} not found in the dataset.")
@@ -355,7 +372,7 @@ class FederatedIncomeDataset:
         df['MAR'] = df['MAR'].apply(lambda x: 1. if x == 1 else 2.)
         df['COW'] = df['COW'].apply(self._group_cow)
 
-        # note, the one-hot encoding is done only on 'COW' because for binary feature is better to not have 0 values
+        # note, the one-hot encoding is done only on 'COW' because for binary feature it is better to not have 0 values
         df = pd.get_dummies(df, columns=['COW'], dtype=np.float64, drop_first=False)
 
         train_df = df.sample(frac=1 - self.test_frac, random_state=self.seed)
@@ -513,6 +530,15 @@ class FederatedIncomeDataset:
 
 
     def _scale_features(self, df, scaler, mode='train'):
+        """
+        Scale the features and target to use in a non-linear model.
+        Args:
+            df (pd.DataFrame): DataFrame to scale.
+            scaler (sklearn.preprocessing): Scaler to use. Available options are 'standard' and 'minmax'.
+            mode (str, opt): Scaling mode. Available options are 'train' and 'test'. Default is 'train'.
+        
+        Returns feature_scaled (pd.DataFrame): Scaled DataFrame.
+        """
 
         dummy_columns = df.select_dtypes(include=['Sparse']).columns
         dummy_columns = list(set(dummy_columns) - set(NON_CATEGORICAL_COLUMNS))
@@ -640,12 +666,12 @@ class FederatedIncomeDataset:
             'task_mapping': self.task_id_to_name
          }
 
-        with open(self._metadata_path, "w") as f:
+        with open(self.metadata_path, "w") as f:
             json.dump(metadata, f, indent=4)
 
 
     def _load_task_mapping(self):
-        with (open(self._metadata_path, "r") as f):
+        with (open(self.metadata_path, "r") as f):
             metadata = json.load(f)
             self.task_id_to_name = metadata["task_mapping"]
 
@@ -773,6 +799,13 @@ class FederatedIncomeDataset:
 
 
     def _random_split(self, df):
+        """
+        Split the data randomly into tasks.
+        Args:
+            df(pd.DataFrame): DataFrame to split into tasks.
+        
+        Returns:
+            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes."""
 
         num_elems = len(df)
         group_size = int(len(df) // self.n_tasks)
@@ -867,7 +900,7 @@ class FederatedIncomeDataset:
 
     def get_task_dataset(self, task_id, mode='train'):
         """
-        Returns the dataset for a specific task.
+        Returns the dataset for a specific task. Applies the target binarization and scaling if specified.
 
         Args:
             task_id (int): The ID of the task.
@@ -903,7 +936,7 @@ class FederatedIncomeDataset:
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
 
-        # TODO: Incorporate in the preprocessing part
+        # TODO: this must be moved in the data preprocessing part, to ensure to use the scaled data even for other scripts.
         if self.scale_target:
             task_data = self._scale_output(task_data)
 

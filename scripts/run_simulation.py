@@ -2,7 +2,7 @@
 
 This script performs a federated learning simulation using the specified parameters.
 It initializes clients, a global trainer, and a simulator to run the federated learning
-process for a given number of rounds.
+process for a given number of rounds. 
 
 Command-line arguments can be used to customize the simulation parameters.
 
@@ -16,15 +16,15 @@ Methods/Functions:
     - `initialize_clients(federated_dataset, args)`: Initialize clients based on the federated
                                                      dataset and command-line arguments.
     - `initialize_simulator(clients, args, rng)`: Initialize the federated averaging simulator.
-    - `save_last_round_metadata(all_messages_metadata, metadata_dir)`: Save metadata for the last active round.
     - `load_clients_from_chkpt(federated_dataset, args)`: Load clients from given checkpoints.
     - `compute_local_models(federated_dataset, args)`: Compute and save local models.
-    - `initialize_active_simulator(clients, args, rng)`: Initialize the active federated averaging simulator.
+    - `save_last_round_metadata(all_messages_metadata, metadata_dir)`: Save simulation last round metadata.
+    - `save_setup(args, setup_path)`: Save simulation configuration.
 
     - `main()`: Execute the federated learning simulation.
 
 Usage:
-    python run_simulation.py --task_name adult --test_frac 0.2 --use_nationality --scaler standard
+    python run_simulation.py --task_name adult --test_frac 0.2 --scaler standard
                              -- optimizer sgd --learning_rate 0.01 --momentum 0.9 --weight_decay 5e-4
                              --batch_size 1024 --local_steps 1 --by_epoch
                              --device cuda --metadata_dir metadata
@@ -58,19 +58,13 @@ Options:
     --force_generation: Flag for forcing the generation of the dataset.
     --download: Flag for forcing data downloading.
     --sensitive_attribute_id: Sensitive attribute id.
-    --is_binary_classification: Flag for binary classification.
+    --cast_float: Flag for casting the target variable to float.
     --target_item: Target item for binary classification with Purchase.
     --n_features: Number of features for binary classification with Purchase.
     --features_correlation_path: Path to the features correlation matrix.
     --state: USA state to extract in Income dataset.
     --mixing_coefficient: Mixing coefficient for the mixing sample distribution in Adult dataset.
     --scale_target: Flag for scaling the target variable in the medical cost dataset.
-    --active_server: Flag for using an active server that computes updates.
-    --alpha: Alpha parameter for the Adam optimizer in the active attack scenario.
-    --beta1: Beta1 parameter for the Adam optimizer in the active attack scenario.
-    --beta2: Beta2 parameter for the Adam optimizer in the active attack scenario.
-    --epsilon: Epsilon parameter for the Adam optimizer in the active attack scenario.
-    --attacked_round: Round in which the active attack is performed.
     --use_dp: Flag for using differential privacy.
     --noise_multiplier: Noise multiplier for differential privacy.
     --clip_norm: Clipping norm for differential privacy.
@@ -104,10 +98,9 @@ from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer, DPTrainer
 from fedklearn.federated.client import Client, DPClient
-from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
+from fedklearn.federated.simulator import FederatedAveraging
 
 from fedklearn.metrics import *
-import optuna
 
 from utils import *
 
@@ -376,7 +369,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--binarize_marital_status",
         action="store_true",
-        help="Flag for binarizing the marital status",
+        help="Flag for binarizing the marital status in Adult dataset",
         default=False
     )
 
@@ -395,10 +388,10 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--is_binary_classification",
+        "--cast_float",
         action="store_true",
         help="Flag for binary classification",
-        default=False
+        default=True
     )
 
     parser.add_argument(
@@ -417,7 +410,8 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--features_correlation_path",
         type=str,
-        default=None
+        default=None,
+        help="Path to the features correlation matrix for binary classification with Purchase"
     )
 
     parser.add_argument(
@@ -431,53 +425,19 @@ def parse_args(args_list=None):
         "--mixing_coefficient",
         type=float,
         default=0,
-        help="Mixing coefficient for the mixing sample distribution in Adult dataset"
+        help="Mixing coefficient for the mixing sample distribution in Income and Adult datasets"
     )
 
     parser.add_argument(
         "--keep_proportions",
         action="store_true",
-        help="Flag for keeping the proportions of the states in the Income dataset"
+        help="Flag for keeping the original proportions of the states  when sampling from Income dataset"
     )
 
     parser.add_argument(
         "--scale_target",
         action="store_true",
-        help="Flag for scaling the target variable in the medical cost dataset"
-    )
-    # active server args
-    parser.add_argument(
-        "--num_active_rounds",
-        type=int,
-        default=0,
-        help="Number of active rounds"
-    )
-
-    parser.add_argument(
-        "--n_trials",
-        type=int,
-        default=10,
-        help="Number of trials for the hyperparameter optimization"
-    )
-
-    parser.add_argument(
-        "--hparams_config_path",
-        type=str,
-        default="../configs/hyperparameters.json",
-        help="Path to the hyperparameters configuration file"
-    )
-
-    parser.add_argument(
-        "--attacked_task",
-        type=str,
-        default=None,
-        help="If set, the active attack is performed on the specified task"
-    )
-
-    parser.add_argument(
-        "--use_norm",
-        action="store_true",
-        help="Flag for using the norm as proxy for tuning the active attack"
+        help="Flag for scaling the target variable"
     )
 
     # differential privacy args
@@ -485,7 +445,7 @@ def parse_args(args_list=None):
         "--use_dp",
         action="store_true",
         default=False,
-        help="Flag for using differential privacy"
+        help="Flag for training with differential privacy"
     )
 
     parser.add_argument(
@@ -540,7 +500,8 @@ def initialize_dataset(args, rng):
     Returns:
         FederatedDataset: Initialized federated dataset.
     """
-    if args.task_name in ['toy_classification', 'toy_classification', 'purchase', 'income'] and args.n_tasks is None:
+    if args.task_name in ['toy_classification', 'toy_classification', 'purchase', 'income', 'binary_income', 
+                          'linar_income', 'medical_cost', 'linear_medical_cost'] and args.n_tasks is None:
         raise ValueError(
             f"The number of tasks should be specified for {args.task_name} dataset."
         )
@@ -735,59 +696,24 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
     else:
         model = initialize_model(args.model_config_path)
 
-    if args.task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-    elif args.task_name == "toy_classification":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-
-    elif args.task_name == "toy_regression":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_squared_error
-        is_binary_classification = False
-
-    elif args.task_name == "purchase":
-        criterion = nn.CrossEntropyLoss().to(args.device)
-        metric = multiclass_accuracy
-        is_binary_classification = False
-
-    elif args.task_name == "purchase_binary":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-
-    elif args.task_name == "medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "linear_medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "income":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "binary_income":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-
-    elif args.task_name == "linear_income":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    else:
-        raise NotImplementedError(
-            f"Trainer initialization for task '{args.task_name}' is not implemented."
-        )
+    task_config = {
+        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
+        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
+        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
+        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
+        "income": (nn.MSELoss(), mean_absolute_error, False),
+        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
+    }
+    
+    if args.task_name not in task_config:
+        raise NotImplementedError(f"Trainer initialization for task '{args.task_name}' is not implemented.")
+    
+    criterion, metric, cast_float = task_config[args.task_name]
+    criterion = criterion.to(args.device)
 
     if args.optimizer == "sgd":
         optimizer_params = {
@@ -830,7 +756,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             metric=metric,
             device=args.device,
             optimizer=optimizer,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
             max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size is not None else args.batch_size,
             noise_multiplier=args.noise_multiplier,
             epsilon=args.dp_epsilon,
@@ -848,7 +774,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             metric=metric,
             device=args.device,
             optimizer=optimizer,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
         )
 
 
@@ -1018,213 +944,35 @@ def save_last_round_metadata(all_messages_metadata, metadata_dir):
 
     logging.info(f"Last models sent by the server saved to {server_models_metadata_path}")
 
-
-def load_clients_from_chkpt(federated_dataset, args):
+def save_setup(args, data_path, hparams_path):
     """
-    Load clients from given checkpoints.
-
-    Args:
-        federated_dataset (FederatedDataset): Federated dataset for the specific task.
-        args (argparse.Namespace): Parsed command-line arguments.
-    Returns:
-        list: List of clients.
+    Save hyperparameters configuration.
     """
-    set_seeds(args.seed)
-    clients = []
-    with open(os.path.join(args.metadata_dir, "last.json"), "r") as f:
-        models_metadata_dict = json.load(f)
-    if args.attacked_task is None:
-        for task_id in federated_dataset.task_id_to_name:
+    hp_dict = {
+        "task_name": args.task_name,
+        "scale_target": args.scale_target,
+        "optimizer": args.optimizer,
+        "lr": args.learning_rate,
+        "momentum": args.momentum,
+        "weight_decay": args.weight_decay,
+        "batch_size": args.batch_size,
+        "local_steps": args.local_steps,
+        "by_epoch": args.by_epoch,
+        "num_rounds": args.num_rounds,
+        "dp_epsilon": args.dp_epsilon,
+        "dp_delta": args.dp_delta,
+        "noise_multiplier": args.noise_multiplier,
+        "clip_norm": args.clip_norm,
+        "max_physical_batch_size": args.max_physical_batch_size,
+        "data_path": data_path,
+        "chkpts_dir": args.chkpts_dir,
+        "model_config_path": args.model_config_path,
+        }
 
-            train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
-            test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
+    with open(hparams_path, "w") as f:
+        json.dump(hp_dict, f)
 
-            train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-            test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
-
-            logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
-
-            if args.use_dp:
-                trainer = initialize_trainer(args, use_dp=args.use_dp, train_loader=train_loader)
-                trainer.load_checkpoint(models_metadata_dict[task_id])
-                client = DPClient(trainer=trainer,
-                                train_loader=train_loader,
-                                test_loader=test_loader,
-                                local_steps=args.local_steps,
-                                by_epoch=args.by_epoch,
-                                logger=logger,
-                                name=task_id
-                                )
-            else:
-                trainer = initialize_trainer(args)
-                trainer.load_checkpoint(models_metadata_dict[task_id])
-
-                client = Client(trainer=trainer,
-                                train_loader=train_loader,
-                                test_loader=test_loader,
-                                local_steps=args.local_steps,
-                                by_epoch=args.by_epoch,
-                                logger=logger,
-                                name=task_id
-                                )
-            clients.append(client)
-    else:
-
-        train_dataset = federated_dataset.get_task_dataset(args.attacked_task, mode="train")
-        test_dataset = federated_dataset.get_task_dataset(args.attacked_task, mode="test")
-
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
-
-        logger = SummaryWriter(os.path.join(args.logs_dir, f"{args.attacked_task}"))
-
-        if args.use_dp:
-            trainer = initialize_trainer(args, use_dp=args.use_dp, train_loader=train_loader)
-            trainer.load_checkpoint(models_metadata_dict[args.attacked_task])
-            client = DPClient(trainer=trainer,
-                            train_loader=train_loader,
-                            test_loader=test_loader,
-                            local_steps=args.local_steps,
-                            by_epoch=args.by_epoch,
-                            logger=logger,
-                            name=args.attacked_task
-                              )
-        else:
-            trainer = initialize_trainer(args)
-            trainer.load_checkpoint(models_metadata_dict[args.attacked_task])
-
-
-            client = Client(trainer=trainer,
-                        train_loader=train_loader,
-                        test_loader=test_loader,
-                        local_steps=args.local_steps,
-                        by_epoch=args.by_epoch,
-                        logger=logger,
-                        name=args.attacked_task
-                      )
-
-        clients.append(client)
-    return clients
-
-
-def save_last_round_active_metadata(args, all_messages_metadata, metadata_dir):
-    """
-    Save the last round active metadata.
-
-    Args:
-        args (argparse.Namespace): Parsed command-line arguments.
-        all_messages_metadata (dict): Dictionary of all messages metadata.
-        metadata_dir (str): Metadata directory.
-    """
-    if args.attacked_task is None:
-        last_saved_round_id = max(map(int, all_messages_metadata["0"].keys()))
-        _random_key = list(all_messages_metadata["0"].keys())[0]
-    else:
-        last_saved_round_id = max(map(int, all_messages_metadata[args.attacked_task].keys()))
-        _random_key = list(all_messages_metadata[args.attacked_task].keys())[0]
-    last_saved_round_id = int(last_saved_round_id) if isinstance(_random_key, int) else str(last_saved_round_id)
-    last_clients_messages_metadata = dict()
-    last_server_messages_metadata = dict()
-    for client_id in all_messages_metadata:
-        if str(client_id).isdigit():
-            last_clients_messages_metadata[client_id] = all_messages_metadata[client_id][last_saved_round_id]
-            last_server_messages_metadata[client_id] = all_messages_metadata["server"][client_id][last_saved_round_id]
-
-    attacked_round = args.num_rounds - args.num_active_rounds - 1
-    if args.use_norm:
-        last_models_metadata_path = os.path.join(metadata_dir, f"last_active_{attacked_round}_norm.json")
-    else:
-        last_models_metadata_path = os.path.join(metadata_dir, f"last_active_{attacked_round}.json")
-    last_models_dict = read_dict(last_models_metadata_path)
-    last_models_dict[f'{attacked_round}'] = last_clients_messages_metadata
-    with open(last_models_metadata_path, "w") as f:
-        json.dump(last_models_dict, f)
-
-    logging.info(f"Last models sent by the client saved to {last_models_metadata_path}")
-
-
-def initialize_active_simulator(clients, rng, beta1, beta2, alpha, args):
-    """
-    Initialize the active federated averaging simulator.
-
-    Args:
-        clients (list of Client): List of initialized clients.
-        rng (numpy.random.Generator): Random number generator.
-        beta1 (float): Beta1 parameter for Adam.
-        beta2 (float): Beta2 parameter for Adam.
-        alpha (float): Alpha parameter for the active attack.
-        args (argparse.Namespace): Parsed command-line arguments.
-
-    Returns:
-        ActiveAdamFederatedAveraging: Initialized active federated averaging simulator.
-    """
-    global_trainer = initialize_trainer(args, use_dp=False)
-    with open(os.path.join(args.metadata_dir, "server.json")) as f:
-        messages_metadata_dict= json.load(f)
-    global_chkpt = messages_metadata_dict["0"]
-    global_trainer.load_checkpoint(global_chkpt)
-    global_logger = SummaryWriter(os.path.join(args.logs_dir, "active", "global"))
-
-    attacked_round = args.num_rounds - args.num_active_rounds - 1
-
-    simulator = ActiveAdamFederatedAveraging(
-        clients=clients,
-        global_trainer=global_trainer,
-        logger=global_logger,
-        chkpts_dir=args.chkpts_dir,
-        rng=rng,
-        beta1=beta1,
-        beta2=beta2,
-        epsilon=1e-8,
-        alpha=alpha,
-        attacked_round=attacked_round,
-        use_dp=args.use_dp,
-    )
-    return simulator
-
-
-def objective(trial, federated_dataset, rng, args):
-    """
-    Initialize the objective function for the hyperparameter optimization using Optuna.
-    For additional details, please refer to the Optuna documentation:
-    https://optuna.readthedocs.io/en/stable/index.html
-
-    Args:
-        trial (optuna.Trial): Optuna trial object.
-        federated_dataset (FederatedDataset): Initialized federated dataset.
-        rng (numpy.random.Generator): Random number generator.
-        args (argparse.Namespace): Parsed command-line arguments.
-    Returns:
-        float: Objective value.
-        """
-    with open(args.hparams_config_path, "r") as f:
-        hparams_dict = json.load(f)
-    beta1 = trial.suggest_float("beta1", hparams_dict['beta1'][0], hparams_dict['beta1'][1])
-    beta2 = trial.suggest_float("beta2", hparams_dict['beta2'][0], hparams_dict['beta2'][1])
-    alpha = trial.suggest_float("alpha", hparams_dict['alpha'][0], hparams_dict['alpha'][1], log=True)
-
-    clients = load_clients_from_chkpt(federated_dataset, args)
-    simulator = initialize_active_simulator(clients=clients, rng=rng, beta1=beta1, beta2=beta2, alpha=alpha, args=args)
-
-    logging.info(f"Running active simulation with beta1={beta1}, beta2={beta2}, alpha={alpha}..")
-    logging.info('Initial logs..')
-    simulator.write_logs(display_only=True)
-
-    for round_id in tqdm(range(args.num_active_rounds)):
-        logs_flag = (round_id % args.log_freq == 0)
-        simulator.simulate_active_round(save_chkpts=False, save_logs=logs_flag)
-
-    logging.info('Search results..')
-    train_loss, _, _, _ = simulator.write_logs(display_only=True)
-    pseudo_grad_norm = simulator.compute_pseudo_grad_norm()
-
-    logging.info(f'Pseudo-grad norm: {pseudo_grad_norm}')
-    if args.use_norm:
-        return pseudo_grad_norm
-    else:
-        return train_loss
-
-
+    
 def main():
     """
     Execute the federated learning simulation.
@@ -1247,11 +995,8 @@ def main():
 
     if args.use_dp:
         if (args.noise_multiplier is None and args.dp_epsilon is None) or args.clip_norm is None or args.dp_delta is None:
-            raise ValueError("'noise_multiplier', 'dp_epsilon'., 'clip_norm', and 'dp_delta' parameters must be specified \
+            raise ValueError("'noise_multiplier', 'dp_epsilon', 'clip_norm', and 'dp_delta' parameters must be specified \
                              when training with differential privacy")
-
-    if args.num_rounds <= args.num_active_rounds:
-        raise ValueError("The number of simulation rounds should be greater than the number of attack rounds")
 
     federated_dataset = initialize_dataset(args, rng)
 
@@ -1291,7 +1036,7 @@ def main():
 
     logging.info("=" * 100)
     logging.info("Run simulation..")
-    for round_id in tqdm(range(args.num_rounds  - args.num_active_rounds)):
+    for round_id in tqdm(range(args.num_rounds)):
         logs_flag = (round_id % args.log_freq == 0)
         chkpts_flag = (round_id % args.save_freq == 0)
         simulator.simulate_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
@@ -1307,76 +1052,10 @@ def main():
     logging.info(f"The messages metadata dictionary has been saved in {messages_metadata_path}")
     save_last_round_metadata(simulator.messages_metadata, args.metadata_dir)
 
-    # This part is only for the active simulation
-    if args.num_active_rounds > 0:
-        logging.info("Simulating active rounds...")
+    setup_path = os.path.join(args.metadata_dir, "setup.json")
+    save_setup(args, federated_dataset.metadata_path, setup_path)
+    logging.info(f"The simulation setup has been saved in {setup_path}")
 
-        attacked_round = args.num_rounds - args.num_active_rounds - 1
-
-
-        if args.hparams_config_path is None:
-            raise ValueError("Hyperparameters configuration file is not provided.")
-
-        if not os.path.exists(args.hparams_config_path):
-            raise FileNotFoundError(f"Hyperparameters configuration file not found at '{args.hparams_config_path}'.")
-
-        logging.info("=" * 100)
-        logging.info("Launch hyperparameter optimization using Optuna..")
-        abs_log_dir = os.path.abspath(os.path.join(args.logs_dir, "active"))
-        os.makedirs(abs_log_dir, exist_ok=True)
-        storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{attacked_round}.db"
-
-        study = optuna.create_study(direction="minimize",
-                                    storage=storage_name,
-                                    load_if_exists=True, study_name=f'{datetime.now()}')
-        study.optimize(lambda trial: objective(trial, federated_dataset, rng, args), n_trials=args.n_trials)
-
-        best_params = study.best_params
-
-        logging.info("=" * 100)
-        logging.info(f"Best hyperparameters: {study.best_params}")
-        logging.info(f"Optimization results saved in: {abs_log_dir}/hp_dashboard_{attacked_round}.db")
-        logging.info("=" * 100)
-
-        logging.info("Running active simulation with the best hyperparameters...")
-
-        logging.info("Loading clients from checkpoints...")
-
-        clients = load_clients_from_chkpt(federated_dataset=federated_dataset, args=args)
-
-        logging.info("=" * 100)
-        logging.info("Write initial logs..")
-        simulator.write_logs()
-
-        logging.info("=" * 100)
-        logging.info('Run active simulation...')
-        simulator = initialize_active_simulator(clients=clients, rng=rng, beta1=best_params['beta1'],
-                                                beta2=best_params['beta2'], alpha=best_params['alpha'], args=args)
-
-        for round_id in tqdm(range(args.num_active_rounds)):
-            logs_flag = (round_id % args.log_freq == 0)
-            chkpts_flag = (round_id % args.save_freq == 0)
-
-            simulator.simulate_active_round(save_chkpts=chkpts_flag, save_logs=logs_flag)
-        logging.info('Final Results..')
-        simulator.write_logs(display_only=True)
-
-        logging.info("=" * 100)
-        logging.info("Saving simulation results..")
-        os.makedirs(os.path.dirname(args.metadata_dir), exist_ok=True)
-
-        if args.use_norm:
-            messages_metadata_path = os.path.join(args.metadata_dir, f"active_norm_{attacked_round}.json")
-        else:
-            messages_metadata_path = os.path.join(args.metadata_dir, f"active_{attacked_round}.json")
-        with open(messages_metadata_path, "w") as f:
-            json.dump(simulator.messages_metadata, f)
-
-        logging.info(f"The messages metadata dictionary has been saved in {messages_metadata_path}")
-
-        save_last_round_active_metadata(all_messages_metadata=simulator.messages_metadata,
-                                        metadata_dir=args.metadata_dir,
-                                        args=args)
 
 if __name__ == "__main__":
     main()

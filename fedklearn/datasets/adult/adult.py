@@ -1012,6 +1012,6 @@ class AdultDataset(Dataset):
             idx (int): Index of the sample.
 
         Returns:
-            Tuple[torch.Tensor, torch.LongTensor]: A tuple containing input features and target value.
+            Tuple[torch.Tensor, int]: A tuple containing input features and target value.
         """
         return torch.Tensor(self.features[idx]), int(self.targets[idx])

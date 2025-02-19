@@ -24,7 +24,7 @@ class Trainer:
     device (str or torch.Device): Device on which to perform computations.
     optimizer (torch.optim.Optimizer): Optimization algorithm.
     lr_scheduler (torch.optim.lr_scheduler): Learning rate scheduler.
-    is_binary_classification (bool): Whether to cast labels to float or not. Set to True if using BCELoss.
+    cast_float (bool): Whether to cast labels to float or not. Set to True if using BCELoss or MSELoss.
 
     Methods
     -------
@@ -83,7 +83,7 @@ class Trainer:
             optimizer,
             model_name=None,
             lr_scheduler=None,
-            is_binary_classification=False,
+            cast_float=False,
     ):
         self.model = model.to(device)
         self.model_name = model_name
@@ -93,7 +93,7 @@ class Trainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
 
-        self.is_binary_classification = is_binary_classification
+        self.cast_float = cast_float
 
         self.n_modules = self.__get_num_modules()
         self.model_dim = int(self.get_param_tensor().shape[0])
@@ -163,7 +163,7 @@ class Trainer:
         x = x.to(self.device).type(torch.float32)
         y = y.to(self.device)
 
-        if self.is_binary_classification:
+        if self.cast_float:
             y = y.type(torch.float32)
 
         self.optimizer.zero_grad()
@@ -207,7 +207,7 @@ class Trainer:
             x = x.to(self.device).type(torch.float32)
             y = y.to(self.device)
 
-            if self.is_binary_classification:
+            if self.cast_float:
                 y = y.type(torch.float32)
 
             y_pred = self.model(x)
@@ -258,7 +258,7 @@ class Trainer:
         x = x.to(self.device).type(torch.float32)
         y = y.to(self.device)
 
-        if self.is_binary_classification:
+        if self.cast_float:
             y = y.type(torch.float32)
 
         self.optimizer.zero_grad()
@@ -320,7 +320,7 @@ class Trainer:
 
             n_samples += y.size(0)
 
-            if self.is_binary_classification:
+            if self.cast_float:
                 y = y.type(torch.float32)
 
             self.optimizer.zero_grad()
@@ -384,7 +384,7 @@ class Trainer:
                 x = x.to(self.device)
                 y = y.to(self.device)
 
-                if self.is_binary_classification:
+                if self.cast_float:
                     y = y.type(torch.float32)
 
                 y_pred = self.model(x)
@@ -537,7 +537,7 @@ class Trainer:
 class DebugTrainer(Trainer):
     """Trainer with additional debugging features."""
     def __init__(self, model,criterion,metric,device,optimizer, model_name=None,lr_scheduler=None,
-                 is_binary_classification=False):
+                 cast_float=False):
         super(DebugTrainer, self).__init__(
             model=model,
             criterion=criterion,
@@ -546,7 +546,7 @@ class DebugTrainer(Trainer):
             optimizer=optimizer,
             model_name=model_name,
             lr_scheduler=lr_scheduler,
-            is_binary_classification=is_binary_classification
+            cast_float=cast_float
         )
 
         self.x_grad = None
@@ -572,7 +572,7 @@ class DebugTrainer(Trainer):
 
             n_samples += y.size(0)
 
-            if self.is_binary_classification:
+            if self.cast_float:
                 y = y.type(torch.float32)
 
             self.optimizer.zero_grad()
@@ -611,7 +611,7 @@ class DebugTrainer(Trainer):
                 x = x.to(self.device)
                 y = y.to(self.device)
 
-                if self.is_binary_classification:
+                if self.cast_float:
                     y = y.type(torch.float32)
 
                 y_pred = self.model(x)
@@ -668,7 +668,7 @@ class DPTrainer(Trainer):
     noise_multiplier (float): Noise multiplier for differential privacy.
     epochs (int): Number of epochs for differential privacy training.
     lr_scheduler (torch.optim.lr_scheduler): Learning rate scheduler.
-    is_binary_classification (bool): Whether to cast labels to float or not. Set to True if using BCELoss.
+    cast_float (bool): Whether to cast labels to float or not. Set to True if using BCELoss or MSELoss.
     rng (torch.Generator): Random number generator for differential privacy.
 
     Methods
@@ -702,8 +702,8 @@ class DPTrainer(Trainer):
 
     def __init__(self, model, criterion, metric, device, optimizer, max_physical_batch_size, clip_norm, delta, train_loader,
                 optimizer_init_dict, model_name=None, epsilon=None, noise_multiplier=None, epochs=None, lr_scheduler=None,
-                is_binary_classification=False, rng=None):
-        super().__init__(model, criterion, metric, device, optimizer, model_name, lr_scheduler, is_binary_classification)
+                cast_float=False, rng=None):
+        super().__init__(model, criterion, metric, device, optimizer, model_name, lr_scheduler, cast_float)
 
         self.max_physical_batch_size = max_physical_batch_size
         self.model = copy.deepcopy(model)
@@ -717,7 +717,7 @@ class DPTrainer(Trainer):
         self.train_loader = train_loader
         self.rng = rng if rng else torch.Generator()
 
-        # This is needed only to initializer the accountant
+        # This is needed only to initialize the accountant
         _, _, _, _, self.accountant_state_dict = self._make_private(
             model=model,
             optimizer=optimizer,
@@ -867,7 +867,7 @@ class DPTrainer(Trainer):
 
                 n_samples += y.size(0)
 
-                if self.is_binary_classification:
+                if self.cast_float:
                     y = y.type(torch.float32)
 
                 privacy_optimizer.zero_grad()

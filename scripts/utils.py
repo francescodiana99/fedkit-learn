@@ -1,3 +1,4 @@
+import copy
 import os
 import json
 import logging
@@ -98,6 +99,7 @@ def configure_logging(args):
         handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     root_logger.setLevel(logging.INFO - (args.verbose - args.quiet) * 10)
 
+# TODO: check where to use
 def get_task_type(task_name):
     task_types = {
         "adult": "binary_classification",
@@ -118,13 +120,12 @@ def get_task_type(task_name):
 
     return task_types[task_name]
 
-def load_dataset(task_name, data_dir, rng):
+def load_dataset(fl_setup, rng):
     """
     Load a federated dataset based on the specified task name.
 
     Args:
-        task_name (str): Name of the task for which the dataset is to be loaded.
-        data_dir (str): Directory where the dataset should be stored or loaded from.
+        fl_setup (dict): Dictionary containing the setup for the federated learning experiment.
         rng (RandomState): NumPy random number generator for reproducibility.
 
     Returns:
@@ -133,8 +134,14 @@ def load_dataset(task_name, data_dir, rng):
     Raises:
         NotImplementedError: If the dataset initialization for the specified task is not implemented.
     """
+
+    task_name = fl_setup["task_name"]
+    data_path = fl_setup["data_path"]
+    scale_target = fl_setup["scale_target"]
+
+    # TODO: if have time, fix adult or remove it
     if task_name == "adult":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+        with open(data_path, "r") as f:
             metadata_dict = json.load(f)
         split_criterion = metadata_dict["split_criterion"]
 
@@ -168,7 +175,7 @@ def load_dataset(task_name, data_dir, rng):
                 split_criterion=split_criterion,
             )
     elif task_name == "income":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+        with open(data_path, "r") as f:
             metadata_dict = json.load(f)
         split_criterion = metadata_dict["split_criterion"]
         n_tasks = metadata_dict["n_tasks"]
@@ -184,10 +191,10 @@ def load_dataset(task_name, data_dir, rng):
             state=state,
             n_tasks=n_tasks,
             n_task_samples=n_task_samples,
+            scale_target=scale_target
         )
-
     elif task_name == "binary_income":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+        with open(data_path, "r") as f:
             metadata_dict = json.load(f)
         split_criterion = metadata_dict["split_criterion"]
         n_tasks = metadata_dict["n_tasks"]
@@ -205,46 +212,27 @@ def load_dataset(task_name, data_dir, rng):
             n_task_samples=n_task_samples,
             binarize=True
         )
-    elif task_name == "linear_income":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
-            metadata_dict = json.load(f)
-        split_criterion = metadata_dict["split_criterion"]
-        n_tasks = metadata_dict["n_tasks"]
-        n_task_samples = metadata_dict["n_task_samples"]
-        cache_dir = metadata_dict['cache_dir']
-        state= metadata_dict['state']
-        mixing_coefficient = metadata_dict['mixing_coefficient']
-        return FederatedIncomeDataset(
-            cache_dir=cache_dir,
-            download=False,
-            split_criterion=split_criterion,
-            mixing_coefficient=mixing_coefficient,
-            state=state,
-            n_tasks=n_tasks,
-            n_task_samples=n_task_samples,
-            use_linear=True
-        )
-
-    elif task_name == "dp_income":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
-            metadata_dict = json.load(f)
-        split_criterion = metadata_dict["split_criterion"]
-        n_tasks = metadata_dict["n_tasks"]
-        n_task_samples = metadata_dict["n_task_samples"]
-        cache_dir = metadata_dict['cache_dir']
-        state= metadata_dict['state']
-        mixing_coefficient = metadata_dict['mixing_coefficient']
-        return FederatedIncomeDataset(
-            cache_dir=cache_dir,
-            download=False,
-            split_criterion=split_criterion,
-            mixing_coefficient=mixing_coefficient,
-            state=state,
-            n_tasks=n_tasks,
-            n_task_samples=n_task_samples,
-            use_dp=True
-        )
-
+    # elif task_name == "linear_income":
+    #     with open(data_path, "r") as f:
+    #         metadata_dict = json.load(f)
+    #     split_criterion = metadata_dict["split_criterion"]
+    #     n_tasks = metadata_dict["n_tasks"]
+    #     n_task_samples = metadata_dict["n_task_samples"]
+    #     cache_dir = metadata_dict['cache_dir']
+    #     state= metadata_dict['state']
+    #     mixing_coefficient = metadata_dict['mixing_coefficient']
+    #     return FederatedIncomeDataset(
+    #         cache_dir=cache_dir,
+    #         download=False,
+    #         split_criterion=split_criterion,
+    #         mixing_coefficient=mixing_coefficient,
+    #         state=state,
+    #         n_tasks=n_tasks,
+    #         n_task_samples=n_task_samples,
+    #         use_linear=True
+    #     )
+    
+    # TODO: fix if have time
     elif task_name == "purchase":
         with open(os.path.join(data_dir, "split_criterion.json"), "r") as f:
             split_dict = json.load(f)
@@ -277,29 +265,17 @@ def load_dataset(task_name, data_dir, rng):
         )
 
     elif task_name == "toy_regression" or task_name == "toy_classification":
+        with open(data_path, "r") as f:
+            metadata_dict = json.load(f)
+        cache_dir = metadata_dict['cache_dir']
         return FederatedToyDataset(
-            cache_dir=data_dir,
+            cache_dir=cache_dir,
             allow_generation=False,
             force_generation=False,
             rng=rng
         )
     elif task_name == "medical_cost":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
-            metadata_dict = json.load(f)
-        split_criterion = metadata_dict["split_criterion"]
-        cache_dir = metadata_dict['cache_dir']
-        n_tasks = metadata_dict["n_tasks"]
-        return FederatedMedicalCostDataset(
-            cache_dir=cache_dir,
-            download=False,
-            force_generation=False,
-            rng=rng,
-            split_criterion=split_criterion,
-            n_tasks=n_tasks
-        )
-
-    elif task_name == "linear_medical_cost":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+        with open(data_path, "r") as f:
             metadata_dict = json.load(f)
         split_criterion = metadata_dict["split_criterion"]
         cache_dir = metadata_dict['cache_dir']
@@ -311,24 +287,24 @@ def load_dataset(task_name, data_dir, rng):
             rng=rng,
             split_criterion=split_criterion,
             n_tasks=n_tasks,
-            use_linear=True
+            scale_target=scale_target
         )
 
-    elif task_name == "dp_medical_cost":
-        with open(os.path.join(data_dir, "metadata.json"), "r") as f:
-            metadata_dict = json.load(f)
-        split_criterion = metadata_dict["split_criterion"]
-        cache_dir = metadata_dict['cache_dir']
-        n_tasks = metadata_dict["n_tasks"]
-        return FederatedMedicalCostDataset(
-            cache_dir=cache_dir,
-            download=False,
-            force_generation=False,
-            rng=rng,
-            split_criterion=split_criterion,
-            n_tasks=n_tasks,
-            use_dp=True
-        )
+    # elif task_name == "linear_medical_cost":
+    #     with open(data_path, "r") as f:
+    #         metadata_dict = json.load(f)
+    #     split_criterion = metadata_dict["split_criterion"]
+    #     cache_dir = metadata_dict['cache_dir']
+    #     n_tasks = metadata_dict["n_tasks"]
+    #     return FederatedMedicalCostDataset(
+    #         cache_dir=cache_dir,
+    #         download=False,
+    #         force_generation=False,
+    #         rng=rng,
+    #         split_criterion=split_criterion,
+    #         n_tasks=n_tasks,
+    #         use_linear=True
+    #     )
     else:
         raise NotImplementedError(
             f"Dataset initialization for task '{task_name}' is not implemented."
@@ -402,6 +378,7 @@ def get_first_rounds(round_ids, keep_frac=0.):
     return set(map(str, int_list[:end_index]))
 
 def get_trainer_parameters(task_name, device, model_config_path):
+    # TODO: absolutely needs to be refactored
     model_init_fn = lambda: initialize_model(model_config_path)
     if task_name == "adult":
         criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
@@ -485,36 +462,35 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
     return trainers_dict
 
 
-def evaluate_sia(attacked_client_id, dataloader, trainers_dict):
-    """
-    Evaluate Source Inference Attack.
-
-    Parameters:
-    - attacked_client_id (str): The ID of the attacked client.
-    - dataloader (torch.utils.data.DataLoader): DataLoader for the evaluation dataset.
-    - trainers_dict (Dict[str, Trainer]): A dictionary mapping model IDs to Trainer objects.
-
-    Returns:
-    - float: The evaluation score for the Source Inference Attack.
-    """
-    attack_simulator = SourceInferenceAttack(
-        attacked_client_id=attacked_client_id,
-        dataloader=dataloader,
-        trainers_dict=trainers_dict
-    )
-
-    attack_simulator.execute_attack()
-
-    score = attack_simulator.evaluate_attack()
-
-    return score
-
-
-def evaluate_aia(
+def evaluate_mb_aia(
         model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device, num_iterations,
         criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None,
         output_losses=False, output_predictions=False
 ):
+    """
+    Evaluate the Model-based Attribute Inference Attack on a given model and dataset.
+    
+    Parameters:
+    - model (torch.nn.Module): The target model to test.
+    - dataset (FederatedDataset): The dataset to use for the attack.
+    - sensitive_attribute_id (int): The index of the sensitive attribute in the dataset.
+    - sensitive_attribute_type (str): The type of the sensitive attribute.
+    - initialization (str): The initialization method for reconstructing continuous sensitive attributes.
+    - device (str): The device on which the attack will be executed
+    - num_iterations (int): The number of iterations for the optimization part when attacking continuous features.
+    - criterion (torch.nn.Module): The loss function to use for the attack.
+    - is_binary_classification (bool): Indicates whether the task is binary classification.
+    - learning_rate (float): The learning rate for the optimization part when attacking continuous features.
+    - optimizer_name (str): The name of the optimizer to use for the optimization part when attacking continuous features.
+    - success_metric (str): The metric to use for evaluating the success of the attack.
+    - rng (np.random.RandomState): The random number generator for reproducibility.
+    - torch_rng (torch.Generator): The PyTorch random number generator for reproducibility.
+    - output_losses (bool): Whether to output the losses during the attack.
+    - output_predictions (bool): Whether to output the predictions during the attack.
+
+    Returns:
+    - score (float): The score of the attack
+    """
 
     attack_simulator = ModelDrivenAttributeInferenceAttack(
         model=model,
@@ -535,6 +511,7 @@ def evaluate_aia(
     all_losses = attack_simulator.execute_attack(num_iterations=num_iterations, output_loss=True)
     score = attack_simulator.evaluate_attack()
 
+    # Output losses and predictions for debugging purposes
     if output_losses:
         logging.info(f"{all_losses[:20]}")
 
@@ -662,4 +639,103 @@ def get_gpu():
         return gpu_name
     else:
         return "No GPU found or CUDA is not available."
+    
 
+def evaluate_trainer(trainer, dataloader):  
+    """
+    Evaluate a trainer on a dataloader
+        Args:
+            trainer (Trainer): Trainer object
+            dataloader (): DataLoader object
+        
+        Returns:
+            avg_loss (float): average loss of the model on the dataloader.
+            metric (float): metric of the model on the dataloader."""
+    
+    evaluation_trainer = copy.deepcopy(trainer)
+    if trainer.criterion.__class__.__name__ == "BCEWithLogitsLoss":
+        evaluation_trainer.criterion = nn.BCEWithLogitsLoss(reduction='mean')
+    elif trainer.criterion.__class__.__name__ == "CrossEntropyLoss":
+        evaluation_trainer.criterion = nn.CrossEntropyLoss(reduction='mean')
+    elif trainer.criterion.__class__.__name__ == "MSELoss":
+        evaluation_trainer.criterion = nn.MSELoss()
+    else:
+        raise NotImplementedError(f"Criterion {trainer.criterion.__class__.__name__} is not implemented.")
+    avg_loss, metric = evaluation_trainer.evaluate_loader(dataloader)
+    return avg_loss, metric
+
+
+# TODO: test this function
+def update_aia_results_dict(scores_dict, metrics_dict, loss_dict, n_samples_list, results_dict, iteration_id):
+    """
+    Update the results dictionary with the scores, metrics, and losses of the model-based AIA for a given iteration.
+    Parameters:
+    - scores_dict (dict): A dictionary mapping client IDs to the scores of the attack.
+    - metrics_dict (dict): A dictionary mapping client IDs to the accuracy of each model.
+    - loss_dict (dict): A dictionary mapping client IDs to the losses of each model.
+    - n_samples_list (list): A list of the number of samples per client.
+    - results_dict (dict): A dictionary containing the results of the attack.
+    - iteration_id (int): The ID of the iteration.
+    Returns:
+    - results_dict (dict): A dictionary containing the results of the attack.
+    """
+
+    model_types = list(scores_dict.keys())
+
+    for model_type in model_types:
+        if model_type not in results_dict[iteration_id]:
+            scores, metrics, losses = get_aia_scores(scores_dict, metrics_dict, loss_dict, model_type)
+            results_dict[iteration_id][model_type] = {
+                "scores": scores,
+                "metrics": metrics,
+                "losses": losses,
+                "n_samples": n_samples_list
+            }
+    
+    return results_dict
+
+
+def get_aia_scores(scores_dict, metrics_dict, loss_dict, model_type):
+    """
+    Get the scores, metrics, and losses of the model-based AIA for a given model type.
+    Parameters:
+    - scores_dict (dict): A dictionary mapping client IDs to the scores of the attack.
+    - metrics_dict (dict): A dictionary mapping client IDs to the accuracy of each model.
+    - loss_dict (dict): A dictionary mapping client IDs to the losses of each model.
+    - model_type (str): The type of the model. 
+    Returns:
+    - scores (list): A list of the scores of the attack.
+    - metrics (list): A list of the metrics of the models.
+    - losses (list): A list of the losses of the models.
+    """
+    scores = list(scores_dict[model_type].values())
+    metrics = list(metrics_dict[model_type].values())
+    losses = list(loss_dict[model_type].values())
+
+    return scores, metrics, losses
+
+def log_results(results_dict, iteration_id):
+    """
+    Log the results of the model-based AIA for a given iteration.
+    Parameters:
+    - results_dict (dict): A dictionary containing the results of the attack.
+    - iteration_id (int): The ID of the iteration.
+    """
+    model_types = list(results_dict[iteration_id].keys())
+
+    logging.info(f"Scores for round {iteration_id}")
+
+    for model_type in model_types:
+        scores = results_dict[iteration_id][model_type]["scores"]
+        metrics = results_dict[iteration_id][model_type]["metrics"]
+        losses = results_dict[iteration_id][model_type]["losses"]
+        n_samples = results_dict[iteration_id][model_type]["n_samples"]
+
+        weighted_avg_score = weighted_average(scores, n_samples)
+        weighted_avg_metric = weighted_average(metrics, n_samples)
+        weighted_avg_loss = weighted_average(losses, n_samples)
+
+        logging.info(f"Average loss for {model_type} model: {weighted_avg_loss:.4f}")
+        logging.info(f"Average accuracy for {model_type} model: {weighted_avg_metric:.4f}")
+        logging.info(f"Average attack accuracy for {model_type} model: {weighted_avg_score:.4f}")
+        
