@@ -36,7 +36,7 @@ class BaseAttributeInferenceAttack(ABC):
         initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
         device (str or torch.Device): Device on which to perform computations.
         criterion (torch.nn.Criterion): Loss criterion.
-        is_binary_classification (bool): True if the federated learning task is binary classification.
+        cast_float (bool): True if the federated learning task requires the target value to be casted as float.
         learning_rate (float): Learning rate for the optimizer.
         optimizer_name (str): Name of the optimizer to use (default is "sgd").
         success_metric: Metric to evaluate the success of the attack.
@@ -50,7 +50,7 @@ class BaseAttributeInferenceAttack(ABC):
         initialization (str): Strategy used to initialize the sensitive attribute. Possible values are "normal".
         device (str or torch.Device): Device on which to perform computations.
         criterion: Loss criterion for the attack.
-        is_binary_classification (bool): True if the federated learning task is binary classification.
+        cast_float (bool): True if the federated learning task requires the target value to be casted as float.
         learning_rate (float): Learning rate for the optimizer.
         optimizer_name (str): Name of the optimizer to use (default is "sgd").
         success_metric: Metric to evaluate the success of the attack.
@@ -71,7 +71,7 @@ class BaseAttributeInferenceAttack(ABC):
 
     """
     def __init__(self, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device,
-                 criterion, is_binary_classification, learning_rate, optimizer_name, success_metric,
+                 criterion, cast_float, learning_rate, optimizer_name, success_metric,
                  rng=None, torch_rng=None):
 
         self.dataset = dataset
@@ -99,7 +99,7 @@ class BaseAttributeInferenceAttack(ABC):
         self.initialization = initialization
 
         self.criterion = criterion
-        self.is_binary_classification = is_binary_classification
+        self.cast_float = cast_float
 
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
@@ -110,7 +110,7 @@ class BaseAttributeInferenceAttack(ABC):
         self.true_features = self.true_features.to(self.device).type(torch.float32)
         self.true_labels = self.true_labels.to(self.device)
 
-        if self.is_binary_classification:
+        if self.cast_float:
             self.true_labels = self.true_labels.type(torch.float32).unsqueeze(1)
 
         self.num_classes = self._compute_num_sensitive_classes()
@@ -264,7 +264,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
     """
     def __init__(
             self, messages_metadata, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization,
-            device, model_init_fn, criterion, is_binary_classification, learning_rate, optimizer_name, success_metric,
+            device, model_init_fn, criterion, cast_float, learning_rate, optimizer_name, success_metric,
             logger, log_freq, gumbel_temperature=1.0, gumbel_threshold=0.5, rng=None, torch_rng=None
     ):
         """
@@ -279,7 +279,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
         - device (str or torch.Device): Device on which to perform computations.
         - model_init_fn: Function to initialize the federated learning model.
         - criterion: Loss criterion for the attack.
-        - is_binary_classification: True if the federated learning task is binary classification.
+        - cast_float: True if the federated learning task requires the target value to be casted as float.
         - learning_rate: Learning rate for the optimizer.
         - optimizer_name: Name of the optimizer to use (default is "sgd").
         - success_metric: Metric to evaluate the success of the attack.
@@ -297,7 +297,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
             initialization=initialization,
             device=device,
             criterion=criterion,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
             learning_rate=learning_rate,
             optimizer_name=optimizer_name,
             success_metric=success_metric,
@@ -552,7 +552,6 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
             virtual_grad = self._compute_virtual_gradient(global_model=global_model)
 
 
-            # TODO: move to cosine dissimilarity
             round_loss = F.cosine_similarity(virtual_grad, pseudo_grad, dim=0)
             l2_dist = torch.cdist(virtual_grad.unsqueeze(0), pseudo_grad.unsqueeze(0), p=2).item()
 
@@ -618,7 +617,7 @@ class AttributeInferenceAttack(BaseAttributeInferenceAttack):
 class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
     def __init__(
             self, model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device,
-            criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None
+            criterion, cast_float, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None
     ):
 
         super(ModelDrivenAttributeInferenceAttack, self).__init__(
@@ -628,7 +627,7 @@ class ModelDrivenAttributeInferenceAttack(BaseAttributeInferenceAttack):
             initialization=initialization,
             device=device,
             criterion=criterion,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
             learning_rate=learning_rate,
             optimizer_name=optimizer_name,
             success_metric=success_metric,

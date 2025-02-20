@@ -70,11 +70,12 @@ class FederatedMedicalCostDataset:
 
         rng (np.random.Generator): A random number generator.
 
-        _metadata_path (str): The file path to store the metadata.
+        metadata_path (str): The file path to store the metadata.
 
         task_id_to_name (dict): A dictionary mapping task IDs to task names.
 
         use_linear (bool): flag to indicate if the data should be processed for a linear model.
+
 
 
     Methods:
@@ -141,7 +142,7 @@ class FederatedMedicalCostDataset:
 
         self.rng = rng
 
-        self._metadata_path = os.path.join(self.tasks_folder, self.split_criterion,  f'{self.n_tasks}',
+        self.metadata_path = os.path.join(self.tasks_folder, self.split_criterion,  f'{self.n_tasks}',
                                                   "metadata.json")
         self.test_frac = test_frac
 
@@ -203,31 +204,32 @@ class FederatedMedicalCostDataset:
 
     def _scale_features(self, df, mode="train"):
         """
-        Scales the features in the DataFrame. If `scale_target` is True, the target column is also scaled.
+        Scales the features in the DataFrame. If `self.scale_target` is True, the target column is also scaled. If `self.use_linear`
+        is True, the data is processed for a linear model.
         Args:
             df (pd.DataFrame): The input DataFrame containing features and target columns.
-            scaler (sklearn.preprocessing.object): The scaler object to use for scaling the features.
-            Default is StandardScaler.
             mode(str): The mode to use for scaling the features. Default is 'train'.
-            scale_target(bool): flag to indicate if the target column should be scaled. Default is True.
 
         Returns:
             pd.DataFrame: The DataFrame containing the scaled features and target columns.
 
         """
-        # TODO: this code should be written in a cleaner way
         if self.use_linear:
             categorical_columns = ['sex_male', 'smoker_yes', 'region_northwest', 'region_southeast', 'region_southwest']
             numerical_columns = [c for c  in df.columns if c not in categorical_columns]
+
             features_numerical = df[numerical_columns]
             features_categorical = df[categorical_columns]
+
             charges_column = df["charges"]
             features_numerical = features_numerical.drop("charges", axis=1)
             numerical_columns.remove("charges")
+            
             features_numerical = features_numerical + 1
             features_numerical = pd.concat([features_numerical, charges_column], axis=1)
             numerical_columns = features_numerical.columns
             numerical_log = np.log(features_numerical)
+
             if mode == "train":
                 numerical_scaled = self.scaler.fit_transform(numerical_log)
             else:
@@ -241,8 +243,16 @@ class FederatedMedicalCostDataset:
             numerical_columns = df.select_dtypes(include=[np.number]).columns
             numerical_columns = numerical_columns[numerical_columns != 'charges']
             charges_column = df['charges']
+
             features_numerical = df[numerical_columns]
-            if not self.scale_target:
+            if self.scale_target:
+                if mode =="train":
+                    df = pd.DataFrame(self.scaler.fit_transform(df), columns=df.columns)
+                else:
+                    df = pd.DataFrame(self.scaler.transform(df), columns=df.columns)
+                return df
+            
+            else:
                 if mode == "train":
                     features_numerical_scaled = \
                         pd.DataFrame(self.scaler.fit_transform(features_numerical), columns=numerical_columns)
@@ -258,16 +268,10 @@ class FederatedMedicalCostDataset:
 
                 return features_scaled
 
-            else:
-                if mode =="train":
-                    df = pd.DataFrame(self.scaler.fit_transform(df), columns=df.columns)
-                else:
-                    df = pd.DataFrame(self.scaler.transform(df), columns=df.columns)
-                return df
 
 
     def _preprocess(self):
-        """Preprocesses the raw data and saves the intermediate data to the intermediate data folder."""
+        """Preprocesses the raw data and saves the intermediate data in the intermediate data folder."""
 
         df = pd.read_csv(os.path.join(self.raw_data_dir, "medical_cost.csv"))
 
@@ -425,8 +429,8 @@ class FederatedMedicalCostDataset:
         return tasks_dict
 
     def _save_metadata(self):
-        os.makedirs(os.path.dirname(self._metadata_path), exist_ok=True)
-        with open(self._metadata_path, "w") as f:
+        os.makedirs(os.path.dirname(self.metadata_path), exist_ok=True)
+        with open(self.metadata_path, "w") as f:
             metadata_dict = {'split_criterion': self.split_criterion,
                               'n_tasks': self.n_tasks,
                               'cache_dir': os.path.abspath(self.cache_dir),
@@ -438,7 +442,7 @@ class FederatedMedicalCostDataset:
         """
         Load the task mapping from a JSON file.
         """
-        with (open(self._metadata_path, "r") as f):
+        with (open(self.metadata_path, "r") as f):
             metadata_dict = json.load(f)
             self.task_id_to_name = metadata_dict['task_mapping']
 

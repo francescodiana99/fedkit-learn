@@ -187,6 +187,7 @@ class FederatedToyDataset:
 
     def _save_metadata(self):
         metadata = {
+            'cache_dir': self.cache_dir,
             'n_tasks': self.n_tasks,
             'n_train_samples': self.n_train_samples,
             'n_test_samples': self.n_test_samples,

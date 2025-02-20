@@ -1005,12 +1005,6 @@ def main():
     clients = initialize_clients(federated_dataset, args)
     os.makedirs(args.metadata_dir, exist_ok=True)
 
-    logging.info("=" * 100)
-    logging.info("Saving models configuration metadata..")
-    model_config_metadata_path = os.path.join(args.metadata_dir, "model_config.json")
-    with open(model_config_metadata_path, "w") as f:
-        json.dump({"model_config":args.model_config_path}, f)
-
     if args.compute_local_models:
         logging.info("=" * 100)
         logging.info("Compute local models..")
