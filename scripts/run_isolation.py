@@ -1,3 +1,9 @@
+"""
+Active server isolation simulation script.
+
+The script simulates the scenario where an active server isolates a client by sending back the same exact model that he receives,
+ forcing a local training. The isolation process is described in (https://arxiv.org/abs/2108.06910)."""
+
 import argparse
 import os
 import logging
@@ -9,15 +15,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 from fedklearn.trainer.trainer import Trainer, DPTrainer
 
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from fedklearn.metrics import multiclass_accuracy
-from opacus.privacy_engine import PrivacyEngine
-from opacus.utils.batch_memory_manager import BatchMemoryManager
 
 from tqdm import tqdm
 
-from fedklearn.utils import get_param_tensor
 from utils import *
 
 def parse_args(args_list=None):
@@ -33,86 +36,23 @@ def parse_args(args_list=None):
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument(
-    '--data_dir',
-            type=str, default='./data/',
-            help='Directory containing the dataset.'
-            )
-
-
-    parser.add_argument(
-        '--task_name',
-        type=str,
-        choices=['adult', 'purchase', 'toy_classification', 'toy_regression', 'purchase_binary', 'medical_cost',
-                 'income', 'linear_income', 'linear_medical_cost'],
-        help="Task name. Possible choices are 'adult', 'purchase', 'toy_classification', "
-             "'toy_regression', 'purchase_binary', 'medical_cost', 'income','linear_income', 'linear_medical_cost'",
-        required=True)
-
-    parser.add_argument(
-        '--split',
-        choices=['train', 'test'],
-        default='train',
-        help='Specify the split (train or test)'
-    )
-
-    parser.add_argument(
         "--metadata_dir",
         type=str,
         help="Metadata directory",
         required=True
     )
-
     parser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=0.01,
-        help="Learning rate"
-    )
-
-    parser.add_argument(
-        "--optimizer",
-        type=str,
-        default="sgd",
-        help="Optimizer"
-    )
-
-    parser.add_argument(
-        "--momentum",
-        type=float,
-        default=0.0,
-        help="momentum"
-    )
-    parser.add_argument(
-        "--weight_decay",
-        type=float,
-        default=0.,
-        help="Weight decay"
-    )
-    parser.add_argument(
-        "--batch_size",
+        "--num_rounds",
         type=int,
-        default=1024,
-        help="Batch size"
-    )
-
-    parser.add_argument(
-        "--by_epoch",
-        action="store_true",
-        help="Training with epochs instead of batches")
-    parser.add_argument(
-        "--num_epochs",
-        type=int,
-        default=20,
+        default=50,
         help="Number of additional epochs"
     )
-
     parser.add_argument(
         "--device",
         type=str,
         default="cpu",
         help="Device (cpu or cuda)"
     )
-
     parser.add_argument(
         "--logs_dir",
         type=str,
@@ -122,17 +62,15 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--log_freq",
         type=int,
-        default=10,
+        default=1,
         help="Logging frequency"
     )
-
     parser.add_argument(
-        "--isolated_models_dir",
+        "--iso_chkpts_dir",
         type=str,
         default="./isolated_models",
         help="Directory to save isolated models."
     )
-
     parser.add_argument(
         "--attacked_round",
         required=True,
@@ -140,156 +78,126 @@ def parse_args(args_list=None):
         help="Starting round for attacking."
     )
     parser.add_argument(
+        '--attacked_task',
+        type=str,
+        help="If set, only the specified task will be attacked.",
+        default=None
+    )
+    parser.add_argument(
         "--save_freq",
         type=int,
-        default=10,
+        default=1,
         help="Saving frequency."
     )
-
     parser.add_argument(
         "--seed",
         type=int,
         default=42,
         help="Random seed"
     )
-
-    parser.add_argument(
-        "--compute_single_client",
-        action="store_true",
-        help="Compute a single client"
-    )
-
     parser.add_argument(
         "--verbose",
         action="store_true",
     )
-
     parser.add_argument(
     "--quiet",
     action="store_true",
     )
 
-    # TODO: change this in local_steps
-    parser.add_argument(
-        '--local_steps',
-    type=int,
-    help="Number of simulated local batch updates")
-
-    parser.add_argument(
-        '--attacked_task',
-        type=str,
-        help="If set, only the specified task will be attacked.",
-        default=None
-    )
-
-    parser.add_argument(
-        "--use_dp",
-        action="store_true",
-        help="Flag for using differential privacy"
-    )
-
-    parser.add_argument(
-        "--dp_epsilon",
-        type=float,
-        default=None,
-        help="Epsilon value for differential privacy"
-    )
-
-    parser.add_argument(
-        "--dp_delta",
-        type=float,
-        default=None,
-        help="Delta value for differential privacy"
-    )
-
-    parser.add_argument(
-        "--noise_multiplier",
-        type=float,
-        default=None,
-        help="Noise multiplier for differential privacy"
-    )
-
-    parser.add_argument(
-        "--clip_norm",
-        type=float,
-        default=None,
-        help="Clip norm for differential privacy"
-    )
-
-    parser.add_argument(
-        "--max_physical_batch_size",
-        type=int,
-        default=None,
-        help="Virtual batch size for differential privacy"
-    )
-
-
-
-
     if args_list is None:
         return parser.parse_args()
     else:
         return parser.parse_args(args_list)
+    
+def write_logs(logger, loss, metric, counter, mode="train", epsilon=None):
+    """Log training and testing metrics using the provided logger."""
+
+    if mode == "train":
+        logger.add_scalar("Train/Loss", loss, counter)
+        logger.add_scalar("Train/Metric", metric, counter)
+        logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f}")
+    elif mode == "test":
+        logger.add_scalar("Test/Loss", loss, counter)
+        logger.add_scalar("Test/Metric", metric, counter)
+        logging.info(f"Test Loss: {loss:.4f} | Test Metric: {metric:.4f}")
+    else:
+        raise ValueError(f"Invalid mode '{mode}'. Accepted modes are 'train' and 'test'.")
+    
+    if epsilon is not None:
+        logger.add_scalar("Train/Epsilon", epsilon, counter)
+        logging.info(f"Epsilon: {epsilon:.4f}")
 
 
 
-def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, criterion, metric,
-                                  is_binary_classification, train_loader=None):
+def initialize_attack_trainer(args, fl_setup, client_messages_metadata, model_init_fn, criterion, metric,
+                                  cast_float, train_loader=None):
     """
-    Initialize the trainer for running the active simulation.
+    Initialize the trainer for running the active part of the simulation.
 
+    Args:
+        args (argparse.Namespace): Command-line arguments.
+        fl_setup (dict): Federated learning setup dictionary.
+        client_messages_metadata (dict): Metadata of the client messages.
+        model_init_fn (function): Model initialization function.
+        criterion (torch.nn.Module): Loss function.
+        metric (function): Metric function.
+        cast_float (bool): Cast float flag. If true, the target variable is cast to float.
+        train_loader (torch.utils.data.DataLoader, optional): Training data loader. Defaults to None.
+    Returns:
+        Trainer: Trainer object
     """
     
     local_model_chkpt = torch.load(client_messages_metadata['local'][f"{args.attacked_round}"],
-                                    map_location=args.device)["model_state_dict"]
+                                    map_location=args.device,
+                                    weights_only=True)["model_state_dict"]
     attacked_model = model_init_fn()
     attacked_model.load_state_dict(local_model_chkpt)
 
-    if args.optimizer == "sgd":
+    if fl_setup["optimizer"] == "sgd":
 
         optimizer_params = {
-            "lr": args.learning_rate,
-            "momentum": args.momentum,
-            "weight_decay": args.weight_decay,
+            "lr": fl_setup["lr"],
+            "momentum": fl_setup["momentum"],
+            "weight_decay": fl_setup["weight_decay"],
             "init_fn": optim.SGD
         }
 
         optimizer = optim.SGD(
             [param for param in attacked_model.parameters() if param.requires_grad],
-            lr=args.learning_rate,
-            momentum=args.momentum,
-            weight_decay=args.weight_decay
+            lr=fl_setup["lr"],
+            momentum=fl_setup["momentum"],
+            weight_decay=fl_setup["weight_decay"]
         )
-    elif args.optimizer == "adam":
+    elif fl_setup["optimizer"] == "adam":
         optimizer = optim.Adam(
             [param for param in attacked_model.parameters() if param.requires_grad],
-            lr=args.learning_rate,
-            weight_decay=args.weight_decay
+            lr=fl_setup["lr"],
+            weight_decay=fl_setup["weight_decay"]
         )
         optimizer_params = {
-            "lr": args.learning_rate,
-            "weight_decay": args.weight_decay,
+            "lr": fl_setup["lr"],
+            "weight_decay": fl_setup["weight_decay"],
             "init_fn": optim.Adam
         }
     else:
         raise NotImplementedError(
-            f"Optimizer '{args.optimizer}' is not implemented"
+            f"Optimizer '{fl_setup["optimizer"]}' is not implemented"
         )
 
-    if args.use_dp:
+    if train_loader is not None:
         trainer = DPTrainer(
             model=attacked_model,
             optimizer=optimizer,
             criterion=criterion,
             device=args.device,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
             metric=metric,
-            max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size else args.batch_size,
-            noise_multiplier=args.noise_multiplier,
-            clip_norm=args.clip_norm,
-            epsilon=args.dp_epsilon,
-            delta=args.dp_delta,
-            epochs=args.num_epochs + args.attacked_round + 1,
+            max_physical_batch_size=fl_setup["max_physical_batch_size"] if fl_setup["max_physical_batch_size"] else fl_setup["batch_size"],
+            noise_multiplier=fl_setup["noise_multiplier"],
+            clip_norm=fl_setup["clip_norm"],
+            epsilon=fl_setup["dp_epsilon"],
+            delta=fl_setup["dp_delta"],
+            epochs=args.num_rounds + args.attacked_round + 1, # +1 needed beacause round starts from 0, e.g. to get 150 we need 100 + 49 (50th round attacked) +1
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
             rng=torch.Generator(device=args.device).manual_seed(args.seed)
@@ -303,10 +211,9 @@ def initialize_attack_trainer(args, client_messages_metadata, model_init_fn, cri
             optimizer=optimizer,
             criterion=criterion,
             device=args.device,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
             metric=metric
         )
-
 
 def main():
     args = parse_args()
@@ -317,66 +224,54 @@ def main():
 
     rng = np.random.default_rng(seed=args.seed)
 
-    if args.use_dp:
-        if (args.noise_multiplier is None and args.dp_epsilon is None) or args.clip_norm is None or args.dp_delta is None:
-            raise ValueError("'noise_multiplier', 'dp_epsilon'., 'clip_norm', and 'dp_delta' parameters must be specified \
-                             when training with differential privacy")
+    try:
+        with open(os.path.join(args.metadata_dir, "setup.json"), "r") as f:
+            fl_setup = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Federated Learning simulation metadata file not found at \
+                                '{args.metadata_dir}/setup.json'.")
+    
+    use_dp = True if fl_setup["clip_norm"] is not None else False
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    federated_dataset = load_dataset(fl_setup, rng=rng)
 
     num_clients = len(federated_dataset.task_id_to_name)
 
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         all_messages_metadata = json.load(f)
 
-    # TODO : fix is_binary_classification for regression tasks and clean up the code
-    if args.task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "toy_classification":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "toy_regression":
-        criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "purchase":
-        criterion = nn.CrossEntropyLoss().to(args.device)
-        is_binary_classification = False
-    elif args.task_name == "purchase_binary":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "income":
-        criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "linear_income":
-        criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = True
-    elif args.task_name == "linear_medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        is_binary_classification = True
-    else:
-        raise NotImplementedError(
-            f"Network initialization for task '{args.task_name}' is not implemented"
-        )
-    with open(os.path.join(args.metadata_dir, "model_config.json"), "r") as f:
-        model_config_path = json.load(f)
-    model_init_fn = lambda: initialize_model(model_config_path["model_config"])
+    task_config = {
+        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
+        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
+        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
+        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
+        "income": (nn.MSELoss(), mean_absolute_error, False),
+        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
+    }
+
+    if fl_setup["task_name"] not in task_config:
+        raise NotImplementedError(f"Trainer initialization for task '{fl_setup["task_name"]}' is not implemented.")
+    
+    criterion, metric, cast_float = task_config[fl_setup["task_name"]]
+    criterion = criterion.to(args.device)
+    model_init_fn = lambda: initialize_model(fl_setup["model_config_path"])
 
     logging.info("Simulate Attacks..")
 
-    os.makedirs(args.isolated_models_dir, exist_ok=True)
+    os.makedirs(args.iso_chkpts_dir, exist_ok=True)
 
     all_isolated_models_metadata_dict = defaultdict(lambda : dict())
     final_isolated_models_metadata_dict = defaultdict(lambda : dict())
 
     pbar = tqdm(range(num_clients))
-
+    compute_single_client = False
     if args.attacked_task is not None:
         attacked_client_id = int(federated_dataset.task_id_to_name[args.attacked_task])
-        args.compute_single_client = True
+        compute_single_client = True
     else:
         attacked_client_id = 0
 
@@ -386,83 +281,72 @@ def main():
 
 
         train_dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode='train')
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=fl_setup["batch_size"], shuffle=True)
+
+        test_dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode='test')
+        test_loader = DataLoader(test_dataset, batch_size=fl_setup["batch_size"], shuffle=False)
 
         client_messages_metadata = {
             "global": all_messages_metadata["global"],
             "local": all_messages_metadata[f"{attacked_client_id}"]
         }
 
-        if args.task_name == "purchase":
-            metric = multiclass_accuracy
-        elif args.task_name == "adult":
-            metric = binary_accuracy_with_sigmoid
-        elif args.task_name == "purchase_binary":
-            metric = binary_accuracy_with_sigmoid
-        elif args.task_name == "medical_cost":
-            metric = mean_squared_error
-        elif args.task_name == "income":
-            metric = mean_squared_error
-        elif args.task_name == "linear_income":
-            metric = mean_squared_error
-        elif args.task_name == "linear_medical_cost":
-            metric = mean_squared_error
-        elif args.task_name == "toy_regression":
-            metric = mean_squared_error
-        else:
-            raise NotImplementedError(
-                f"Metric for task '{args.task_name}' is not implemented"
-            )
-
-        if args.use_dp:
-            active_trainer = initialize_attack_trainer(args=args, client_messages_metadata=client_messages_metadata,
+        if use_dp:
+            active_trainer = initialize_attack_trainer(args=args, fl_setup=fl_setup, client_messages_metadata=client_messages_metadata,
                                                    model_init_fn=model_init_fn, criterion=criterion, metric=metric,
-                                                   is_binary_classification=is_binary_classification, train_loader=train_loader)
+                                                   cast_float=cast_float, train_loader=train_loader)
         else:
-            active_trainer = initialize_attack_trainer(args=args, client_messages_metadata=client_messages_metadata,
+            active_trainer = initialize_attack_trainer(args=args, fl_setup=fl_setup, client_messages_metadata=client_messages_metadata,
                                                     model_init_fn=model_init_fn, criterion=criterion, metric=metric,
-                                                    is_binary_classification=is_binary_classification)
-
-        if not args.by_epoch:
-            if args.use_dp:
-                raise NotImplementedError("Simulating local steps with DP is not implemented. Only local epochs are supported.")
-            if args.local_steps is None:
+                                                    cast_float=cast_float)
+            
+        logger = SummaryWriter(log_dir=os.path.join(args.logs_dir, f"{attacked_client_id}"))
+        if not fl_setup["by_epoch"]:
+            if use_dp:
+                raise NotImplementedError("Simulating local steps with DP is not supported. Only local epochs are currently supported.")
+            if fl_setup["local_steps"] is None:
                 raise ValueError('Please specify a number of local steps to simulate.')
             train_iterator = iter(train_loader)
+        
+        counter = 0
 
-        for step in range(args.num_epochs):
-            if args.by_epoch:
-                if args.use_dp:
-                    loss, metric, epsilon = active_trainer.fit_epoch()
+        for step in range(args.num_rounds):
+            if fl_setup["by_epoch"]:
+                if use_dp:
+                    train_loss, train_metric, epsilon = active_trainer.fit_epoch()
                 else:
-                    loss, metric = active_trainer.fit_epoch(loader=train_loader)
+                    train_loss, train_metric = active_trainer.fit_epoch(loader=train_loader)
             else:
-                for _ in range(args.local_steps):
+                for _ in range(fl_setup["local_steps"]):
                     try:
                         batch = next(train_iterator)
                     except StopIteration:
                         train_iterator = iter(train_loader)
                         batch = next(train_iterator)
 
-                    loss, metric = active_trainer.fit_batch(batch)
+                    train_loss, train_metric = active_trainer.fit_batch(batch)
+            
+            if step % args.log_freq == 0:
+                logging.info("+" * 50)
+                test_loss, test_metric = active_trainer.evaluate_loader(loader=test_loader)
+                if use_dp:
+                    write_logs(logger, train_loss, train_metric, counter, mode="train", epsilon=epsilon)
+                    write_logs(logger, test_loss, test_metric, counter, mode="test")
+                
+                else:
+                    write_logs(logger, train_loss, train_metric, counter, mode="train")
+                    write_logs(logger, test_loss, test_metric, counter, mode="test")
 
             if step % args.save_freq == 0:
-
-                os.makedirs(os.path.join(args.isolated_models_dir, f"{attacked_client_id}"), exist_ok=True)
-                path = os.path.join(os.path.join(args.isolated_models_dir, f"{attacked_client_id}", f"{step}.pt"))
-                path = os.path.abspath(path)
-                active_trainer.save_checkpoint(path)
-                all_isolated_models_metadata_dict[f"{attacked_client_id}"][f"{step}"] = path
+                os.makedirs(os.path.join(args.iso_chkpts_dir, f"{attacked_client_id}"), exist_ok=True)
+                chkpt_path = os.path.abspath(os.path.join(os.path.join(args.iso_chkpts_dir, f"{attacked_client_id}", f"{step}.pt")))
+                active_trainer.save_checkpoint(chkpt_path)
+                all_isolated_models_metadata_dict[f"{attacked_client_id}"][f"{step}"] = chkpt_path
 
                 if active_trainer.lr_scheduler is not None:
                     active_trainer.lr_scheduler.step()
 
-            logging.info("+" * 50)
-            logging.info(f"Task ID: {attacked_client_id}")
-            if args.use_dp:
-                logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f} | Epsilon: {epsilon:.4f}")
-            logging.info(f"Train Loss: {loss:.4f} | Train Metric: {metric:.4f} |")
-            logging.info("+" * 50)
+            counter += 1
 
         last_saved_iteration = max(all_isolated_models_metadata_dict[f"{attacked_client_id}"], key=int)
 
@@ -474,28 +358,26 @@ def main():
 
         attacked_client_id += 1
         pbar.update(1)
-        if args.compute_single_client:
+        if compute_single_client:
             attacked_client_id = num_clients
 
     pbar.close()
 
     all_isolated_models_metadata_dict = swap_dict_levels(all_isolated_models_metadata_dict)
-
     trajectory_path = os.path.join(args.metadata_dir, f"isolated_trajectories_{args.attacked_round}.json")
     with open(trajectory_path, "w") as f:
         json.dump(all_isolated_models_metadata_dict, f)
 
-    logging.info(f"The attacked models have been saved successfully in {trajectory_path} .")
+    logging.info(f"The attacked models have been successfully saved in {trajectory_path} .")
 
     logging.info("="*100)
     logging.info("Saving final models metadata...")
 
 
-    with open(os.path.join(args.metadata_dir, f"isolated_{args.attacked_round}.json"), "w") as f:
+    with open(os.path.join(args.metadata_dir, f"last_isolated_{args.attacked_round}.json"), "w") as f:
         json.dump(final_isolated_models_metadata_dict, f)
 
-    logging.info("The final isolated models have been saved successfully.")
-
+    logging.info("The final isolated models have been successfully saved.")
 
 if __name__ == "__main__":
     main()
