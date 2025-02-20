@@ -599,7 +599,7 @@ def read_dict(file_path):
         return {}
 
 
-def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep_round_ids, rounds_frac, use_isolate=False):
+def get_isolated_messages_metadata(isolated_models_metadata, attacked_client_id, keep_round_ids, rounds_frac, use_isolate=False):
     """Create a dictionary for running the Attribute Inference Attack using the isolated trajectory of each client.
     Parameters:
         local_models_metadata (dict): A dictionary containing the metadata of the local models.
@@ -614,23 +614,23 @@ def get_active_messages_metadata(local_models_metadata, attacked_client_id, keep
     rounds_id = [int(round_id) for round_id in keep_round_ids]
     rounds_id.sort()
     if use_isolate is True:
-        local_models_metadata = swap_dict_levels(local_models_metadata)
+        isolated_models_metadata = swap_dict_levels(isolated_models_metadata)
         if rounds_frac == 1:
             rounds_id.remove(max(rounds_id))
         client_messages_metadata = {
-            'global': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i}'] for i in range(len(rounds_id))},
-            'local': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
+            'global': {f'{rounds_id[i]}': isolated_models_metadata[f"{attacked_client_id}"][f'{i}'] for i in range(len(rounds_id))},
+            'local': {f'{rounds_id[i]}': isolated_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
         }
     else:
         if rounds_frac == 1:
             rounds_id.remove(max(rounds_id))
         client_messages_metadata = {
-            'global': {f'{rounds_id[i]}': local_models_metadata['server'][f"{attacked_client_id}"][f'{i}'] for i in range(len(rounds_id))},
-            'local': {f'{rounds_id[i]}': local_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
+            'global': {f'{rounds_id[i]}': isolated_models_metadata['server'][f"{attacked_client_id}"][f'{i}'] for i in range(len(rounds_id))},
+            'local': {f'{rounds_id[i]}': isolated_models_metadata[f"{attacked_client_id}"][f'{i + 1}'] for i in range(len(rounds_id))}
         }
     return client_messages_metadata
 
-def get_gpu():
+def get_device_info():
     """
     Get the name of the GPU device if available.
     """
@@ -638,7 +638,7 @@ def get_gpu():
         gpu_name = torch.cuda.get_device_name(0)
         return gpu_name
     else:
-        return "No GPU found or CUDA is not available."
+        return "CPU"
     
 
 def evaluate_trainer(trainer, dataloader):  
@@ -714,7 +714,7 @@ def get_aia_scores(scores_dict, metrics_dict, loss_dict, model_type):
 
     return scores, metrics, losses
 
-def log_results(results_dict, iteration_id):
+def log_aia_mb_results(results_dict, iteration_id):
     """
     Log the results of the model-based AIA for a given iteration.
     Parameters:
@@ -738,4 +738,35 @@ def log_results(results_dict, iteration_id):
         logging.info(f"Average loss for {model_type} model: {weighted_avg_loss:.4f}")
         logging.info(f"Average accuracy for {model_type} model: {weighted_avg_metric:.4f}")
         logging.info(f"Average attack accuracy for {model_type} model: {weighted_avg_score:.4f}")
+
+def save_aia_gb_score(results_path, rounds_frac, learning_rate, score, cos_dis, l2_dist, time_dict=None):
+    """
+    Save the results of the gradient-based AIA for a given set of hyperparameters."""
+
+    if os.path.exists(results_path):
+        results = read_dict(results_path)
+    else:
+        results = {}
+    
+    if f"{rounds_frac}" not in results.keys():
+        results[f"{rounds_frac}"] = {}
+    results[f"{rounds_frac}"][f"{learning_rate}"] = (score, cos_dis, l2_dist)
+
+    with open(results_path, 'w') as f:
+        json.dump(results, f)
+    
+    if time_dict is not None:
+        time_path = results_path.replace(".json", "_time.json")
+        if os.path.exists(time_path):
+            time_results = read_dict(time_path)
+        else:
+            time_results = {}
+
+        if f"{rounds_frac}" not in time_results.keys():
+            time_results[f"{rounds_frac}"] = {}
+        time_results[f"{rounds_frac}"][f"{learning_rate}"] = time_dict
+
+        with open(time_path, 'w') as f:
+            json.dump(time_results, f)
+        
         
