@@ -1,8 +1,13 @@
+"""
+Local model's optimization simulation script.
+
+The script simulates the scenario where each client optimizes its local model without any communication with the server. Local models are used as oracle to test
+the performance of the model-based attribute inference attack."""
+
 import argparse
 import logging
 import os
 import pathlib
-import shutil
 import optuna
 import numpy as np
 from datetime import datetime
@@ -16,15 +21,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from fedklearn.datasets.income.income import FederatedIncomeDataset
-from fedklearn.datasets.adult.adult import FederatedAdultDataset
-from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
-from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
-from fedklearn.datasets.toy.toy import FederatedToyDataset
-from fedklearn.models.linear import LinearLayer
 from fedklearn.trainer.trainer import Trainer, DPTrainer
-from fedklearn.federated.simulator import FederatedAveraging, ActiveAdamFederatedAveraging
-
 from fedklearn.metrics import *
 
 from utils import *
@@ -42,34 +39,10 @@ def parse_args(args_list=None):
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--task_name",
-        type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income'],
-        help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
-             " 'income'.",
-        required=True
-    )
-
-    parser.add_argument(
-        "--model_config_path",
-        type=str,
-        required=True,
-        help="Path to the model configuration file",
-    )
-
-    parser.add_argument(
         "--optimizer",
         type=str,
         default="sgd",
         help="Optimizer"
-    )
-
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=1024,
-        help="Batch size"
     )
 
     parser.add_argument(
@@ -87,16 +60,10 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--data_dir",
-        type=str,
-        default="./",
-        help="Directory to cache data"
-    )
-    parser.add_argument(
-        "--local_models_dir",
+        "--local_chkpts_dir",
         type=str,
         default="./local_models",
-        help="Directory to save local models dir"
+        help="Directory to save local models checkpoints"
     )
 
     parser.add_argument(
@@ -139,13 +106,6 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--study_name",
-        type=str,
-        default=None,
-        help="Name of the Optuna study to load when checking the best hyperparameters. Default is None."
-    )
-
-    parser.add_argument(
         "--hparams_config_path",
         type=str,
         default="../configs/hyperparameters.json",
@@ -174,52 +134,10 @@ def parse_args(args_list=None):
         )
 
     parser.add_argument(
-        "--use_dp",
-        action="store_true",
-        default=False,
-        help="Flag for using differential privacy"
-    )
-
-    parser.add_argument(
-        "--noise_multiplier",
-        type=float,
-        default=None,
-        help="Noise multiplier for differential privacy"
-    )
-
-    parser.add_argument(
-        "--clip_norm",
-        type=float,
-        default=None,
-        help="Clipping norm for differential privacy"
-    )
-
-    parser.add_argument(
-        "--dp_delta",
-        type=float,
-        default=None,
-        help="Delta for differential privacy"
-    )
-
-    parser.add_argument(
-        "--dp_epsilon",
-        type=float,
-        default=None,
-        help="Epsilon for differential privacy"
-    )
-
-    parser.add_argument(
-        "--max_physical_batch_size",
-        type=int,
-        default=None,
-        help="Maximum physical batch size for differential privacy"
-    )
-
-    parser.add_argument(
-        "--optimized_task",
+        "--task_id",
         type=str,
         default=None,
-        help="Task to optimize"
+        help="Task to optimize. If set, only the specified task will be optimized."
     )
 
 
@@ -229,12 +147,13 @@ def parse_args(args_list=None):
         return parser.parse_args(args_list)
 
 
-def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2, use_dp=False, train_loader=None):
+def initialize_trainer(args, simulation_setup, learning_rate, weight_decay, beta1, beta2, use_dp=False, train_loader=None):
     """
     Initialize the trainer based on the specified task.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
+        simulation_setup (dict): Simulation setup dictionary.
         learning_rate (float): Learning rate.
         weight_decay (float): Weight decay.
         beta1 (float): Beta1 for Adam optimizer.
@@ -245,63 +164,35 @@ def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2, use_dp=F
     Returns:
         Trainer: Initialized trainer.
     """
-    model_config_dir = pathlib.Path("../fedklearn/configs")
 
-    if model_config_dir not in pathlib.Path(args.model_config_path).parents:
-        raise ValueError(f"Model configuration file should be placed in {model_config_dir}")
-    else:
-        model = initialize_model(args.model_config_path)
+    model = initialize_model(simulation_setup["model_config_path"])
 
-    if args.task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-    elif args.task_name == "toy_classification":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
+    task_config = {
+        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
+        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
+        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
+        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
+        "income": (nn.MSELoss(), mean_absolute_error, False),
+        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
+    }
 
-    elif args.task_name == "toy_regression":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_squared_error
-        is_binary_classification = False
-
-    elif args.task_name == "purchase":
-        criterion = nn.CrossEntropyLoss().to(args.device)
-        metric = multiclass_accuracy
-        is_binary_classification = False
-
-    elif args.task_name == "purchase_binary":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-
-    elif args.task_name == "medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "income":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    else:
-        raise NotImplementedError(
-            f"Trainer initialization for task '{args.task_name}' is not implemented."
-        )
+    if simulation_setup["task_name"] not in task_config.keys():
+        raise ValueError(f"Task name '{simulation_setup['task_name']}' is not supported.")
+    criterion, metric, cast_float = task_config[simulation_setup["task_name"]]
 
     if args.optimizer == "sgd":
         optimizer = optim.SGD(
             [param for param in model.parameters() if param.requires_grad],
             lr=learning_rate,
-            momentum=args.momentum,
             weight_decay=weight_decay,
         )
 
         optimizer_params = {
             "lr": args.learning_rate,
-            "momentum": args.momentum,
             "weight_decay": args.weight_decay,
             "init_fn": optim.SGD
         }
@@ -321,7 +212,7 @@ def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2, use_dp=F
         }
     else:
         raise NotImplementedError(
-            f"Optimizer '{args.optimizer}' is not implemented."
+            f"Optimizer '{args.optimizer}' is not supported."
         )
 
     if use_dp:
@@ -331,12 +222,13 @@ def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2, use_dp=F
             metric=metric,
             device=args.device,
             optimizer=optimizer,
-            is_binary_classification=is_binary_classification,
-            max_physical_batch_size=args.max_physical_batch_size if args.max_physical_batch_size is not None else args.batch_size,
-            noise_multiplier=args.noise_multiplier,
-            epsilon=args.dp_epsilon,
-            delta=args.dp_delta,
-            clip_norm=args.clip_norm,
+            cast_float=cast_float,
+            max_physical_batch_size=simulation_setup["max_physical_batch_size"] \
+                if simulation_setup["max_physical_batch_size"] is not None else simulation_setup["batch_size"],
+            noise_multiplier=simulation_setup["noise_multiplier"],
+            epsilon=simulation_setup["dp_epsilon"],
+            delta=simulation_setup["dp_delta"],
+            clip_norm=simulation_setup["clip_norm"],
             epochs=args.num_rounds,
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
@@ -349,11 +241,11 @@ def initialize_trainer(args, learning_rate, weight_decay, beta1, beta2, use_dp=F
             metric=metric,
             device=args.device,
             optimizer=optimizer,
-            is_binary_classification=is_binary_classification,
+            cast_float=cast_float,
         )
 
 
-def objective(trial, train_loader, test_loader, task_id, args):
+def objective(trial, simulation_setup, train_loader, test_loader, task_id, args):
     """
     Initialize the objective function for the hyperparameter optimization using Optuna.
     For additional details, please refer to the Optuna documentation:
@@ -361,6 +253,7 @@ def objective(trial, train_loader, test_loader, task_id, args):
 
     Args:
         trial (optuna.Trial): Optuna trial object.
+        simulation_setup (dict): Simulation setup dictionary.
         train_loader (torch.utils.data.DataLoader): Training data loader.
         test_loader (torch.utils.data.DataLoader): Testing data loader.
         task_id (str): Task ID to optimize.
@@ -368,6 +261,7 @@ def objective(trial, train_loader, test_loader, task_id, args):
     Returns:
         float: Objective value.
      """
+    use_dp = simulation_setup["clip_norm"] is not None
     with open(args.hparams_config_path, "r") as f:
         hparams_dict = json.load(f)
     beta1 = trial.suggest_float("beta1", hparams_dict['beta1'][0], hparams_dict['beta1'][1])
@@ -376,11 +270,11 @@ def objective(trial, train_loader, test_loader, task_id, args):
     weight_decay = trial.suggest_float("weight_decay", hparams_dict['weight_decay'][0], hparams_dict['weight_decay'][1],
                                        log=True)
 
-    trainer = initialize_trainer(args, learning_rate=lr, weight_decay=weight_decay, beta1=beta1, beta2=beta2,
-                                 use_dp=args.use_dp, train_loader=train_loader)
+    trainer = initialize_trainer(args, simulation_setup=simulation_setup, learning_rate=lr, weight_decay=weight_decay, beta1=beta1, beta2=beta2,
+                                 use_dp=use_dp, train_loader=train_loader)
 
-    for round in range(args.num_rounds):
-        if args.use_dp:
+    for _ in range(args.num_rounds):
+        if use_dp:
             _ ,_ , epsilon = trainer.fit_epoch()
         else:
             trainer.fit_epoch(train_loader)
@@ -394,13 +288,13 @@ def objective(trial, train_loader, test_loader, task_id, args):
     logging.info(f"Task ID: {task_id}")
     logging.info(f"Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
     logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
-    if args.use_dp:
+    if use_dp:
         logging.info(f"Epsilon: {epsilon:.4f}")
     logging.info("+" * 50)
 
     return train_loss
 
-def write_logs(args, train_loss, train_metric, test_loss, test_metric, step, logger):
+def write_logs(train_loss, train_metric, test_loss, test_metric, step, logger):
     """
     Write the training and testing logs to the TensorBoard.
     Args:
@@ -409,7 +303,7 @@ def write_logs(args, train_loss, train_metric, test_loss, test_metric, step, log
         train_metric(float):  Training metric.
         test_loss(float):  Testing loss.
         test_metric(float):  Testing metric.
-        step(int):  Current step.
+        step(int): Current step.
         logger(torch.utils.tensorboard.SummaryWriter):  Logger object.
 
     Returns:
@@ -420,49 +314,64 @@ def write_logs(args, train_loss, train_metric, test_loss, test_metric, step, log
     logger.add_scalar("Test/Loss", test_loss, step)
     logger.add_scalar("Test/Metric", test_metric, step)
 
-def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
+    logging.info("+" * 50)
+    logging.info(f"Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f}|")
+    logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
+
+def optimize_model(args, simulation_setup, train_loader, test_loader, task_id, logs_dir):
     """
     Optimize the hyperparameters for the local model using Optuna.
     Args:
-        args:
+        args (argparse.Namespace):  Parsed command-line arguments.
+        simulation_setup (dict):  Simulation setup dictionary.
         train_loader(torch.utils.data.DataLoader):  Training data loader.
         test_loader(torch.utils.data.DataLoader):  Testing data loader.
-        task_id(str):  Task ID.
-        logs_dir(str):  Directory to save the logs.
+        task_id(str): Task ID.
+        logs_dir(str): Directory to save the logs.
 
     Returns:
-        dict:  Dictionary containing the trajectory of the model checkpoints.
+        trajectory_dict (dict):  Dictionary containing the trajectory of the model checkpoints.
+        setup_dict (dict):  Dictionary containing the hyperparameters setup of the simulation.
 
     """
     abs_log_dir = os.path.abspath(args.logs_dir)
     storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{task_id}.db"
 
+    # TODO: check if this works as it should
     if args.test_best_hyperparams is True:
-        logging.info(f'Loading existing Optuna study from {storage_name}')
-        study = optuna.load_study(study_name=args.study_name, storage=storage_name)
+        logging.info(f'Loading best hyperparameters from {os.path.join(args.metadata_dir, "local_setup.json")}')
+        with open(os.path.join(args.metadata_dir, "local_setup.json"), "r") as f:
+            setup_dict = json.load(f)
+        if task_id not in setup_dict.keys():
+            raise ValueError(f"Task ID {task_id} not found in the setup dictionary.")
+        best_params = setup_dict[task_id]
+        simulation_setup["batch_size"] = best_params["batch_size"]
+        args.num_rounds = best_params["num_rounds"]
+
     else:
         study = optuna.create_study(direction="minimize",
                                     storage=storage_name,
                                     load_if_exists=True,
                                     study_name=f"{datetime.now()}")
-        study.optimize(lambda trial: objective(trial=trial, train_loader=train_loader, test_loader=test_loader, task_id=task_id, args=args),
+        study.optimize(lambda trial: objective(trial=trial, simulation_setup=simulation_setup, train_loader=train_loader, test_loader=test_loader, task_id=task_id, args=args),
                        n_trials=args.n_trials)
 
-    best_params = study.best_params
+        best_params = study.best_params
+        logging.info(f"Optimization results saved in: hp_dashboard_{task_id}.db")
     logging.info("=" * 100)
-    logging.info(f"Best hyperparameters: {study.best_params}")
+    logging.info(f"Best hyperparameters: {best_params}")
     logging.info(f"Optimization results saved in: hp_dashboard_{task_id}.db")
     logging.info("=" * 100)
 
-    if args.use_dp:
-        trainer = initialize_trainer(args, learning_rate=best_params['lr'],
+    if simulation_setup["clip_norm"] is not None:
+        trainer = initialize_trainer(args, simulation_setup, learning_rate=best_params['lr'],
                                      weight_decay=best_params['weight_decay'],
                                      beta1=best_params['beta1'],
                                      beta2=best_params['beta2'],
                                      use_dp=True,
                                      train_loader=train_loader)
     else:
-        trainer = initialize_trainer(args, learning_rate=best_params['lr'],
+        trainer = initialize_trainer(args, simulation_setup, learning_rate=best_params['lr'],
                                     weight_decay=best_params['weight_decay'],
                                     beta1=best_params['beta1'],
                                     beta2=best_params['beta2'])
@@ -471,27 +380,38 @@ def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
 
     logger = SummaryWriter(os.path.join(logs_dir, task_id))
 
+    setup_dict = {
+            "beta1": best_params['beta1'],
+            "beta2": best_params['beta2'],
+            "lr": best_params['lr'],
+            "weight_decay": best_params['weight_decay'],
+            "num_rounds": args.num_rounds,
+            "local_chkpts_dir": os.path.join(logs_dir, task_id),
+            "batch_size": simulation_setup["batch_size"],
+            "n_trials": args.n_trials
+        }
+
     for step in range(args.num_rounds):
-        if args.use_dp:
+        if simulation_setup["clip_norm"] is not None:
             train_loss, train_metric, epsilon = trainer.fit_epoch()
         else:
             train_loss, train_metric = trainer.fit_epoch(train_loader)
         if step % args.save_freq == 0:
-            os.makedirs(os.path.join(args.local_models_dir, task_id), exist_ok=True)
+            os.makedirs(os.path.join(args.local_chkpts_dir, task_id), exist_ok=True)
 
-            path = os.path.join(args.local_models_dir, task_id, f"{step}.pt")
+            path = os.path.join(args.local_chkpts_dir, task_id, f"{step}.pt")
             path = os.path.abspath(path)
             trainer.save_checkpoint(path)
             trajectory_dict[f"{step}"] = path
 
         if step % args.log_freq == 0:
             test_loss, test_metric = trainer.evaluate_loader(test_loader)
-            write_logs(args, train_loss, train_metric, test_loss, test_metric, step, logger)
+            write_logs(train_loss, train_metric, test_loss, test_metric, step, logger)
 
         if trainer.lr_scheduler is not None:
             trainer.lr_scheduler.step()
 
-    if args.use_dp:
+    if simulation_setup["clip_norm"] is not None:
         train_loss, train_metric = trainer.evaluate_loader(train_loader)
     else:
         test_loss, test_metric = trainer.evaluate_loader(test_loader)
@@ -500,17 +420,16 @@ def optimize_model(args, train_loader, test_loader, task_id, logs_dir):
     logging.info(f"Task ID: {task_id}")
     logging.info(f"Train Loss: {train_loss:.4f} | Train Metric: {train_metric:.4f} |")
     logging.info(f"Test Loss: {test_loss:.4f} | Test Metric: {test_metric:.4f} |")
-    if args.use_dp:
+    if simulation_setup["clip_norm"] is not None:
         logging.info(f"Epsilon: {epsilon:.4f}")
     logging.info("+" * 50)
 
-    return trajectory_dict
-
+    return trajectory_dict, setup_dict
 
 
 def main():
     """
-    Train local models using the federated dataset.
+    Train local models to simulate the empirical optimal model for each client.
     Returns:
         None
     """
@@ -522,17 +441,20 @@ def main():
     set_seeds(args.seed)
 
     configure_logging(args)
+    
+    try:
+        with open(os.path.join(args.metadata_dir, "setup.json"), "r") as f:
+            simulation_setup = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Federated Learning simulation metadata file not found at \
+                                '{args.metadata_dir}/setup.json'. Ensure to run the simulation script first.")
 
-    if args.use_dp:
-        if (args.noise_multiplier is None and args.dp_epsilon is None) or args.clip_norm is None or args.dp_delta is None:
-            raise ValueError("'noise_multiplier', 'dp_epsilon'., 'clip_norm', and 'dp_delta' parameters must be specified \
-                             when training with differential privacy")
+    use_dp = simulation_setup["clip_norm"] is not None
 
-    federated_dataset = load_dataset(task_name=args.task_name, data_dir=args.data_dir, rng=rng)
+    federated_dataset = load_dataset(simulation_setup, rng=rng)
 
     if args.hparams_config_path is None:
         raise ValueError("Hyperparameters configuration file is not provided.")
-
     if not os.path.exists(args.hparams_config_path):
         raise FileNotFoundError(f"Hyperparameters configuration file not found at '{args.hparams_config_path}'.")
 
@@ -540,42 +462,48 @@ def main():
     logging.info("Launch hyperparameter optimization using Optuna..")
 
     models_trajectory_dict = dict()
+    tasks_setup_dict = dict()
 
-    if args.optimized_task is None:
+    if args.task_id is None:
         for task_id in tqdm(federated_dataset.task_id_to_name):
             train_dataset = federated_dataset.get_task_dataset(task_id, mode="train")
             test_dataset = federated_dataset.get_task_dataset(task_id, mode="test")
 
-            train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-            test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+            train_loader = DataLoader(train_dataset, batch_size=simulation_setup["batch_size"], shuffle=True)
+            test_loader = DataLoader(test_dataset, batch_size=simulation_setup["batch_size"], shuffle=False)
 
             abs_log_dir = os.path.abspath(args.logs_dir)
             os.makedirs(abs_log_dir, exist_ok=True)
 
-            task_trajectory_dict = optimize_model(args, train_loader, test_loader, task_id, abs_log_dir)
+            task_trajectory_dict, setup_dict = optimize_model(args, simulation_setup, train_loader, test_loader, task_id, abs_log_dir)
             models_trajectory_dict[task_id] = task_trajectory_dict
+            tasks_setup_dict[task_id] = setup_dict
     else:
 
-        train_dataset = federated_dataset.get_task_dataset(args.optimized_task, mode="train")
-        test_dataset = federated_dataset.get_task_dataset(args.optimized_task, mode="test")
+        train_dataset = federated_dataset.get_task_dataset(args.task_id, mode="train")
+        test_dataset = federated_dataset.get_task_dataset(args.task_id, mode="test")
 
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=simulation_setup["batch_size"], shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=simulation_setup["batch_size"], shuffle=False)
 
         abs_log_dir = os.path.abspath(args.logs_dir)
         os.makedirs(abs_log_dir, exist_ok=True)
 
-        task_trajectory_dict = optimize_model(args, train_loader, test_loader, args.optimized_task, abs_log_dir)
-        models_trajectory_dict[args.optimized_task] = task_trajectory_dict
+        task_trajectory_dict, setup_dict = optimize_model(args, simulation_setup, train_loader, test_loader, args.task_id, abs_log_dir)
+        models_trajectory_dict[args.task_id] = task_trajectory_dict
+        tasks_setup_dict[args.task_id] = setup_dict
+
 
     local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
-    os.mkdirs(args.metadata_dir, exist_ok=True)
+    setup_dict_path = os.path.join(args.metadata_dir, "local_setup.json")
+    os.makedirs(args.metadata_dir, exist_ok=True)
     with open(local_models_trajectory_path, "w") as f:
         json.dump(models_trajectory_dict, f)
+    with open(setup_dict_path, "w") as f:
+        json.dump(tasks_setup_dict, f)
 
-    logging.info(f'The metadata dictionary has been saved in {local_models_trajectory_path}')
+    logging.info(f'The metadata trajectory dictionary has been saved in {local_models_trajectory_path}')
+    logging.info(f'The metadata setup dictionary has been saved in {setup_dict_path}')
 
 if __name__ == "__main__":
     main()
-
-
