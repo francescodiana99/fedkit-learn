@@ -337,7 +337,6 @@ def optimize_model(args, simulation_setup, train_loader, test_loader, task_id, l
     abs_log_dir = os.path.abspath(args.logs_dir)
     storage_name = f"sqlite:////{abs_log_dir}/hp_dashboard_{task_id}.db"
 
-    # TODO: check if this works as it should
     if args.test_best_hyperparams is True:
         logging.info(f'Loading best hyperparameters from {os.path.join(args.metadata_dir, "local_setup.json")}')
         with open(os.path.join(args.metadata_dir, "local_setup.json"), "r") as f:
