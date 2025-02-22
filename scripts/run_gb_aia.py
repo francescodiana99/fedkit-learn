@@ -245,33 +245,15 @@ def main():
         n_rounds = len(all_messages_metadata["global"].keys())
         communication_rounds = list(all_messages_metadata["global"].keys())
 
-    task_config = {
-        "adult": (nn.BCEWithLogitsLoss, True),
-        "toy_classification": (nn.BCEWithLogitsLoss, True),
-        "toy_regression": (nn.MSELoss, True),
-        "purchase": (nn.CrossEntropyLoss, False),
-        "purchase_binary": (nn.BCEWithLogitsLoss, True),
-        "medical_cost": (nn.MSELoss, True),
-        "income": (nn.MSELoss, True),
-        "binary_income": (nn.BCEWithLogitsLoss, True),
-    }
-
-    if fl_setup["task_name"] not in task_config:
-        raise NotImplementedError(f"Trainer initialization for task '{fl_setup["task_name"]}' is not implemented.")
-
-    criterion_class, cast_float = task_config[fl_setup["task_name"]]
-    criterion = criterion_class().to(args.device)
-
+    criterion, _, cast_float = get_trainers_config(fl_setup["task_name"])
     model_init_fn = lambda: initialize_model(fl_setup["model_config_path"])
-
-
 
     logging.info("Simulate Attacks..")
 
     for rounds_frac in args.keep_rounds_fracs:
 
         for learning_rate in args.learning_rates:
-            logging.info("=" * 100)
+            logging.info("+" * 50)
             logging.info(f"Testing round fraction: {rounds_frac} and learning rate: {learning_rate}.")
 
             scores_list = []

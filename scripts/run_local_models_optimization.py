@@ -167,22 +167,8 @@ def initialize_trainer(args, simulation_setup, learning_rate, weight_decay, beta
 
     model = initialize_model(simulation_setup["model_config_path"])
 
-    task_config = {
-        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
-        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
-        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "income": (nn.MSELoss(), mean_absolute_error, False),
-        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
-    }
-
-    if simulation_setup["task_name"] not in task_config.keys():
-        raise ValueError(f"Task name '{simulation_setup['task_name']}' is not supported.")
-    criterion, metric, cast_float = task_config[simulation_setup["task_name"]]
+    criterion, metric, cast_float = get_trainers_config(simulation_setup["task_name"])
+    criterion = criterion.to(args.device)
 
     if args.optimizer == "sgd":
         optimizer = optim.SGD(
@@ -425,6 +411,24 @@ def optimize_model(args, simulation_setup, train_loader, test_loader, task_id, l
 
     return trajectory_dict, setup_dict
 
+def save_last_round_metadata(metadata_path, trajectory_dict):
+    """
+    Save the metadata of the last round of the simulation.
+    Args:
+        metadata_path (str): Path to save the metadata.
+        trajectory_dict (dict): Dictionary containing the model checkpoints trajectory.
+
+    Returns:
+        None
+    """
+    task_id = list(trajectory_dict.keys())[0]
+    last_round_metadata = dict()
+    last_round = max([int(k) for k in trajectory_dict[task_id].keys()])
+
+    last_round_metadata = {k: trajectory_dict[k][str(last_round)] for k in trajectory_dict.keys()}
+
+    with open(metadata_path, "w") as f:
+        json.dump(last_round_metadata, f)
 
 def main():
     """
@@ -495,13 +499,16 @@ def main():
 
     local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
     setup_dict_path = os.path.join(args.metadata_dir, "local_setup.json")
+    last_round_metadata_path = os.path.join(args.metadata_dir, "last_local.json")
     os.makedirs(args.metadata_dir, exist_ok=True)
     with open(local_models_trajectory_path, "w") as f:
         json.dump(models_trajectory_dict, f)
+    save_last_round_metadata(last_round_metadata_path, models_trajectory_dict)
     with open(setup_dict_path, "w") as f:
         json.dump(tasks_setup_dict, f)
 
     logging.info(f'The metadata trajectory dictionary has been saved in {local_models_trajectory_path}')
+    logging.info(f'The last round metadata has been saved in {last_round_metadata_path}')
     logging.info(f'The metadata setup dictionary has been saved in {setup_dict_path}')
 
 if __name__ == "__main__":

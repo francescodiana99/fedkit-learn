@@ -1,3 +1,10 @@
+"""
+Active server optimization simulation script.
+
+The script simulates the scenario where an active server isolates a client and performs an additional virtual update using Adam Optimization Algorithm.
+The implementation corresponds to Algortitm 3 in the paper.
+"""
+
 import argparse
 import datetime
 import logging
@@ -225,7 +232,7 @@ def save_last_round_metadata(all_messages_metadata, metadata_dir, args):
 
     logging.info(f"Last models sent by the client saved to {last_models_metadata_path}")
 
-def objective(trial , federated_dataset, fl_setup, rng, args):
+def objective(trial, federated_dataset, fl_setup, rng, args):
     """
     Initialize the objective function for the hyperparameter optimization using Optuna.
     For additional details, please refer to the Optuna documentation:
@@ -284,23 +291,7 @@ def initialize_trainer(args, models_metadata_dict, fl_setup, task_id=None, mode=
 
     model = initialize_model(fl_setup["model_config_path"])
 
-    task_config = {
-        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
-        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
-        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "income": (nn.MSELoss(), mean_absolute_error, False),
-        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
-    }
-
-    if fl_setup["task_name"] not in task_config:
-        raise NotImplementedError(f"Trainer initialization for task '{fl_setup["task_name"]}' is not implemented.")
-    
-    criterion, metric, cast_float = task_config[fl_setup["task_name"]]
+    criterion, metric, cast_float = get_trainers_config(fl_setup["task_name"])
     criterion = criterion.to(args.device)
 
     if fl_setup["optimizer"] == "sgd":
@@ -398,10 +389,6 @@ def initialize_active_simulator(args, clients, fl_setup, rng, beta1, beta2, alph
 
     use_dp = True if fl_setup["clip_norm"] is not None else False
 
-    if args.active_chkpts_dir is None:
-        active_chkpts_dir = fl_setup["chkpts_dir"]
-    else:
-        active_chkpts_dir = args.active_chkpts_dir
     simulator = ActiveAdamFederatedAveraging(
         clients=clients,
         global_trainer=global_trainer,
@@ -413,7 +400,7 @@ def initialize_active_simulator(args, clients, fl_setup, rng, beta1, beta2, alph
         epsilon=1e-8,
         alpha=alpha,
         attacked_round=args.attacked_round,
-        active_chkpts_dir=active_chkpts_dir,
+        active_chkpts_dir=args.active_chkpts_dir,
         use_dp=use_dp
     )
 
@@ -576,7 +563,7 @@ def main():
             "alpha": best_params['alpha'],
             "use_norm": args.use_norm,
             "num_rounds": args.num_rounds,
-            "active_chkpts_dir": args.active_chkpts_dir
+            "active_chkpts_dir": simulator.active_chkpts_dir
         }
 
     else:
@@ -596,7 +583,7 @@ def main():
             "alpha": args.alpha,
             "use_norm": args.use_norm,
             "num_rounds": args.num_rounds,
-            "active_chkpts_dir": args.active_chkpts_dir
+            "active_chkpts_dir": simulator.active_chkpts_dir
         }
 
     logging.info("=" * 100)
@@ -618,9 +605,9 @@ def main():
     logging.info("Saving simulation results..")
     os.makedirs(os.path.dirname(args.metadata_dir), exist_ok=True)
     if args.use_norm:
-        messages_metadata_path = os.path.join(args.metadata_dir, f"active_norm_{args.attacked_round}.json")
+        messages_metadata_path = os.path.join(args.metadata_dir, f"active_trajectories_norm_{args.attacked_round}.json")
     else:
-        messages_metadata_path = os.path.join(args.metadata_dir, f"active_{args.attacked_round}.json")
+        messages_metadata_path = os.path.join(args.metadata_dir, f"active_trajectories_{args.attacked_round}.json")
     with open(messages_metadata_path, "w") as f:
         json.dump(simulator.messages_metadata, f)
 

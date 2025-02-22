@@ -127,10 +127,7 @@ def write_logs(logger, loss, metric, counter, mode="train", epsilon=None):
         logger.add_scalar("Train/Epsilon", epsilon, counter)
         logging.info(f"Epsilon: {epsilon:.4f}")
 
-
-
-def initialize_attack_trainer(args, fl_setup, client_messages_metadata, model_init_fn, criterion, metric,
-                                  cast_float, train_loader=None):
+def initialize_attack_trainer(args, fl_setup, client_messages_metadata, train_loader=None):
     """
     Initialize the trainer for running the active part of the simulation.
 
@@ -138,10 +135,6 @@ def initialize_attack_trainer(args, fl_setup, client_messages_metadata, model_in
         args (argparse.Namespace): Command-line arguments.
         fl_setup (dict): Federated learning setup dictionary.
         client_messages_metadata (dict): Metadata of the client messages.
-        model_init_fn (function): Model initialization function.
-        criterion (torch.nn.Module): Loss function.
-        metric (function): Metric function.
-        cast_float (bool): Cast float flag. If true, the target variable is cast to float.
         train_loader (torch.utils.data.DataLoader, optional): Training data loader. Defaults to None.
     Returns:
         Trainer: Trainer object
@@ -150,7 +143,10 @@ def initialize_attack_trainer(args, fl_setup, client_messages_metadata, model_in
     local_model_chkpt = torch.load(client_messages_metadata['local'][f"{args.attacked_round}"],
                                     map_location=args.device,
                                     weights_only=True)["model_state_dict"]
-    attacked_model = model_init_fn()
+    
+    criterion, metric, cast_float = get_trainers_config(fl_setup["task_name"])
+    criterion.to(args.device)
+    attacked_model = initialize_model(fl_setup["model_config_path"])
     attacked_model.load_state_dict(local_model_chkpt)
 
     if fl_setup["optimizer"] == "sgd":
@@ -240,26 +236,6 @@ def main():
     with open(os.path.join(args.metadata_dir, "federated.json"), "r") as f:
         all_messages_metadata = json.load(f)
 
-    task_config = {
-        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
-        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
-        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "income": (nn.MSELoss(), mean_absolute_error, False),
-        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
-    }
-
-    if fl_setup["task_name"] not in task_config:
-        raise NotImplementedError(f"Trainer initialization for task '{fl_setup["task_name"]}' is not implemented.")
-    
-    criterion, metric, cast_float = task_config[fl_setup["task_name"]]
-    criterion = criterion.to(args.device)
-    model_init_fn = lambda: initialize_model(fl_setup["model_config_path"])
-
     logging.info("Simulate Attacks..")
 
     os.makedirs(args.iso_chkpts_dir, exist_ok=True)
@@ -279,7 +255,6 @@ def main():
         logging.info("=" * 100)
         logging.info(f"Isolating client {attacked_client_id}")
 
-
         train_dataset = federated_dataset.get_task_dataset(task_id=attacked_client_id, mode='train')
         train_loader = DataLoader(train_dataset, batch_size=fl_setup["batch_size"], shuffle=True)
 
@@ -293,12 +268,9 @@ def main():
 
         if use_dp:
             active_trainer = initialize_attack_trainer(args=args, fl_setup=fl_setup, client_messages_metadata=client_messages_metadata,
-                                                   model_init_fn=model_init_fn, criterion=criterion, metric=metric,
-                                                   cast_float=cast_float, train_loader=train_loader)
+                                                        train_loader=train_loader)
         else:
-            active_trainer = initialize_attack_trainer(args=args, fl_setup=fl_setup, client_messages_metadata=client_messages_metadata,
-                                                    model_init_fn=model_init_fn, criterion=criterion, metric=metric,
-                                                    cast_float=cast_float)
+            active_trainer = initialize_attack_trainer(args=args, fl_setup=fl_setup, client_messages_metadata=client_messages_metadata)
             
         logger = SummaryWriter(log_dir=os.path.join(args.logs_dir, f"{attacked_client_id}"))
         if not fl_setup["by_epoch"]:

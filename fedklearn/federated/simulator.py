@@ -404,7 +404,8 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         self.alpha = alpha
         self.server_trainers = self._init_server_trainers()
         self.attacked_round = attacked_round
-        self.active_chkpts_folders_dict = self._create_active_chkpts_folders(active_chkpts_dir)
+        self.active_chkpts_dir = active_chkpts_dir if active_chkpts_dir is not None else os.path.join(chkpts_dir, "active", f'{self.attacked_round}')
+        self.active_chkpts_folders_dict = self._create_active_chkpts_dir()
         self.messages_metadata = self._init_messages_metadata()
         self.pseudo_gradients = self._init_pseudo_gradients()
 
@@ -419,7 +420,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         return pseudo_gradients
 
 
-    def _create_active_chkpts_folders(self, active_chkpts_folder=None):
+    def _create_active_chkpts_dir(self):
         """
                 Create checkpoint folders for the global model and each client.
 
@@ -435,28 +436,20 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
 
         chkpts_folders_dict = dict()
 
-        os.makedirs(self.chkpts_dir, exist_ok=True)
-        if active_chkpts_folder is None:
-            server_model_folder = os.path.join(self.chkpts_dir, "active_server")
-        else:
-            server_model_folder = os.path.join(active_chkpts_folder, "active_server")
+        os.makedirs(self.active_chkpts_dir, exist_ok=True)
+        server_model_folder = os.path.join(self.active_chkpts_dir, "active_server")
         os.makedirs(server_model_folder, exist_ok=True)
         chkpts_folders_dict["server"] = dict()
 
         for client in self.clients:
-            if active_chkpts_folder is None:
-                active_server_path = os.path.join(self.chkpts_dir, 'active_server', client.name, f'{self.attacked_round}')
-                path = os.path.join(self.chkpts_dir, client.name, 'active', f'{self.attacked_round}')
-            else:
-                active_server_path = os.path.join(active_chkpts_folder, 'active_server', client.name, f'{self.attacked_round}')
-                path = os.path.join(active_chkpts_folder, client.name, f'{self.attacked_round}')
+            active_server_path = os.path.join(server_model_folder, client.name)
+            client_path = os.path.join(self.active_chkpts_dir, client.name)
 
-            os.makedirs(path, exist_ok=True)
+            os.makedirs(client_path, exist_ok=True)
             os.makedirs(active_server_path, exist_ok=True)
 
-            chkpts_folders_dict[client.name] = path
+            chkpts_folders_dict[client.name] = client_path
             chkpts_folders_dict['server'][client.name] = active_server_path
-
         return chkpts_folders_dict
 
 
@@ -512,7 +505,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
             model = copy.deepcopy(self.clients[i].trainer.model)
             criterion = copy.deepcopy(self.clients[i].trainer.criterion)
             lr_scheduler = copy.deepcopy(self.clients[i].trainer.lr_scheduler)
-            is_binary_classification = copy.deepcopy(self.clients[i].trainer.is_binary_classification)
+            cast_float = copy.deepcopy(self.clients[i].trainer.cast_float)
             device = copy.deepcopy(self.clients[i].trainer.device)
             model_name = copy.deepcopy(self.clients[i].trainer.model_name)
             metric = copy.deepcopy(self.clients[i].trainer.metric)
@@ -527,7 +520,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
                 device=device,
                 model_name=model_name,
                 lr_scheduler=lr_scheduler,
-                is_binary_classification=is_binary_classification,
+                cast_float=cast_float,
                 optimizer=optimizer,
             )
             server_trainers.append(server_trainer)

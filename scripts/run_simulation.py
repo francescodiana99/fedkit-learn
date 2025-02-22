@@ -696,23 +696,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
     else:
         model = initialize_model(args.model_config_path)
 
-    task_config = {
-        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "toy_regression": (nn.MSELoss(), mean_squared_error, False),
-        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
-        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, False),
-        "income": (nn.MSELoss(), mean_absolute_error, False),
-        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
-        "linear_income": (nn.MSELoss(), mean_absolute_error, False),
-    }
-    
-    if args.task_name not in task_config:
-        raise NotImplementedError(f"Trainer initialization for task '{args.task_name}' is not implemented.")
-    
-    criterion, metric, cast_float = task_config[args.task_name]
+    criterion, metric, cast_float = get_trainers_config(args.task_name)
     criterion = criterion.to(args.device)
 
     if args.optimizer == "sgd":

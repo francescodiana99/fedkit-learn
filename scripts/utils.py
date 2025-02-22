@@ -18,7 +18,7 @@ from fedklearn.metrics import *
 
 from fedklearn.models.linear import LinearLayer, TwoLinearLayers
 from fedklearn.models.sequential import SequentialNet
-from fedklearn.trainer.trainer import Trainer, DebugTrainer
+from fedklearn.trainer.trainer import Trainer
 
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
@@ -377,57 +377,37 @@ def get_first_rounds(round_ids, keep_frac=0.):
 
     return set(map(str, int_list[:end_index]))
 
-def get_trainer_parameters(task_name, device, model_config_path):
-    # TODO: absolutely needs to be refactored
-    model_init_fn = lambda: initialize_model(model_config_path)
-    if task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-    elif task_name == "toy_classification":
-        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        is_binary_classification = True
-        metric = binary_accuracy_with_sigmoid
-    elif task_name == "toy_regression":
-        criterion = nn.MSELoss(reduction="none").to(device)
-        is_binary_classification = False
-        metric = mean_squared_error
-    elif task_name == "purchase":
-        criterion = nn.CrossEntropyLoss(reduction="none").to(device)
-        is_binary_classification = False
-        metric = multiclass_accuracy
-    elif task_name == "purchase_binary":
-        criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        is_binary_classification = True
-        metric = binary_accuracy_with_sigmoid
-    elif task_name == "medical_cost":
-        criterion = nn.MSELoss(reduction="none").to(device)
-        is_binary_classification = True
-        metric = mean_squared_error
+def get_trainers_config(task_name):
+    """
+    Get the configuration for initializing trainers based on the federated learning setup.
 
-    elif task_name == "income":
-        criterion = nn.MSELoss(reduction="none").to(device)
-        is_binary_classification = True
-        metric = mean_squared_error
-    elif task_name == "linear_income":
-        criterion = nn.MSELoss(reduction="none").to(device)
-        is_binary_classification = True
-        metric = mean_squared_error
-    elif task_name == "linear_medical_cost":
-        criterion = nn.MSELoss(reduction="none").to(device)
-        is_binary_classification = True
-        metric = mean_squared_error
+    Parameters:
+    - task_name (dict): Name of the task to test.
 
+    Returns:
+    - criterion (torch.nn.Module): The loss function.
+    - metric (Callable): The metric function.
+    - cast_float (bool): Indicates whether the target values should be cast to float.
+    """
+    task_config = {
+        "adult": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_classification": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "toy_regression": (nn.MSELoss(), mean_squared_error, True),
+        "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
+        "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "medical_cost": (nn.MSELoss(), mean_absolute_error, True),
+        "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, True),
+        "income": (nn.MSELoss(), mean_absolute_error, True),
+        "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
+        "linear_income": (nn.MSELoss(), mean_absolute_error, True),
+    }
+    if task_name not in task_config:
+        raise NotImplementedError(f"Trainer initialization for task '{task_name}' is not implemented.")
+    criterion, metric, cast_float = task_config[task_name]
 
-    else:
-        raise NotImplementedError(
-            f"Network initialization for task '{task_name}' is not implemented"
-        )
+    return criterion, metric, cast_float
 
-    return criterion, model_init_fn, is_binary_classification, metric
-
-
-def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_binary_classification, metric, device):
+def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, cast_float, metric, device):
 
     """
     Initialize trainers for models based on the provided dictionary mapping IDs to model paths.
@@ -436,7 +416,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
     - models_metadata_dict (Dict[str: str]): A dictionary mapping model IDs to their corresponding paths.
     - criterion (torch.nn.Module) : The loss function.
     - model_init_fn (Callable): The function used to initialize the models.
-    - is_binary_classification (bool): Indicates whether the task is binary classification.
+    - cast_float (bool): Indicates whether to cast the target variable to float.
     - device (str): The device (e.g., 'cpu' or 'cuda') on which the models will be initialized.
 
     Returns:
@@ -446,7 +426,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
 
     trainers_dict = dict()
     for client_id in models_metadata_dict:
-        model_chkpts = torch.load(models_metadata_dict[client_id], map_location=device)["model_state_dict"]
+        model_chkpts = torch.load(models_metadata_dict[client_id], map_location=device, weights_only=True)["model_state_dict"]
         model = model_init_fn()
         model.load_state_dict(model_chkpts)
 
@@ -456,7 +436,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
             metric=metric,
             device=device,
             optimizer=optimizer,
-            is_binary_classification=is_binary_classification
+            cast_float=cast_float
         )
 
     return trainers_dict
@@ -464,7 +444,7 @@ def initialize_trainers_dict(models_metadata_dict, criterion, model_init_fn, is_
 
 def evaluate_mb_aia(
         model, dataset, sensitive_attribute_id, sensitive_attribute_type, initialization, device, num_iterations,
-        criterion, is_binary_classification, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None,
+        criterion, cast_float, learning_rate, optimizer_name, success_metric, rng=None, torch_rng=None,
         output_losses=False, output_predictions=False
 ):
     """
@@ -479,7 +459,7 @@ def evaluate_mb_aia(
     - device (str): The device on which the attack will be executed
     - num_iterations (int): The number of iterations for the optimization part when attacking continuous features.
     - criterion (torch.nn.Module): The loss function to use for the attack.
-    - is_binary_classification (bool): Indicates whether the task is binary classification.
+    - cast_float (bool): Indicates whether to cast the target value to float.
     - learning_rate (float): The learning rate for the optimization part when attacking continuous features.
     - optimizer_name (str): The name of the optimizer to use for the optimization part when attacking continuous features.
     - success_metric (str): The metric to use for evaluating the success of the attack.
@@ -492,6 +472,8 @@ def evaluate_mb_aia(
     - score (float): The score of the attack
     """
 
+    model.eval()
+
     attack_simulator = ModelDrivenAttributeInferenceAttack(
         model=model,
         dataset=dataset,
@@ -500,7 +482,7 @@ def evaluate_mb_aia(
         initialization=initialization,
         device=device,
         criterion=criterion,
-        is_binary_classification=is_binary_classification,
+        cast_float=cast_float,
         learning_rate=learning_rate,
         optimizer_name=optimizer_name,
         success_metric=success_metric,
@@ -663,81 +645,6 @@ def evaluate_trainer(trainer, dataloader):
         raise NotImplementedError(f"Criterion {trainer.criterion.__class__.__name__} is not implemented.")
     avg_loss, metric = evaluation_trainer.evaluate_loader(dataloader)
     return avg_loss, metric
-
-
-# TODO: test this function
-def update_aia_results_dict(scores_dict, metrics_dict, loss_dict, n_samples_list, results_dict, iteration_id):
-    """
-    Update the results dictionary with the scores, metrics, and losses of the model-based AIA for a given iteration.
-    Parameters:
-    - scores_dict (dict): A dictionary mapping client IDs to the scores of the attack.
-    - metrics_dict (dict): A dictionary mapping client IDs to the accuracy of each model.
-    - loss_dict (dict): A dictionary mapping client IDs to the losses of each model.
-    - n_samples_list (list): A list of the number of samples per client.
-    - results_dict (dict): A dictionary containing the results of the attack.
-    - iteration_id (int): The ID of the iteration.
-    Returns:
-    - results_dict (dict): A dictionary containing the results of the attack.
-    """
-
-    model_types = list(scores_dict.keys())
-
-    for model_type in model_types:
-        if model_type not in results_dict[iteration_id]:
-            scores, metrics, losses = get_aia_scores(scores_dict, metrics_dict, loss_dict, model_type)
-            results_dict[iteration_id][model_type] = {
-                "scores": scores,
-                "metrics": metrics,
-                "losses": losses,
-                "n_samples": n_samples_list
-            }
-    
-    return results_dict
-
-
-def get_aia_scores(scores_dict, metrics_dict, loss_dict, model_type):
-    """
-    Get the scores, metrics, and losses of the model-based AIA for a given model type.
-    Parameters:
-    - scores_dict (dict): A dictionary mapping client IDs to the scores of the attack.
-    - metrics_dict (dict): A dictionary mapping client IDs to the accuracy of each model.
-    - loss_dict (dict): A dictionary mapping client IDs to the losses of each model.
-    - model_type (str): The type of the model. 
-    Returns:
-    - scores (list): A list of the scores of the attack.
-    - metrics (list): A list of the metrics of the models.
-    - losses (list): A list of the losses of the models.
-    """
-    scores = list(scores_dict[model_type].values())
-    metrics = list(metrics_dict[model_type].values())
-    losses = list(loss_dict[model_type].values())
-
-    return scores, metrics, losses
-
-def log_aia_mb_results(results_dict, iteration_id):
-    """
-    Log the results of the model-based AIA for a given iteration.
-    Parameters:
-    - results_dict (dict): A dictionary containing the results of the attack.
-    - iteration_id (int): The ID of the iteration.
-    """
-    model_types = list(results_dict[iteration_id].keys())
-
-    logging.info(f"Scores for round {iteration_id}")
-
-    for model_type in model_types:
-        scores = results_dict[iteration_id][model_type]["scores"]
-        metrics = results_dict[iteration_id][model_type]["metrics"]
-        losses = results_dict[iteration_id][model_type]["losses"]
-        n_samples = results_dict[iteration_id][model_type]["n_samples"]
-
-        weighted_avg_score = weighted_average(scores, n_samples)
-        weighted_avg_metric = weighted_average(metrics, n_samples)
-        weighted_avg_loss = weighted_average(losses, n_samples)
-
-        logging.info(f"Average loss for {model_type} model: {weighted_avg_loss:.4f}")
-        logging.info(f"Average accuracy for {model_type} model: {weighted_avg_metric:.4f}")
-        logging.info(f"Average attack accuracy for {model_type} model: {weighted_avg_score:.4f}")
 
 def save_aia_gb_score(results_path, rounds_frac, learning_rate, score, cos_dis, l2_dist, time_dict=None):
     """
