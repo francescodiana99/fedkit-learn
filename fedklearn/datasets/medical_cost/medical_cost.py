@@ -132,9 +132,14 @@ class FederatedMedicalCostDataset:
         self.split_criterion = split_criterion
         self.scale_target = scale_target
 
-        self.raw_data_dir = os.path.join(self.cache_dir, "raw")
-        self.intermediate_data_dir = os.path.join(self.cache_dir, "intermediate")
-        self.tasks_folder = os.path.join(self.cache_dir, "tasks")
+        if use_linear:
+            self.raw_data_dir = os.path.join(self.cache_dir, "raw")
+            self.intermediate_data_dir = os.path.join(self.cache_dir, "linear", "intermediate")
+            self.tasks_folder = os.path.join(self.cache_dir, "linear", "tasks")
+        else:
+            self.raw_data_dir = os.path.join(self.cache_dir, "raw")
+            self.intermediate_data_dir = os.path.join(self.cache_dir, "intermediate")
+            self.tasks_folder = os.path.join(self.cache_dir, "tasks")
         self.use_linear = use_linear
 
         if rng is None:
@@ -245,6 +250,8 @@ class FederatedMedicalCostDataset:
             charges_column = df['charges']
 
             features_numerical = df[numerical_columns]
+
+            #TODO: do it as for income
             if self.scale_target:
                 if mode =="train":
                     df = pd.DataFrame(self.scaler.fit_transform(df), columns=df.columns)

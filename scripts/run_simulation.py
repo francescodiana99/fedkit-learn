@@ -65,6 +65,7 @@ Options:
     --state: USA state to extract in Income dataset.
     --mixing_coefficient: Mixing coefficient for the mixing sample distribution in Adult dataset.
     --scale_target: Flag for scaling the target variable in the medical cost dataset.
+    --binarize_target: Flag for binarizing the target variable in Income dataset.
     --use_dp: Flag for using differential privacy.
     --noise_multiplier: Noise multiplier for differential privacy.
     --clip_norm: Clipping norm for differential privacy.
@@ -121,7 +122,7 @@ def parse_args(args_list=None):
         "--task_name",
         type=str,
         choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
-                 'income', 'binary_income', 'linear_income', 'linear_medical_cost', ],
+                 'income', 'binary_income' ],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
              " 'income', 'binary_income', 'linear_income', 'linear_medical_cost'.",
         required=True
@@ -440,6 +441,13 @@ def parse_args(args_list=None):
         help="Flag for scaling the target variable"
     )
 
+    parser.add_argument(
+        "--binarize_target",
+        action="store_true",
+        default=False,
+            help="Flag for binarizing the target variable in Income dataset"
+        )
+
     # differential privacy args
     parser.add_argument(
         "--use_dp",
@@ -505,6 +513,13 @@ def initialize_dataset(args, rng):
         raise ValueError(
             f"The number of tasks should be specified for {args.task_name} dataset."
         )
+    
+    with open(args.model_config_path, "r") as f:
+        model_config = json.load(f)
+        if model_config["model_class"] ==  "LinearLayer":
+            use_linear = True
+        else:
+            use_linear =  False
 
     if args.task_name == "adult":
         return FederatedAdultDataset(
@@ -598,22 +613,23 @@ def initialize_dataset(args, rng):
             split_criterion=args.split_criterion,
             test_frac=args.test_frac,
             scaler=args.scaler_name,
-            scale_target=args.scale_target
+            scale_target=args.scale_target,
+            use_linear=use_linear
         )
 
-    elif args.task_name =="linear_medical_cost":
-        return FederatedMedicalCostDataset(
-            cache_dir=args.data_dir,
-            download=args.download,
-            force_generation=args.force_generation,
-            n_tasks=args.n_tasks,
-            rng=rng,
-            split_criterion=args.split_criterion,
-            test_frac=args.test_frac,
-            scaler=args.scaler_name,
-            scale_target=args.scale_target,
-            use_linear=True
-        )
+    # elif args.task_name =="linear_medical_cost":
+    #     return FederatedMedicalCostDataset(
+    #         cache_dir=args.data_dir,
+    #         download=args.download,
+    #         force_generation=args.force_generation,
+    #         n_tasks=args.n_tasks,
+    #         rng=rng,
+    #         split_criterion=args.split_criterion,
+    #         test_frac=args.test_frac,
+    #         scaler=args.scaler_name,
+    #         scale_target=args.scale_target,
+    #         use_linear=True
+    #     )
 
 
     if args.task_name == "income":
@@ -632,46 +648,29 @@ def initialize_dataset(args, rng):
             state=args.state,
             mixing_coefficient=args.mixing_coefficient,
             keep_proportions=args.keep_proportions,
-            scale_target=args.scale_target
+            scale_target=args.scale_target,
+            use_linear=use_linear,
+            binarize=args.binarize_target,
         )
 
-    if args.task_name == "binary_income":
-        return FederatedIncomeDataset(
-            cache_dir=args.data_dir,
-            download=args.download,
-            test_frac=args.test_frac,
-            scaler_name=args.scaler_name,
-            drop_nationality=not args.use_nationality,
-            force_generation=args.force_generation,
-            n_tasks=args.n_tasks,
-            n_task_samples=args.n_task_samples,
-            seed=args.seed,
-            rng=rng,
-            split_criterion=args.split_criterion,
-            state=args.state,
-            mixing_coefficient=args.mixing_coefficient,
-            keep_proportions=args.keep_proportions,
-            binarize=True
-        )
-
-    if args.task_name == "linear_income":
-        return FederatedIncomeDataset(
-            cache_dir=args.data_dir,
-            download=args.download,
-            test_frac=args.test_frac,
-            scaler_name=args.scaler_name,
-            drop_nationality=not args.use_nationality,
-            force_generation=args.force_generation,
-            n_tasks=args.n_tasks,
-            n_task_samples=args.n_task_samples,
-            seed=args.seed,
-            rng=rng,
-            split_criterion=args.split_criterion,
-            state=args.state,
-            mixing_coefficient=args.mixing_coefficient,
-            keep_proportions=args.keep_proportions,
-            use_linear=True
-        )
+    # if args.task_name == "binary_income":
+    #     return FederatedIncomeDataset(
+    #         cache_dir=args.data_dir,
+    #         download=args.download,
+    #         test_frac=args.test_frac,
+    #         scaler_name=args.scaler_name,
+    #         drop_nationality=not args.use_nationality,
+    #         force_generation=args.force_generation,
+    #         n_tasks=args.n_tasks,
+    #         n_task_samples=args.n_task_samples,
+    #         seed=args.seed,
+    #         rng=rng,
+    #         split_criterion=args.split_criterion,
+    #         state=args.state,
+    #         mixing_coefficient=args.mixing_coefficient,
+    #         keep_proportions=args.keep_proportions,
+    #         binarize=True
+    #     )
 
     else:
         raise NotImplementedError(
@@ -695,6 +694,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         raise ValueError(f"Model configuration file should be placed in {model_config_dir}")
     else:
         model = initialize_model(args.model_config_path)
+        
 
     criterion, metric, cast_float = get_trainers_config(args.task_name)
     criterion = criterion.to(args.device)
@@ -951,6 +951,7 @@ def save_setup(args, data_path, hparams_path):
         "data_path": data_path,
         "chkpts_dir": args.chkpts_dir,
         "model_config_path": args.model_config_path,
+        "binarize": args.binarize_target
         }
 
     with open(hparams_path, "w") as f:

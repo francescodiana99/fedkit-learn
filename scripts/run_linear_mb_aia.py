@@ -29,20 +29,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        '--task_name',
-        type=str,
-        default='linear_income',
-        help='Task name'
-        )
-
-    parser.add_argument(
-        '--data_dir',
-        type=str,
-        default='./data',
-        help='Task data directory'
-        )
-
-    parser.add_argument(
         '--metadata_dir',
         type=str,
         default='./metadata',
@@ -108,7 +94,7 @@ def parse_args():
 
     return parser.parse_args()
 
-def initialize_trainer(model, args):
+def initialize_trainer(model, criterion, metric, cast_float, device):
     """
     Initialize the trainer based on the specified model metadata.
     Args:
@@ -117,51 +103,6 @@ def initialize_trainer(model, args):
     Returns:
         Trainer: Initialized trainer.
     """
-
-    if args.task_name == "adult":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-    elif args.task_name == "toy_classification":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-
-    elif args.task_name == "toy_regression":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_squared_error
-        is_binary_classification = False
-
-    elif args.task_name == "purchase_binary":
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-        metric = binary_accuracy_with_sigmoid
-        is_binary_classification = True
-
-    elif args.task_name == "medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "linear_medical_cost":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "income":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    elif args.task_name == "linear_income":
-        criterion = nn.MSELoss().to(args.device)
-        metric = mean_absolute_error
-        is_binary_classification = False
-
-    else:
-        raise NotImplementedError(
-            f"Trainer initialization for task '{args.task_name}' is not implemented."
-        )
-
 
     optimizer = optim.SGD(
         [param for param in model.parameters() if param.requires_grad],
@@ -175,8 +116,8 @@ def initialize_trainer(model, args):
         criterion=criterion,
         optimizer=optimizer,
         metric=metric,
-        device=args.device,
-        is_binary_classification=is_binary_classification
+        device=device,
+        cast_float=cast_float
         )
 
 
@@ -288,7 +229,7 @@ def get_model_at_round(messages_metadata, round_id, mode="global"):
     """
 
     assert mode in {"local", "global"}, f"`mode` should be 'local' or 'global', not {mode}"
-    model_chkpts = torch.load(messages_metadata[mode][round_id])["model_state_dict"]
+    model_chkpts = torch.load(messages_metadata[mode][round_id], weights_only=True)["model_state_dict"]
     model = LinearLayer(input_dimension=model_chkpts['fc.weight'].shape[1], output_dimension=1, bias=True)
     model.load_state_dict(model_chkpts)
 
@@ -337,17 +278,23 @@ def main():
 
     rng = np.random.default_rng(args.seed)
 
+    try:
+        with open(os.path.join(args.metadata_dir, "setup.json"), "r") as f:
+            fl_setup = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Federated Learning simulation metadata file not found at \
+                                '{args.metadata_dir}/setup.json'.")
+    
     with open(os.path.join(args.metadata_dir, 'federated.json'), 'r') as f:
         metadata_dict = json.load(f)
 
     with open(os.path.join(args.metadata_dir, 'local_trajectories.json'), 'r') as f:
         local_models_dict = json.load(f)
 
-    with open(os.path.join(args.metadata_dir, 'model_config.json'), 'r') as f:
-        model_config_path = json.load(f)
-    model_init_fn = lambda: initialize_model(model_config_path["model_config"])
-
-    federated_dataset = load_dataset(data_dir=args.data_dir, task_name=args.task_name, rng=rng)
+    criterion, metric, cast_float = get_trainers_config(fl_setup["task_name"]) 
+    model_init_fn = lambda: initialize_model(fl_setup["model_config_path"])
+    
+    federated_dataset = load_dataset(fl_setup, rng=rng)
 
     results_dict = {'attack_accuracy': dict(),
                     'norm_diff': dict(),
@@ -355,7 +302,7 @@ def main():
                     'n_samples': dict(),
                     'reconstructed_loss': dict(),
                     'optimal_loss': dict(),
-                    'device': get_gpu()
+                    'device': get_device_info()
                     }
 
 
@@ -370,14 +317,14 @@ def main():
 
         emp_opt_model = model_init_fn()
         last_round = max([int(i) for i in metadata_dict[f'{task_id}'].keys()])
-        emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'][f'{last_round}'])["model_state_dict"]
+        emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'][f'{last_round}'], weights_only=True)["model_state_dict"]
         emp_opt_model.load_state_dict(emp_opt_chkpts)
 
         train_dataset = federated_dataset.get_task_dataset(task_id, mode='train')
         train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=False)
 
-        recon_trainer = initialize_trainer(recon_model, args)
-        emp_opt_trainer = initialize_trainer(emp_opt_model, args)
+        recon_trainer = initialize_trainer(recon_model, criterion, metric, cast_float, args.device)
+        emp_opt_trainer = initialize_trainer(emp_opt_model, criterion, metric, cast_float, args.device)
 
         recon_loss, recon_metric = recon_trainer.evaluate_loader(train_loader)
         emp_opt_loss, emp_opt_metric = emp_opt_trainer.evaluate_loader(train_loader)
@@ -387,30 +334,30 @@ def main():
 
         sensitive_attribute_id = train_dataset.column_name_to_id[args.sensitive_attribute]
 
-        recon_aia_score = evaluate_aia(
+        recon_aia_score = evaluate_mb_aia(
             model=recon_model,
             dataset=train_dataset,
             sensitive_attribute_id=sensitive_attribute_id,
             sensitive_attribute_type='binary',
             initialization='normal',
             device=args.device,
-            criterion=nn.MSELoss(),
-            is_binary_classification=True,
+            criterion=criterion,
+            cast_float=cast_float,
             learning_rate=1,
             num_iterations=100,
             optimizer_name='sgd',
             success_metric=threshold_binary_accuracy
         )
 
-        opt_aia_score = evaluate_aia(
+        opt_aia_score = evaluate_mb_aia(
                 model=emp_opt_model,
                 dataset=train_dataset,
                 sensitive_attribute_id=sensitive_attribute_id,
                 sensitive_attribute_type='binary',
                 initialization='normal',
                 device=args.device,
-                criterion=nn.MSELoss(),
-                is_binary_classification=True,
+                criterion=criterion,
+                cast_float=cast_float,
                 learning_rate=1,
                 num_iterations=100,
                 optimizer_name='sgd',

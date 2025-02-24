@@ -148,7 +148,7 @@ class FederatedIncomeDataset:
 
         self.cache_dir = cache_dir
         self.download = download
-        self.test_frac = test_frac
+        self.test_frac = test_frac if test_frac is not None else 0.1
         self.scaler_name = scaler_name
         self.rng = rng
         self.split_criterion = split_criterion
@@ -171,15 +171,21 @@ class FederatedIncomeDataset:
         if self.state is None:
             raise ValueError("The 'state' is None. Please specify a value.")
         
-        # TODO: remove this part later when you add scaling in the dataset
         if self.scale_target:
             raw_df = pd.read_csv(os.path.join(self._raw_data_dir, "income.csv"))
             self.std_income = raw_df['PINCP'].std()
             self.mean_income = raw_df['PINCP'].mean()
 
-
-        self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
-        self._tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
+        # TODO: might be better split
+        if binarize:
+            self._intermediate_data_dir = os.path.join(self.cache_dir, 'binary', 'intermediate')
+            self._tasks_dir = os.path.join(self.cache_dir, 'binary', 'tasks', self.split_criterion, self.state)
+        elif use_linear:
+            self._intermediate_data_dir = os.path.join(self.cache_dir, 'linear', 'intermediate')
+            self._tasks_dir = os.path.join(self.cache_dir, ';linear', 'tasks', self.split_criterion, self.state)
+        else:
+            self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
+            self._tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
 
         if rng is None:
             rng = np.random.default_rng()
@@ -663,7 +669,9 @@ class FederatedIncomeDataset:
             'n_task_samples': self.n_task_samples,
             'mixing_coefficient': self.mixing_coefficient,
             'state': self.state,
-            'task_mapping': self.task_id_to_name
+            'task_mapping': self.task_id_to_name,
+            'binarize': self.binarize,
+            'use_linear': self.use_linear
          }
 
         with open(self.metadata_path, "w") as f:

@@ -191,46 +191,10 @@ def load_dataset(fl_setup, rng):
             state=state,
             n_tasks=n_tasks,
             n_task_samples=n_task_samples,
-            scale_target=scale_target
+            scale_target=scale_target,
+            binarize=metadata_dict['binarize'],
+            use_linear=metadata_dict['use_linear']
         )
-    elif task_name == "binary_income":
-        with open(data_path, "r") as f:
-            metadata_dict = json.load(f)
-        split_criterion = metadata_dict["split_criterion"]
-        n_tasks = metadata_dict["n_tasks"]
-        n_task_samples = metadata_dict["n_task_samples"]
-        cache_dir = metadata_dict['cache_dir']
-        state= metadata_dict['state']
-        mixing_coefficient = metadata_dict['mixing_coefficient']
-        return FederatedIncomeDataset(
-            cache_dir=cache_dir,
-            download=False,
-            split_criterion=split_criterion,
-            mixing_coefficient=mixing_coefficient,
-            state=state,
-            n_tasks=n_tasks,
-            n_task_samples=n_task_samples,
-            binarize=True
-        )
-    # elif task_name == "linear_income":
-    #     with open(data_path, "r") as f:
-    #         metadata_dict = json.load(f)
-    #     split_criterion = metadata_dict["split_criterion"]
-    #     n_tasks = metadata_dict["n_tasks"]
-    #     n_task_samples = metadata_dict["n_task_samples"]
-    #     cache_dir = metadata_dict['cache_dir']
-    #     state= metadata_dict['state']
-    #     mixing_coefficient = metadata_dict['mixing_coefficient']
-    #     return FederatedIncomeDataset(
-    #         cache_dir=cache_dir,
-    #         download=False,
-    #         split_criterion=split_criterion,
-    #         mixing_coefficient=mixing_coefficient,
-    #         state=state,
-    #         n_tasks=n_tasks,
-    #         n_task_samples=n_task_samples,
-    #         use_linear=True
-    #     )
     
     # TODO: fix if have time
     elif task_name == "purchase":
@@ -622,29 +586,6 @@ def get_device_info():
     else:
         return "CPU"
     
-
-def evaluate_trainer(trainer, dataloader):  
-    """
-    Evaluate a trainer on a dataloader
-        Args:
-            trainer (Trainer): Trainer object
-            dataloader (): DataLoader object
-        
-        Returns:
-            avg_loss (float): average loss of the model on the dataloader.
-            metric (float): metric of the model on the dataloader."""
-    
-    evaluation_trainer = copy.deepcopy(trainer)
-    if trainer.criterion.__class__.__name__ == "BCEWithLogitsLoss":
-        evaluation_trainer.criterion = nn.BCEWithLogitsLoss(reduction='mean')
-    elif trainer.criterion.__class__.__name__ == "CrossEntropyLoss":
-        evaluation_trainer.criterion = nn.CrossEntropyLoss(reduction='mean')
-    elif trainer.criterion.__class__.__name__ == "MSELoss":
-        evaluation_trainer.criterion = nn.MSELoss()
-    else:
-        raise NotImplementedError(f"Criterion {trainer.criterion.__class__.__name__} is not implemented.")
-    avg_loss, metric = evaluation_trainer.evaluate_loader(dataloader)
-    return avg_loss, metric
 
 def save_aia_gb_score(results_path, rounds_frac, learning_rate, score, cos_dis, l2_dist, time_dict=None):
     """
