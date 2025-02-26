@@ -1,2 +1,0 @@
-EPSILON = 1e-10
-ATTACKS = ["SIA", "AIA", "LMRA"]
