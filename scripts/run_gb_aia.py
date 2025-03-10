@@ -191,13 +191,6 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
-        "--local_steps",
-        type=int,
-        help="Number of local steps. Used only when 'active_server' is set.",
-        default=1
-    )
-
-    parser.add_argument(
         "--track_time",
         action="store_true",
         default=False,
@@ -236,7 +229,7 @@ def main():
             isolated_models_metadata = json.load(f)
         
         n_rounds = len(isolated_models_metadata.keys())
-        communication_rounds = [f"{i}" for i in range(0, n_rounds, args.local_steps)]
+        communication_rounds = [f"{i}" for i in range(0, n_rounds, fl_setup["local_steps"])]
 
     else:
         metadata_path = os.path.join(args.metadata_dir, "federated.json")

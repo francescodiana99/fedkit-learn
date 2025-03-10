@@ -99,27 +99,6 @@ def configure_logging(args):
         handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     root_logger.setLevel(logging.INFO - (args.verbose - args.quiet) * 10)
 
-# TODO: check where to use
-def get_task_type(task_name):
-    task_types = {
-        "adult": "binary_classification",
-        "toy_classification": "binary_classification",
-        "toy_regression": "regression",
-        "purchase": "classification",
-        "purchase_binary": "binary_classification",
-        "medical_cost": "regression",
-        "income": "regression",
-        "linear_income": "regression",
-        "linear_medical_cost": "regression"
-
-    }
-    if task_name not in task_types.keys():
-        raise NotImplementedError(
-            f"Network initialization for task '{task_name}' is not implemented"
-        )
-
-    return task_types[task_name]
-
 def load_dataset(fl_setup, rng):
     """
     Load a federated dataset based on the specified task name.

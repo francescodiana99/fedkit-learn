@@ -1,6 +1,10 @@
 #!/bin/bash
 
-cd ../../../scripts
+# Save the current directory
+original_dir=$(pwd)
+
+
+cd ../../../scripts || exit
 
 if [ -z "$1" ]; then
     batch_size=32
@@ -38,12 +42,10 @@ else
     device=$6
 fi
 
-if [ "${7}" == "force_generation" ]; then
-    force_flag=true
-fi
-
-if [ "${8}" == "download" ]; then
-    download=true
+if [ -z "$7" ]; then
+    add_args=""
+else
+    add_args=$7
 fi
 
 state="full"
@@ -52,23 +54,40 @@ split_criterion="state"
 n_task_samples=39133
 n_tasks=51
 
+model_config_path="../fedklearn/configs/income/full/models/net_config.json"
+chkpts_dir="./chkpts/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
+metadata_dir="./metadata/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
+cmd="python run_simulation.py \
+--task_name income \
+--test_frac 0.1 \
+--scaler standard \
+--optimizer $optimizer \
+--learning_rate $lr \
+--momentum 0.0  \
+--weight_decay 0.0 \
+--batch_size $batch_size \
+--local_steps $n_local_steps \
+--by_epoch \
+--device $device \
+--data_dir ./data/seeds/$seed/income/ \
+--log_freq 5 \
+--save_freq 1 \
+--num_rounds $num_rounds \
+--seed $seed \
+--model_config_path $model_config_path \
+--split_criterion $split_criterion \
+--n_tasks $n_tasks \
+--n_task_samples $n_task_samples \
+--state $state \
+--chkpts_dir $chkpts_dir \
+--logs_dir $logs_dir \
+--metadata_dir $metadata_dir \
+--keep_proportions \
+$add_args
+"
 
-cmd="python run_simulation.py --task_name income --test_frac 0.1 --scaler standard --optimizer $optimizer --learning_rate $lr \
---momentum 0.0  --weight_decay 0.0 --batch_size $batch_size --local_steps $n_local_steps --by_epoch --device $device \
---data_dir ./data/seeds/$seed/income/  --log_freq 5 --save_freq 1 --num_rounds $num_rounds --seed $seed \
---model_config_path ../fedklearn/configs/income/$state/$n_tasks/$n_task_samples/models/net_config.json --split_criterion $split_criterion \
---n_tasks $n_tasks --n_task_samples $n_task_samples --state $state\
-  --chkpts_dir ./chkpts/fedkit-learn/chkpts/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer \
-  --logs_dir ./logs/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer \
-  --metadata_dir ./metadata/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer \
-  --keep_proportions \
-  "
-if force_flag; then
-    cmd="$cmd --force_generation"
-fi
-if download; then
-    cmd="$cmd --download"
+echo $cmd
+eval $cmd
 
-  echo $cmd
-  eval $cmd
-
+cd $original_dir || exit

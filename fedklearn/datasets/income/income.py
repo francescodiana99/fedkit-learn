@@ -638,7 +638,6 @@ class FederatedIncomeDataset:
 
                 file_path = os.path.join(task_cache_dir, f"{mode}.csv")
                 task_data.to_csv(file_path, index=False)
-                # TODO: this might be refactored later
 
         logging.info(f"Tasks generated and saved to {self._tasks_dir}.")
 
@@ -944,7 +943,6 @@ class FederatedIncomeDataset:
         if self.binarize:
             task_data['PINCP'] = task_data['PINCP'].apply(lambda x: 1. if x > self.median_income else 0.)
 
-        # TODO: this must be moved in the data preprocessing part, to ensure to use the scaled data even for other scripts.
         if self.scale_target:
             task_data = self._scale_output(task_data)
 
