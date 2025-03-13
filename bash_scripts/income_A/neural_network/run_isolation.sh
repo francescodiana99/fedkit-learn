@@ -3,6 +3,8 @@
 cd ../../../scripts
 # Check if batch_size and local_epochs are provided as command line arguments, otherwise use default values
 
+original_dir=$(pwd)
+
 if [ -z "$1" ]; then
     seed='cuda'
 else
@@ -37,4 +39,4 @@ base_cmd="python run_isolation.py \
 echo "Running $base_cmd"
 eval $base_cmd
 
-cd $original_dir || exit
+cd $original_dir 
