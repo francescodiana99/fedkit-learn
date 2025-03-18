@@ -182,7 +182,7 @@ class FederatedIncomeDataset:
             self._tasks_dir = os.path.join(self.cache_dir, 'binary', 'tasks', self.split_criterion, self.state)
         elif use_linear:
             self._intermediate_data_dir = os.path.join(self.cache_dir, 'linear', 'intermediate')
-            self._tasks_dir = os.path.join(self.cache_dir, ';linear', 'tasks', self.split_criterion, self.state)
+            self._tasks_dir = os.path.join(self.cache_dir, 'linear', 'tasks', self.split_criterion, self.state)
         else:
             self._intermediate_data_dir = os.path.join(self.cache_dir, 'intermediate', self.state)
             self._tasks_dir = os.path.join(self.cache_dir, 'tasks', self.split_criterion, self.state)
