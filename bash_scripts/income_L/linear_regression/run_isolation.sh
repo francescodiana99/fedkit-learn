@@ -1,68 +1,49 @@
 #!/bin/bash
 cd ../../../scripts
+# Check if batch_size and local_epochs are provided as command line arguments, otherwise use default values
+
+original_dir=$(pwd)
 
 if [ -z "$1" ]; then
-    batch_size=32
+    seed='42'
 else
-    batch_size=$1
+    seed=$1
 fi
 
 if [ -z "$2" ]; then
-    learning_rate=0.01
+    device='cpu'
 else
-    learning_rate=$2
+    device=$2
 fi
 
-if [ -z "$3" ]; then
-    seed="sgd"
-else
-    seed=$3
-fi
-
-if [ -z "$4" ]; then
-    attacked_task="sgd"
-else
-    attacked_task=$4
-fi
-
-if [ -z "$5" ]; then
-    device="cpu"
-else
-    device=$5
-fi
-
-attacked_rounds=(299)
-state='louisiana'
+# Hyperparameter options
+attacked_round=99
+num_rounds=50
 n_tasks=10
 local_epochs=1
+batch_size=32
+state="louisiana"
+optimizer="sgd"
 n_local_steps=1
-optimizer='sgd'
+split_criterion="random"
+attacked_task=3
 
-
+metadata_dir="./metadata/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated"
+iso_chkpts_dir="./chkpts/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated"
+# Define base command
 base_cmd="python run_isolation.py \
-  --by_epoch \
-  --data_dir ./data/seeds/42/linear_income/tasks/random/$state/$n_tasks/all \
-  --task_name linear_income \
-  --split train \
-  --metadata_dir ./metadata/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$n_local_steps/$optimizer \
-  --optimizer sgd \
-  --momentum 0. \
-  --weight_decay 0.0 \
-  --batch_size $batch_size \
-  --num_epochs 50 \
-  --device $device \
-  --logs_dir ./logs/seeds/$seed/linear_income/$state/random/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated \
-  --log_freq 1 \
-  --save_freq 1 \
-  --seed $seed \
-  --attacked_task $attacked_task "
+--seed $seed \
+--num_rounds $num_rounds \
+--device $device \
+--metadata_dir $metadata_dir \
+--logs_dir $logs_dir \
+--iso_chkpts_dir $iso_chkpts_dir \
+--attacked_round $attacked_round \
+--attacked_task $attacked_task"
 
-for round in "${attacked_rounds[@]}"; do
-  # Construct command with current hyperparameters
-  cmd="$base_cmd --learning_rate $learning_rate --attacked_round $round \
-  --isolated_models_dir ./isolated/linear_income/$state/random/$n_tasks/$batch_size/$n_local_steps/$optimizer/$round"
-echo "Running command: $cmd"
-  # Execute the command
-  $cmd
-done
+# Run the command
+echo "Running $base_cmd"
+eval $base_cmd
 
+cd $original_dir 
