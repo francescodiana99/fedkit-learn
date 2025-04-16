@@ -998,7 +998,7 @@ def main():
 
         logging.info("Saving local models metadata..")
 
-        local_models_metadata_path = os.path.join(args.metadata_dir, "local.json")
+        local_models_metadata_path = os.path.join(args.metadata_dir, "last_local.json")
         local_models_trajectory_path = os.path.join(args.metadata_dir, "local_trajectories.json")
         with open(local_models_metadata_path, "w") as f:
             json.dump(local_models_dict, f)

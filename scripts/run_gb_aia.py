@@ -224,7 +224,7 @@ def main():
 
     if args.active_server:
 
-        isolated_metadata_path = os.path.join(args.metadata_dir, f"isolated_{args.attacked_round}.json")
+        isolated_metadata_path = os.path.join(args.metadata_dir, f"isolated_trajectories_{args.attacked_round}.json")
         with open(isolated_metadata_path, "r") as f:
             isolated_models_metadata = json.load(f)
         
@@ -363,7 +363,7 @@ def main():
             else:
                 save_aia_gb_score(args.results_path, rounds_frac, learning_rate, avg_score, avg_cos_dis, avg_l2_dis)
             logging.info("=" * 100)
-            logging.info(f"Results successfully  savedin {args.results_path}.")
+            logging.info(f"Results successfully  saved in {args.results_path}.")
 
 if __name__ == "__main__":
     main()

@@ -569,7 +569,9 @@ def get_device_info():
 def save_aia_gb_score(results_path, rounds_frac, learning_rate, score, cos_dis, l2_dist, time_dict=None):
     """
     Save the results of the gradient-based AIA for a given set of hyperparameters."""
-
+    dir_path = os.path.dirname(results_path)
+    os.makedirs(dir_path, exist_ok=True)
+    
     if os.path.exists(results_path):
         results = read_dict(results_path)
     else:
