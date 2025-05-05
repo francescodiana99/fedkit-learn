@@ -24,7 +24,7 @@ echo "Successfully completed passive Gradient Based AIA"
 cd $scripts_dir
 
 echo "Running malicious server reconstruction attack"
-sh run_active_reconstruction 99 50 $seed $device 10 
+sh run_active_reconstruction.sh 99 50 $seed $device 10 
 echo "Active reconstruction is complete"
 cd $scripts_dir
 
