@@ -21,8 +21,8 @@ The package includes a set of tools and utilities to simulate federated learning
 - **Federated Attack Simulator** Test the robustness of your federated learning system against various attacks and adversarial scenarios.
 - **Federated Datasets**: Access federated datasets or create your own for training and evaluation.
 
-We We provide code to simulate federated training of machine learning models (`federated/`), as well as code to simulate 
-machine learning attacks (`attacks/`). Moreover, we implement standard federated learning datasets in `datasets/`. 
+We provide code to simulate federated training of machine learning models (`fedklearn/federated/`), as well as code to simulate 
+machine learning attacks (`fedklearn/attacks/`). Moreover, we implement standard federated learning datasets in `fedklearn/datasets/`. 
 
 ## Paper Experiments
 To run the experiments in the paper, check `bash_scripts/README.md`. Experiments on a Toy Dataset can be found in `toy_experiments.ipynb`.
