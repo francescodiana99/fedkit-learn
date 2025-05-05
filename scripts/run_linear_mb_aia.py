@@ -316,7 +316,7 @@ def main():
         set_param_tensor(model=recon_model, param_tensor=reconstructed_params, device=args.device)
 
         emp_opt_model = model_init_fn()
-        last_round = max([int(i) for i in metadata_dict[f'{task_id}'].keys()])
+        last_round = max([int(i) for i in local_models_dict[f'{task_id}'].keys()])
         emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'][f'{last_round}'], weights_only=True)["model_state_dict"]
         emp_opt_model.load_state_dict(emp_opt_chkpts)
 
