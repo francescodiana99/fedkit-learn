@@ -24,7 +24,6 @@ from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 
 from fedklearn.attacks.aia import ModelDrivenAttributeInferenceAttack
-from fedklearn.attacks.sia import SourceInferenceAttack
 
 
 def set_seeds(seed):
