@@ -37,7 +37,7 @@ echo "Gradient based active AIA is complete"
 cd $scripts_dir
 
 echo "Running Optimal Local Model search"
-sh run_optimal_local_model_search.sh 200 50 $seed $device 
+sh run_local_optimal_model_search.sh 200 50 $seed $device 
 echo "Optimal Local Model search is complete"
 cd $scripts_dir
 
