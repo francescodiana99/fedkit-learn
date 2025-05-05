@@ -12,7 +12,7 @@ else
     seed=$2
 fi
 
-echo "Running simulation for Medical Dataset"
+echo "Running simulation for Income-A"
 sh run_simulation.sh 32 1 5e-3 300 $seed  $device "--force_generation --download"
 echo "Simulation complete. Running passive Gradient Based AIA"
 cd $scripts_dir
@@ -22,7 +22,7 @@ echo "Successfully completed passive Gradient Based AIA"
 cd $scripts_dir
 
 echo "Running malicious server reconstruction attack"
-sh run_active_reconstruction.sh 299 50 $seed $device  
+sh run_active_reconstruction 299 50 $seed $device  
 echo "Active reconstruction is complete"
 cd $scripts_dir
 
@@ -37,7 +37,7 @@ echo "Gradient based active AIA is complete"
 cd $scripts_dir
 
 echo "Running Optimal Local Model search"
-sh run_local_optimal_model_search.sh 300 50 $seed $device 
+sh run_optimal_local_model_search.sh 300 50 $seed $device 
 echo "Optimal Local Model search is complete"
 cd $scripts_dir
 

@@ -13,7 +13,7 @@ else
 fi
 
 echo "Running simulation for Income-L"
-sh run_simulation.sh 32 1 5e-3 100 $seed  $device "--force_generation --download"
+sh run_simulation.sh 32 1 5e-3 300 $seed  $device "--force_generation --download"
 echo "Simulation complete. Running passive Gradient Based AIA"
 cd $scripts_dir
 
@@ -22,7 +22,7 @@ echo "Successfully completed passive Gradient Based AIA"
 cd $scripts_dir
 
 echo "Running malicious server reconstruction attack"
-sh run_active_reconstruction.sh 99 50 $seed $device  
+sh run_active_reconstruction.sh 299 50 $seed $device  
 echo "Active reconstruction is complete"
 cd $scripts_dir
 
@@ -37,7 +37,7 @@ echo "Gradient based active AIA is complete"
 cd $scripts_dir
 
 echo "Running Optimal Local Model search"
-sh run_local_optimal_model_search.sh 200 50 $seed $device 
+sh run_local_optimal_model_search.sh 300 50 $seed $device 
 echo "Optimal Local Model search is complete"
 cd $scripts_dir
 
@@ -46,7 +46,7 @@ sh run_linear_reconstruction.sh  42 10000000 $device
 cd $scripts_dir
 
 echo "Running Active Model Based Attack"
-sh run_aia_mb.sh  $device $seed 99 
+sh run_aia_mb.sh  $device $seed 299 
 echo "Model Based Attack is complete"
 cd $scripts_dir
 

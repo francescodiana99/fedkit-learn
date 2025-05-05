@@ -16,18 +16,18 @@ else
     device=$2
 fi
 
-n_tasks=10
+n_tasks=51
+n_task_samples=39133
 n_local_steps=1
 batch_size=32
 state="louisiana"
 learning_rates="100 1000 10000 100000 1000000"
 sensitive_attribute="SEX"
-split_criterion="random"
+split_criterion="state"
 optimizer="sgd"
-n_tasks=10
-metadata_dir="./metadata/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer"
-logs_dir="./logs/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer/gb_aia"
-results_path="./results/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer/gb_aia.json"
+metadata_dir="./metadata/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/sgd"
+logs_dir="./logs/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/gb_aia"
+results_path="./results/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/gb_aia.json"
 
 #NOTE: if you change the number of local epochs, you need to adapt the keep_rounds_frac values
 keep_rounds_frac="0. 0.017 0.033 0.067 0.167 0.33 0.5 1"  # Add keep_rounds_frac values

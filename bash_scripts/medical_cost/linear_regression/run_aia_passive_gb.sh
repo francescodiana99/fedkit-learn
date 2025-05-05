@@ -28,7 +28,7 @@ logs_dir="./logs/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_s
 results_path="./results/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/gb_aia.json"
 
 #NOTE: if you change the number of local epochs, you need to adapt the keep_rounds_frac values
-keep_rounds_frac="0. 0.05 0.10 0.20 0.5 1.0"  # Add keep_rounds_frac values
+keep_rounds_frac="0. 0.017 0.033 0.067 0.167 0.33 0.5 1"  # Add keep_rounds_frac values
 
 cmd="python run_gb_aia.py \
 --num_rounds 100 \

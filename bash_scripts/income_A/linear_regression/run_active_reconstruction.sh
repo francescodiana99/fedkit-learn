@@ -31,13 +31,15 @@ fi
 
 
 optimizer="sgd"
-split_criterion="random"
-n_tasks=10
-state="louisiana"
+split_criterion="state"
+n_tasks=51
+state="full"
+n_task_samples=39133
 n_local_steps=1
 batch_size=32
-logs_dir="./logs/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer/active/$attacked_round"
-metadata_dir="./metadata/seeds/$seed/linear/income/$state/$split_criterion/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+
+logs_dir="./logs/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/active/$attacked_round"
+metadata_dir="./metadata/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
 hparams_config_path="../fedklearn/configs/income/$state/hyperparameters/hp_space_attack.json"
 num_rounds=50
 
