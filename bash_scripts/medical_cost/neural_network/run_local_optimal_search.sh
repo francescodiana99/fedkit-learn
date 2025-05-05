@@ -1,48 +1,54 @@
 #!/bin/bash
 
+cd ../../../scripts
+
+original_dir=$(pwd)
+
 if [ -z "$1" ]; then
-    batch_size=32
+    n_rounds=100
 else
-    batch_size=$1
+    n_rounds=$1
 fi
 
 if [ -z "$2" ]; then
-    n_rounds=100
+    n_trials=50
 else
-    n_rounds=$2
+    n_trials=$2
 fi
 
 if [ -z "$3" ]; then
-    n_trials=50
+    seed=0
 else
-    n_trials=$3
+    seed=$3
 fi
 
 if [ -z "$4" ]; then
-    seed=0
+    device="cuda"
 else
-    seed=$4
-fi
-
-if [ -z "$5" ]; then
-    device='cuda'
-else
-    device=$5
+    device=$4
 fi
 
 n_tasks=2
 optimizer="adam"
-split_criterion='random'
 n_local_steps=1
 
-cmd="python run_local_models_optimization.py --task_name medical_cost --optimizer $optimizer --batch_size $batch_size --device $device \
- --data_dir ./data/seeds/$seed/medical_cost/tasks/$split_criterion/$n_tasks \
---logs_dir ./logs/seeds/$seed/medical_cost/$split_criterion/$n_tasks/$batch_size/local_epochs/$n_local_steps/local/$optimizer \
---metadata_dir ./metadata/seeds/$seed/medical_cost/$split_criterion/$n_tasks/$batch_size/local_epochs/$n_local_steps/sgd \
---log_freq 1 --save_freq 1 --num_rounds $n_rounds --seed $seed \
---model_config_path ../fedklearn/configs/medical_cost/models/config_1.json --n_trials $n_trials \
---hparams_config_path ../fedklearn/configs/medical_cost/hyperparams/local/hp_space_local.json \
---local_models_dir ./local_models/seeds/$seed/medical_cost/$split_criterion/$n_tasks/$batch_size/optimized/$optimizer"
+metadata_dir="./metadata/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/sgd"
+logs_dir="./logs/seeds/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/sgd/local"
+local_chkpts_dir="./chkpts/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/sgd/local"
+hparams_config_path="../fedklearn/configs/medical_cost/hyperparameters/hp_space_local.json"
+
+cmd="python run_local_models_optimization.py \
+--optimizer $optimizer \
+--num_rounds $n_rounds \
+--local_chkpts_dir $local_chkpts_dir \
+--device $device \
+--seed $seed \
+--metadata_dir $metadata_dir \
+--logs_dir $logs_dir \
+--n_trials $n_trials \
+--hparams_config_path $hparams_config_path"
 
 echo $cmd
 eval $cmd
+
+cd $original_dir 

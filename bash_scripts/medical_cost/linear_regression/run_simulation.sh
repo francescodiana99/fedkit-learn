@@ -47,15 +47,15 @@ fi
 
 optimizer="sgd"
 n_tasks=2
-model_config_path="../fedklearn/configs/medical_cost/models/net_config.json"
+model_config_path="../fedklearn/configs/medical_cost/models/linear_config.json"
 split_criterion="random"
 momentum=0.0
 weight_decay=0.0
 data_dir="./data/seeds/$seed/medical_cost"
 
-chkpts_dir="./chkpts/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
-logs_dir="./logs/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
-metadata_dir="./metadata/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+chkpts_dir="./chkpts/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+metadata_dir="./metadata/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
 
 
 cmd="python run_simulation.py \
@@ -79,6 +79,7 @@ cmd="python run_simulation.py \
 --chkpts_dir $chkpts_dir \
 --logs_dir $logs_dir \
 --metadata_dir $metadata_dir \
+--scale_target \
 $add_args "
 
 

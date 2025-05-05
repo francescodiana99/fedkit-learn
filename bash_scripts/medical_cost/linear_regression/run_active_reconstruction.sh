@@ -33,8 +33,8 @@ optimizer="sgd"
 n_tasks=2
 n_local_steps=1
 batch_size=32
-logs_dir="./logs/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/active/$attacked_round"
-metadata_dir="./metadata/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/active/$attacked_round"
+metadata_dir="./metadata/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
 hparams_config_path="../fedklearn/configs/medical_cost/hyperparameters/hp_space_attack.json"
 
 cmd="python run_active_simulation.py \

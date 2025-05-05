@@ -25,9 +25,9 @@ batch_size=32
 optimizer="sgd"
 n_local_steps=1
 
-metadata_dir="./metadata/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
-logs_dir="./logs/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated"
-iso_chkpts_dir="./chkpts/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated"
+metadata_dir="./metadata/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated"
+iso_chkpts_dir="./chkpts/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/isolated"
 
 # Define base command
 base_cmd="python run_isolation.py \
@@ -44,3 +44,4 @@ echo "Running $base_cmd"
 eval $base_cmd
 
 cd $original_dir 
+

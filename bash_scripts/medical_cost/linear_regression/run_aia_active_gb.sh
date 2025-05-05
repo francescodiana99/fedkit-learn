@@ -23,9 +23,9 @@ sensitive_attribute="smoker_yes"
 optimizer="sgd"
 attacked_round=99
 batch_size=32
-metadata_dir="./metadata/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
-logs_dir="./logs/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/active_${attacked_round}_gb_aia"
-results_path="./results/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/active_${attacked_round}_gb_aia.json"
+metadata_dir="./metadata/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/active_${attacked_round}_gb_aia"
+results_path="./results/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer/active_${attacked_round}_gb_aia.json"
 
 #NOTE: if you change the number of local epochs, you need to adapt the keep_rounds_frac values
 keep_rounds_frac="0. 0.05 0.10 0.20 0.5 1.0"  # Add keep_rounds_frac values

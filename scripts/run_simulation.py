@@ -617,21 +617,6 @@ def initialize_dataset(args, rng):
             use_linear=use_linear
         )
 
-    # elif args.task_name =="linear_medical_cost":
-    #     return FederatedMedicalCostDataset(
-    #         cache_dir=args.data_dir,
-    #         download=args.download,
-    #         force_generation=args.force_generation,
-    #         n_tasks=args.n_tasks,
-    #         rng=rng,
-    #         split_criterion=args.split_criterion,
-    #         test_frac=args.test_frac,
-    #         scaler=args.scaler_name,
-    #         scale_target=args.scale_target,
-    #         use_linear=True
-    #     )
-
-
     if args.task_name == "income":
         return FederatedIncomeDataset(
             cache_dir=args.data_dir,
@@ -652,25 +637,6 @@ def initialize_dataset(args, rng):
             use_linear=use_linear,
             binarize=args.binarize_target,
         )
-
-    # if args.task_name == "binary_income":
-    #     return FederatedIncomeDataset(
-    #         cache_dir=args.data_dir,
-    #         download=args.download,
-    #         test_frac=args.test_frac,
-    #         scaler_name=args.scaler_name,
-    #         drop_nationality=not args.use_nationality,
-    #         force_generation=args.force_generation,
-    #         n_tasks=args.n_tasks,
-    #         n_task_samples=args.n_task_samples,
-    #         seed=args.seed,
-    #         rng=rng,
-    #         split_criterion=args.split_criterion,
-    #         state=args.state,
-    #         mixing_coefficient=args.mixing_coefficient,
-    #         keep_proportions=args.keep_proportions,
-    #         binarize=True
-    #     )
 
     else:
         raise NotImplementedError(

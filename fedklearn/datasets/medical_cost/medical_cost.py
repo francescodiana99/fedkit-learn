@@ -88,6 +88,8 @@ class FederatedMedicalCostDataset:
         _scale_features(self, df, scaler, mode="train"):
             Scales the features in the DataFrame.
 
+        _scale_target(self, df)
+            Scales the target variable in the DataFrame
         _preprocess(self):
             Preprocesses the raw data and saves the intermediate data to the intermediate data folder.
 
@@ -195,21 +197,18 @@ class FederatedMedicalCostDataset:
         with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
             zip_ref.extractall(self.raw_data_dir)
 
-        df_path = os.path.join(self.raw_data_dir,
-                               "82a9f1c1c473d6585e750ad2e3c05a41-d42d226d0dd64e7f5395a0eec1b9190a10edbc03",
-                               "Medical_Cost.csv")
+        df_path = os.path.join(self.raw_data_dir, FOLDER_NAME, FILE_NAME)
         df = pd.read_csv(df_path, sep=r'\s*,\s*', engine='python', na_values="?")
 
         df.to_csv(os.path.join(self.raw_data_dir, "medical_cost.csv"), index=False)
 
-        shutil.rmtree(os.path.join(self.raw_data_dir,
-                               "82a9f1c1c473d6585e750ad2e3c05a41-d42d226d0dd64e7f5395a0eec1b9190a10edbc03"))
+        shutil.rmtree(os.path.join(self.raw_data_dir, FOLDER_NAME))
         os.remove(zip_file_path)
 
 
     def _scale_features(self, df, mode="train"):
         """
-        Scales the features in the DataFrame. If `self.scale_target` is True, the target column is also scaled. If `self.use_linear`
+        Scales the features in the DataFrame. If `self.use_linear`
         is True, the data is processed for a linear model.
         Args:
             df (pd.DataFrame): The input DataFrame containing features and target columns.
@@ -248,32 +247,21 @@ class FederatedMedicalCostDataset:
             numerical_columns = df.select_dtypes(include=[np.number]).columns
             numerical_columns = numerical_columns[numerical_columns != 'charges']
             charges_column = df['charges']
-
             features_numerical = df[numerical_columns]
-
-            #TODO: do it as for income
-            if self.scale_target:
-                if mode =="train":
-                    df = pd.DataFrame(self.scaler.fit_transform(df), columns=df.columns)
-                else:
-                    df = pd.DataFrame(self.scaler.transform(df), columns=df.columns)
-                return df
-            
+            if mode == "train":
+                features_numerical_scaled = \
+                    pd.DataFrame(self.scaler.fit_transform(features_numerical), columns=numerical_columns)
             else:
-                if mode == "train":
-                    features_numerical_scaled = \
-                        pd.DataFrame(self.scaler.fit_transform(features_numerical), columns=numerical_columns)
-                else:
-                    features_numerical_scaled = \
-                        pd.DataFrame(self.scaler.transform(features_numerical), columns=numerical_columns)
+                features_numerical_scaled = \
+                    pd.DataFrame(self.scaler.transform(features_numerical), columns=numerical_columns)
 
-                # Resetting index of both charges_column and features_numerical_scaled
-                charges_column = charges_column.reset_index(drop=True)
-                features_numerical_scaled = features_numerical_scaled.reset_index(drop=True)
+            # Resetting index of both charges_column and features_numerical_scaled
+            charges_column = charges_column.reset_index(drop=True)
+            features_numerical_scaled = features_numerical_scaled.reset_index(drop=True)
 
-                features_scaled = pd.concat([features_numerical_scaled, charges_column], axis=1)
+            features_scaled = pd.concat([features_numerical_scaled, charges_column], axis=1)
 
-                return features_scaled
+            return features_scaled
 
 
 
@@ -310,6 +298,11 @@ class FederatedMedicalCostDataset:
         """
         train_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "train.csv"))
         test_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "test.csv"))
+
+        charges_col = pd.concat(train_df['charges'], test_df['charges'], axis=1)
+
+        self.mean_charges = charges_col.mean()
+        self.std_charges = charges_col.std()
 
         train_tasks_dict = self._split_data_into_tasks(train_df)
         test_tasks_dict = self._split_data_into_tasks(test_df)
@@ -441,7 +434,10 @@ class FederatedMedicalCostDataset:
             metadata_dict = {'split_criterion': self.split_criterion,
                               'n_tasks': self.n_tasks,
                               'cache_dir': os.path.abspath(self.cache_dir),
-                              'task_mapping': self.task_id_to_name}
+                              'task_mapping': self.task_id_to_name, 
+                              'mean': self.mean_charges,
+                              'std': self.std_charges
+                              }
             json.dump(metadata_dict, f)
 
 
@@ -474,7 +470,26 @@ class FederatedMedicalCostDataset:
         task_cache_dir = os.path.join(self.tasks_folder, self.split_criterion,f'{self.n_tasks}', task_name)
         file_path = os.path.join(task_cache_dir, f"{mode}.csv")
         task_data = pd.read_csv(file_path)
+
+        if self.scale_target:
+            task_data = self._scale_target(task_data)
         return MedicalCostDataset(task_data, name=task_name)
+    
+    def _scale_target(self, df):
+        """
+        Scale the target variable.
+        Args:
+            df(pd.DataFrame): DataFrame to scale.
+        Returns:
+            df(pd.DataFrame): Scaled DataFrame.
+        """
+        with open(self.metadata_path, 'r') as f:
+            metadata_dict = json.load(f)
+        
+        self.mean_charges = metadata_dict["mean"]
+        self.std_charges = metadata_dict["std"]
+        df['charges'] = (df['charges'] - self.mean_charges) / self.std_charges
+        return df
 
 
 class MedicalCostDataset(Dataset):

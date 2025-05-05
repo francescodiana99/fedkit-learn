@@ -29,8 +29,8 @@ n_local_steps=1
 optimizer="sgd"
 n_tasks=2
 active_rounds="0 9 49"
-metadata_dir="./metadata/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
-results_dir="./results/seeds/$seed/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+metadata_dir="./metadata/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+results_dir="./results/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/$optimizer"
 
 cmd="python run_mb_aia.py \
 --device $device \

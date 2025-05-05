@@ -28,21 +28,14 @@ else
     device=$4
 fi
 
-if [ -z "$5" ]; then
-    mix_scaled="10"
-else
-    mix_scaled=$5
-fi
-
-n_tasks=10
+n_tasks=2
 optimizer="adam"
-state='louisiana'
 n_local_steps=1
 
-metadata_dir="./metadata/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/sgd"
-logs_dir="./logs/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/sgd/local"
-local_chkpts_dir="./chkpts/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/sgd/local"
-hparams_config_path="../fedklearn/configs/income/$state/hyperparameters/hp_space_local.json"
+metadata_dir="./metadata/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/sgd"
+logs_dir="./logs/seeds/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/sgd/local"
+local_chkpts_dir="./chkpts/seeds/$seed/linear/medical_cost/$n_tasks/$batch_size/$n_local_steps/sgd/local"
+hparams_config_path="../fedklearn/configs/medical_cost/hyperparameters/hp_space_local_linear.json"
 
 cmd="python run_local_models_optimization.py \
 --optimizer $optimizer \
