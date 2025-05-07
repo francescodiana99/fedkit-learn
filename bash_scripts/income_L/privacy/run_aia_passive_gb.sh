@@ -1,94 +1,64 @@
-cd ../../../scripts
 #!/bin/bash
-# Check if batch_size and local_epochs are provided as command line arguments, otherwise use default values
+
+cd ../../../scripts
+
+original_dir=$(pwd)
+
 if [ -z "$1" ]; then
-    batch_size=32
+    seed=0
 else
-    batch_size=$1
+    seed=$1
 fi
 
 if [ -z "$2" ]; then
-    local_epochs=1
+    device='cuda'
 else
-    local_epochs=$2
+    device=$2
 fi
 
 if [ -z "$3" ]; then
-    mix_percentage=10
+    mix_scaled=10
 else
-    mix_percentage=$3
-fi
-
-if [ -z "$4" ]; then
-    state="louisiana"
-else
-    state=$4
-fi
-
-if [ -z "$5" ]; then
-    optimizer="sgd"
-else
-    optimizer=$5
-fi
-
-if [ -z "$6" ]; then
-    seed="sgd"
-else
-    seed=$6
-fi
-
-if [ -z "$7" ]; then
-    epsilon=5
-else
-    epsilon=$7
-fi
-
-if [ -z "$8" ]; then
-    clip=10
-else
-    clip=$8
-fi
-
-if [ -z "$9" ]; then
-    device=cpu
-else
-    device=$9
+    mix_scaled=$3
 fi
 
 n_tasks=10
+n_local_steps=1
+batch_size=32
+state="louisiana"
+learning_rates="100 1000 10000 100000 1000000"
+sensitive_attribute="SEX"
+optimizer="sgd"
+n_tasks=10
 
-# Define base command
-base_cmd="python run_aia.py \
-  --task_name income \
-  --temperature 1.0 \
-  --metadata_path ./metadata/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_percentage/10/$batch_size/$local_epochs/$optimizer/federated.json \
-  --data_dir ./data/seeds/$seed/income/tasks/correlation/$state/$mix_percentage/10/all \
-  --split train \
-  --optimizer sgd \
-  --num_rounds 100 \
-  --device cuda \
-  --log_freq 1 \
-  --seed $seed \
-  --sensitive_attribute_type binary \
-  --track_time"
-
-# Hyperparameter options
-learning_rates=(100 1000 10000 100000 1000000)
-sensitive_attributes=("SEX")
-keep_rounds_frac=(0. 0.05 0.10 0.20 0.5 1.0)  # Add keep_rounds_frac values
-
-# Nested loop for hyperparameter search
-for lr in "${learning_rates[@]}"; do
-  for attr in "${sensitive_attributes[@]}"; do
-    for frac in "${keep_rounds_frac[@]}"; do
-      full_cmd="$base_cmd --learning_rate $lr --sensitive_attribute $attr --keep_first_rounds --keep_rounds_frac $frac \
-      --results_path ./results/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_percentage/10/$batch_size/$local_epochs/$optimizer/aia_${lr}_${frac}.json \
-      --logs_dir ./logs/seeds/$seed/privacy/$epsilon/$clip/income/$state/mixed/$mix_percentage/10/$batch_size/$local_epochs/$optimizer/aia_${lr}_${frac} "
-      echo "Running with learning rate: $lr, sensitive attribute: $attr"
-      eval "$full_cmd"
-    done
-  done
-done
+# privacy parameters (needed only for the paths)
+delta=1e-5
+clip=3e6
+epsilon=1
 
 
+metadata_dir="./metadata/seeds/$seed/privacy/$epsilon/$delta/$clip/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/privacy/$epsilon/$delta/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/$optimizer/gb_aia"
+results_path="./results/seeds/$seed/privacy/$epsilon/$delta/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/$optimizer/gb_aia.json"
 
+#NOTE: if you change the number of local epochs, you need to adapt the keep_rounds_frac values
+keep_rounds_frac="0. 0.05 0.10 0.20 0.5 1.0"  # Add keep_rounds_frac values
+
+cmd="python run_gb_aia.py \
+--num_rounds 100 \
+--device $device \
+--seed $seed \
+--sensitive_attribute $sensitive_attribute \
+--sensitive_attribute_type binary \
+--keep_rounds_frac $keep_rounds_frac \
+--metadata_dir $metadata_dir \
+--logs_dir $logs_dir \
+--learning_rate $learning_rates \
+--results_path $results_path \
+--keep_first_rounds \
+--track_time" # Remove this if you want to attack all the clients
+
+echo "Running $cmd"
+eval $cmd
+
+cd $original_dir || exit

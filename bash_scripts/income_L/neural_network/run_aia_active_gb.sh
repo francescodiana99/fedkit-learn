@@ -58,5 +58,3 @@ echo "Running $cmd"
 eval $cmd
 
 cd $original_dir || exit
-
-

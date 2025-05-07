@@ -41,8 +41,14 @@ state="louisiana"
 n_local_steps=1
 batch_size=32
 
-logs_dir="./logs/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/$optimizer/sgd/active/$attacked_round"
-metadata_dir="./metadata/seeds/$seed/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+# privacy parameters (needed only for the paths)
+delta=1e-5
+clip=3e6
+epsilon=1
+
+
+logs_dir="./logs/seeds/$seed/privacy/$epsilon/$delta/$clip/income/full/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/sgd/active/$attacked_round"
+metadata_dir="./metadata/seeds/$seed/privacy/$epsilon/$delta/$clip/income/$state/mixed/$mix_scaled/$n_tasks/$batch_size/$n_local_steps/$optimizer"
 hparams_config_path="../fedklearn/configs/income/$state/hyperparameters/hp_space_attack.json"
 
 cmd="python run_active_simulation.py \
