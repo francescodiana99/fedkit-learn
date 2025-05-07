@@ -24,7 +24,9 @@ Each bash script runs a specific experiment or attack simulation. You can custom
 
 - run_linear_reconstruction.sh: Executes **Algorithm 2** to simulate a passive adversary reconstructing the optimal local model in a least-squares regression scenario.
 
-- `run_table_2_experiments.sh`: Reproduces **Table 2** results using the setup in Appendix C.1.
+- `run_table_2_experiments.sh`: Reproduces **Table 2** results using the setup in **Appendix C.1**.
+  
+- `run_table_3_experiments.sh`: Reproduces **Table 3** results using the setup in **Appendix C.4**.
 
 ## Customization
 It is possible to define and customize the neural network model by modifying the `net_config.json` file in `fedklearn\configs\<dataset_name>\models` and by adding your own model in `fedklearn\models`.
