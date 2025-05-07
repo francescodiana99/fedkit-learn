@@ -142,7 +142,7 @@ def initialize_attack_trainer(args, fl_setup, client_messages_metadata, train_lo
     
     local_model_chkpt = torch.load(client_messages_metadata['local'][f"{args.attacked_round}"],
                                     map_location=args.device,
-                                    weights_only=True)["model_state_dict"]
+                                    weights_only=False)["model_state_dict"]
     
     criterion, metric, cast_float = get_trainers_config(fl_setup["task_name"])
     criterion.to(args.device)
@@ -181,6 +181,11 @@ def initialize_attack_trainer(args, fl_setup, client_messages_metadata, train_lo
         )
 
     if train_loader is not None:
+        if fl_setup["num_active_rounds"] != args.num_rounds:
+            raise ValueError(
+                f"Number of  expected active rounds {fl_setup['num_active_rounds']} is not equal to the number of rounds set {args.num_rounds}. \
+                Please set the same number of rounds in order to correctly compute the privacy budget."
+                )
         trainer = DPTrainer(
             model=attacked_model,
             optimizer=optimizer,
@@ -193,7 +198,7 @@ def initialize_attack_trainer(args, fl_setup, client_messages_metadata, train_lo
             clip_norm=fl_setup["clip_norm"],
             epsilon=fl_setup["dp_epsilon"],
             delta=fl_setup["dp_delta"],
-            epochs=args.num_rounds + args.attacked_round + 1, # +1 needed beacause round starts from 0, e.g. to get 150 we need 100 + 49 (50th round attacked) +1
+            epochs=(args.num_rounds + args.attacked_round + 1) * fl_setup["local_steps"], # +1 needed beacause round starts from 0, e.g. to get 150 we need 100 + 49 (50th round attacked) +1
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
             rng=torch.Generator(device=args.device).manual_seed(args.seed)

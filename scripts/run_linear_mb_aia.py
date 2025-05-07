@@ -229,7 +229,7 @@ def get_model_at_round(messages_metadata, round_id, mode="global"):
     """
 
     assert mode in {"local", "global"}, f"`mode` should be 'local' or 'global', not {mode}"
-    model_chkpts = torch.load(messages_metadata[mode][round_id], weights_only=True)["model_state_dict"]
+    model_chkpts = torch.load(messages_metadata[mode][round_id], weights_only=False)["model_state_dict"]
     model = LinearLayer(input_dimension=model_chkpts['fc.weight'].shape[1], output_dimension=1, bias=True)
     model.load_state_dict(model_chkpts)
 
@@ -317,7 +317,7 @@ def main():
 
         emp_opt_model = model_init_fn()
         last_round = max([int(i) for i in local_models_dict[f'{task_id}'].keys()])
-        emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'][f'{last_round}'], weights_only=True)["model_state_dict"]
+        emp_opt_chkpts = torch.load(local_models_dict[f'{task_id}'][f'{last_round}'], weights_only=False)["model_state_dict"]
         emp_opt_model.load_state_dict(emp_opt_chkpts)
 
         train_dataset = federated_dataset.get_task_dataset(task_id, mode='train')

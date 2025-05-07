@@ -72,6 +72,7 @@ Options:
     --dp_delta: Delta for differential privacy.
     --dp_epsilon: Epsilon for differential privacy.
     --max_physical_batch_size: Maximum physical batch size for differential privacy.
+    --num_active_rounds: Number of expected active rounds for the active attacker.
 
 
 """
@@ -457,6 +458,13 @@ def parse_args(args_list=None):
     )
 
     parser.add_argument(
+        "--num_active_rounds",
+        type=int,
+        default=None,
+        help="Number of expected active rounds for the active attacker."
+    )
+
+    parser.add_argument(
         "--noise_multiplier",
         type=float,
         default=None,
@@ -699,7 +707,9 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
         )
 
     if use_dp:
-
+        if args.num_active_rounds is None:
+            raise ValueError("The number of expected active rounds should be specified to correctly compute the privacy budget.")
+        total_n_epochs = (args.num_rounds + args.num_active_rounds) * args.local_steps
         return DPTrainer(
             model=model,
             criterion=criterion,
@@ -712,7 +722,7 @@ def initialize_trainer(args, use_dp=False, train_loader=None):
             epsilon=args.dp_epsilon,
             delta=args.dp_delta,
             clip_norm=args.clip_norm,
-            epochs=args.num_rounds * args.local_steps,
+            epochs=total_n_epochs,
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
             rng=torch.Generator(device=args.device).manual_seed(args.seed)
@@ -914,6 +924,7 @@ def save_setup(args, data_path, hparams_path):
         "noise_multiplier": args.noise_multiplier,
         "clip_norm": args.clip_norm,
         "max_physical_batch_size": args.max_physical_batch_size,
+        "num_active_rounds": args.num_active_rounds,
         "data_path": data_path,
         "chkpts_dir": args.chkpts_dir,
         "model_config_path": args.model_config_path,

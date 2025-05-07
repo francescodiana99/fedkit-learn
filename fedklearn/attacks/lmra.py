@@ -227,7 +227,7 @@ class LocalModelReconstructionAttack:
 
         assert mode in {"local", "global"}, f"`mode` should be 'local' or 'global', not {mode}"
 
-        model_chkpts = torch.load(self.messages_metadata[mode][round_id])["model_state_dict"]
+        model_chkpts = torch.load(self.messages_metadata[mode][round_id], weights_only=False)["model_state_dict"]
         model = self.model_init_fn()
         model.load_state_dict(model_chkpts)
 

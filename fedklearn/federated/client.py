@@ -151,5 +151,5 @@ class DPClient(Client):
         self.logger.add_scalar("Test/Metric", test_metric, self.counter)
         self.logger.add_scalar("Privacy/Epsilon", self.epsilon, self.counter)
 
-        return train_loss, train_metric, test_loss, test_metric,self.epsilon
+        return train_loss, train_metric, test_loss, test_metric, self.epsilon
 

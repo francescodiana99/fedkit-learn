@@ -333,7 +333,7 @@ def initialize_trainer(args, models_metadata_dict, fl_setup, task_id=None, mode=
         model_chkpt_path = models_metadata_dict[f'{args.attacked_round}']
     else:
         raise ValueError(f"Mode '{mode}' is not recognized.")
-    model_chkpts = torch.load(model_chkpt_path, map_location=args.device, weights_only=True)["model_state_dict"]
+    model_chkpts = torch.load(model_chkpt_path, map_location=args.device, weights_only=False)["model_state_dict"]
     model.load_state_dict(model_chkpts)
 
     if mode == 'task' and use_dp:
@@ -349,11 +349,12 @@ def initialize_trainer(args, models_metadata_dict, fl_setup, task_id=None, mode=
             epsilon=fl_setup["dp_epsilon"],
             delta=fl_setup["dp_delta"],
             clip_norm=fl_setup["clip_norm"],
-            epochs=args.num_rounds * fl_setup["local_steps"],
+            epochs=(args.num_rounds + args.attacked_round + 1) * fl_setup["local_steps"],
             train_loader=train_loader,
             optimizer_init_dict=optimizer_params,
             rng=torch.Generator(device=args.device).manual_seed(args.seed)
         )
+        trainer.load_checkpoint(model_chkpt_path)
     else:
         trainer =  Trainer(
             model=model,
@@ -434,22 +435,28 @@ def load_clients_from_chkpt(federated_dataset, args, fl_setup):
             train_loader = DataLoader(train_dataset, batch_size=fl_setup["batch_size"], shuffle=True)
             test_loader = DataLoader(test_dataset, batch_size=fl_setup["batch_size"], shuffle=False)
 
+            logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
             if use_dp:
                 trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=task_id, mode='task', 
-                                            train_loader=train_loader, use_dp=True)
-            else:
-                trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=task_id, mode='task')
-
-            logger = SummaryWriter(os.path.join(args.logs_dir, f"{task_id}"))
-
-            client = Client(trainer=trainer,
+                                            train_loader=train_loader)
+                client = DPClient(trainer=trainer,
                             train_loader=train_loader,
                             test_loader=test_loader,
                             local_steps=fl_setup["local_steps"],
                             by_epoch=fl_setup["by_epoch"],
                             logger=logger,
-                            name=task_id
+                            name=args.attacked_task
                             )
+            else:
+                trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=task_id, mode='task')
+                client = Client(trainer=trainer,
+                                train_loader=train_loader,
+                                test_loader=test_loader,
+                                local_steps=fl_setup["local_steps"],
+                                by_epoch=fl_setup["by_epoch"],
+                                logger=logger,
+                                name=task_id
+                                )
             clients.append(client)
     else:
 
@@ -459,13 +466,11 @@ def load_clients_from_chkpt(federated_dataset, args, fl_setup):
         train_loader = DataLoader(train_dataset, batch_size=fl_setup["batch_size"], shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=fl_setup["batch_size"], shuffle=False)
 
-        if use_dp:
-            trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=args.attacked_task, mode='task', train_loader=train_loader)
-        else:
-            trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=args.attacked_task, mode='task')
-
         logger = SummaryWriter(os.path.join(args.logs_dir, f"{args.attacked_task}"))
         if use_dp:
+            if args.num_rounds != fl_setup["num_active_rounds"]:
+                raise ValueError(f"Number of rounds {args.num_rounds} does not match the expected number of active rounds {fl_setup['num_active_rounds']}.")
+            trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=args.attacked_task, mode='task', train_loader=train_loader)
             client = DPClient(trainer=trainer,
                             train_loader=train_loader,
                             test_loader=test_loader,
@@ -475,6 +480,7 @@ def load_clients_from_chkpt(federated_dataset, args, fl_setup):
                             name=args.attacked_task
                             )
         else:
+            trainer = initialize_trainer(args, models_metadata_dict, fl_setup, task_id=args.attacked_task, mode='task')
             client = Client(trainer=trainer,
                         train_loader=train_loader,
                         test_loader=test_loader,
