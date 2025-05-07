@@ -506,6 +506,7 @@ def main():
             log_aia_results(all_scores, active_round)    
 
     logging.info("Saving scores..")
+    os.makedirs(args.results_dir, exist_ok=True)
     if args.use_isolated:
         results_path = os.path.join(args.results_dir, f"isolated_aia_mb_round_{args.attacked_round}.json")
     else:

@@ -35,9 +35,17 @@ state='full'
 n_local_steps=1
 batch_size=32
 
-metadata_dir="./metadata/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/sgd"
-logs_dir="./logs/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/local"
-local_chkpts_dir="./chkpts/seeds/$seed/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/local"
+
+task_id=5 # client id to optimize, reduces the computation time. To optimize all clients, remove this 
+
+# privacy parameters (needed only for the paths)
+delta=1e-5
+clip=3e6
+epsilon=1
+
+metadata_dir="./metadata/seeds/$seed/privacy/$epsilon/$delta/$clip/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/sgd"
+logs_dir="./logs/seeds/$seed/privacy/$epsilon/$delta/$clip/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/local"
+local_chkpts_dir="./chkpts/seeds/$seed/privacy/$epsilon/$delta/$clip/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer/local"
 hparams_config_path="../fedklearn/configs/income/full/hyperparameters/hp_space_local.json"
 
 cmd="python run_local_models_optimization.py \
@@ -49,6 +57,7 @@ cmd="python run_local_models_optimization.py \
 --metadata_dir $metadata_dir \
 --logs_dir $logs_dir \
 --n_trials $n_trials \
+--task_id $task_id \
 --hparams_config_path $hparams_config_path"
 
 echo $cmd
