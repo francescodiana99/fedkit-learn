@@ -10,7 +10,7 @@ import tarfile
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
-from fedklearn.datasets.medical_cost.constants import *
+from fedklearn.datasets.smart_grid.constants import *
 import torch
 import pandas as pd
 from torch.utils.data import Dataset
@@ -18,8 +18,8 @@ from torch.utils.data import Dataset
 import numpy as np
 
 
-class FederatedMedicalCostDataset:
-    """A class representing a federated dataset derived from the MedicalCost dataset.
+class FederatedSmartGridDataset:
+    """A class representing a federated dataset derived from the SmartGrid dataset.
 
     This dataset is designed for federated learning scenarios where the data is split across multiple clients,
     and each client represents a specific task.
@@ -97,7 +97,7 @@ class FederatedMedicalCostDataset:
             Splits the data into tasks and saves the data to the tasks folder.
 
         _split_data_into_tasks(self, df):
-            Splits the MedicalCost dataset across multiple clients based on a specified criterion.
+            Splits the SmartGrid dataset across multiple clients based on a specified criterion.
 
         _iid_divide(self, df):
             Splits a dataframe into a dictionary of dataframes in an iid fashion.
@@ -109,7 +109,7 @@ class FederatedMedicalCostDataset:
             Loads the task mapping from a JSON file.
 
         get_task_dataset(self, task_id, mode="train"):
-            Returns an instance of the `MedicalCostDataset` class for a specific task and data split type.
+            Returns an instance of the `SmartGridDataset` class for a specific task and data split type.
 
         _bmi_divide(self, df):
             Split a dataframe into a dictionary of dataframes based on the BMI feature.
@@ -119,7 +119,7 @@ class FederatedMedicalCostDataset:
 
 
     Examples:
-        >>> dataset = FederatedMedicalCostDataset(cache_dir="./data", download=True,
+        >>> dataset = FederatedSmartGridDataset(cache_dir="./data", download=True,
         >>>                                       force_generation=True, test_frac=0.1)
         >>> client_train_dataset = federated_data.get_task_dataset(task_id=0, mode="train")
         >>> client_test_dataset = federated_data.get_task_dataset(task_id=0, mode="test")
@@ -178,6 +178,7 @@ class FederatedMedicalCostDataset:
             if os.path.exists(self.tasks_folder):
                 shutil.rmtree(self.tasks_folder)
 
+            # print("当前目录:", os.getcwd())
             logging.info("Downloading raw data..")
             os.makedirs(self.raw_data_dir, exist_ok=True)
             self._download_data()
@@ -192,17 +193,17 @@ class FederatedMedicalCostDataset:
 
         os.makedirs(self.raw_data_dir, exist_ok=True)
 
-        zip_file_path, _ = urllib.request.urlretrieve(ZIP_URL, os.path.join(self.raw_data_dir, "medical_cost.zip"))
+        zip_file_path, _ = urllib.request.urlretrieve(ZIP_URL, os.path.join(self.raw_data_dir, "smart_grid.zip"))
 
         with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
             zip_ref.extractall(self.raw_data_dir)
 
-        df_path = os.path.join(self.raw_data_dir, FOLDER_NAME, FILE_NAME)
+        df_path = os.path.join(self.raw_data_dir, FILE_NAME)
         df = pd.read_csv(df_path, sep=r'\s*,\s*', engine='python', na_values="?")
 
-        df.to_csv(os.path.join(self.raw_data_dir, "medical_cost.csv"), index=False)
+        df.to_csv(os.path.join(self.raw_data_dir, "smart_grid.csv"), index=False)
 
-        shutil.rmtree(os.path.join(self.raw_data_dir, FOLDER_NAME))
+        # shutil.rmtree(os.path.join(self.raw_data_dir, FOLDER_NAME))
         os.remove(zip_file_path)
 
 
@@ -219,18 +220,22 @@ class FederatedMedicalCostDataset:
 
         """
         if self.use_linear:
-            categorical_columns = ['sex_male', 'smoker_yes', 'region_northwest', 'region_southeast', 'region_southwest']
+            categorical_columns = ['tau1', 'tau2', 'tau3', 'tau4', 'p1', 'p2', 'p3', 'p4', 'g1', 'g2', 'g3', 'g4', 'stab', 'stabf']
             numerical_columns = [c for c  in df.columns if c not in categorical_columns]
 
             features_numerical = df[numerical_columns]
             features_categorical = df[categorical_columns]
 
-            charges_column = df["charges"]
-            features_numerical = features_numerical.drop("charges", axis=1)
-            numerical_columns.remove("charges")
+            stab_column = df["stab"]
+            stabf_column = df["stabf"]
+            mapping = {"stable": 1, "unstable": 0}
+            stabf_column = stabf_column.map(mapping)
+            features_numerical = features_numerical.drop("stab", axis=1)
+            features_numerical = features_numerical.drop("stabf", axis=1)
+            numerical_columns.remove("stab", "stabf")
             
             features_numerical = features_numerical + 1
-            features_numerical = pd.concat([features_numerical, charges_column], axis=1)
+            features_numerical = pd.concat([features_numerical, stabf_column], axis=1)
             numerical_columns = features_numerical.columns
             numerical_log = np.log(features_numerical)
 
@@ -245,8 +250,10 @@ class FederatedMedicalCostDataset:
 
         else:
             numerical_columns = df.select_dtypes(include=[np.number]).columns
-            numerical_columns = numerical_columns[numerical_columns != 'charges']
-            charges_column = df['charges']
+            numerical_columns = numerical_columns[(numerical_columns != 'stab') & (numerical_columns != 'stabf')]
+            stabf_column = df['stabf']
+            mapping = {"stable": 1, "unstable": 0}
+            stabf_column = stabf_column.map(mapping)
             features_numerical = df[numerical_columns]
             if mode == "train":
                 features_numerical_scaled = \
@@ -256,10 +263,10 @@ class FederatedMedicalCostDataset:
                     pd.DataFrame(self.scaler.transform(features_numerical), columns=numerical_columns)
 
             # Resetting index of both charges_column and features_numerical_scaled
-            charges_column = charges_column.reset_index(drop=True)
+            stabf_column = stabf_column.reset_index(drop=True)
             features_numerical_scaled = features_numerical_scaled.reset_index(drop=True)
 
-            features_scaled = pd.concat([features_numerical_scaled, charges_column], axis=1)
+            features_scaled = pd.concat([features_numerical_scaled, stabf_column], axis=1)
 
             return features_scaled
 
@@ -268,10 +275,13 @@ class FederatedMedicalCostDataset:
     def _preprocess(self):
         """Preprocesses the raw data and saves the intermediate data in the intermediate data folder."""
 
-        df = pd.read_csv(os.path.join(self.raw_data_dir, "medical_cost.csv"))
+        df = pd.read_csv(os.path.join(self.raw_data_dir, "smart_grid.csv"))
 
-        df = df.dropna(axis=0)
-        df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64)
+        # df = df.dropna(axis=0)
+        # for col in df.select_dtypes(include=['object']).columns:
+        #     df[col] = df[col].astype('category')
+        
+        # df = pd.get_dummies(df, columns=CATEGORICAL_COLUMNS, drop_first=True, dtype=np.float64, sparse=True) # one-hot encoding
 
         if self.test_frac is None:
             raise ValueError("Please specify the test fraction.")
@@ -299,7 +309,7 @@ class FederatedMedicalCostDataset:
         train_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "train.csv"))
         test_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "test.csv"))
 
-        charges_col = pd.concat(train_df['charges'], test_df['charges'], axis=1)
+        charges_col = pd.concat([train_df['stabf'], test_df['stabf']], axis=0)
 
         self.mean_charges = charges_col.mean()
         self.std_charges = charges_col.std()
@@ -326,7 +336,7 @@ class FederatedMedicalCostDataset:
 
     def _split_data_into_tasks(self, df):
         """
-        Splits the MedicalCost dataset across multiple clients based on a specified criterion.
+        Splits the SmartGrid dataset across multiple clients based on a specified criterion.
         The available criteria are 'random'
         Args:
             df (pd.DataFrame):  Input DataFrame containing data to split.
@@ -338,7 +348,7 @@ class FederatedMedicalCostDataset:
 
         split_criterion_dict = {
             "random": self._iid_divide,
-            "correlation": self._correlation_divide,
+            # "correlation": self._correlation_divide,
             "bmi": self._bmi_divide,
         }
         if self.split_criterion in split_criterion_dict:
@@ -373,34 +383,34 @@ class FederatedMedicalCostDataset:
             j = i + interval_size
         return task_dict
 
-    def _correlation_divide(self, df):
-        """
-        Split a dataframe into a dictionary of dataframes based on the correlation between 'smoker_yes' and 'charges'.
-        Args:
-            df(pd.DataFrame): DataFrame to split into tasks.
+    # def _correlation_divide(self, df):
+    #     """
+    #     Split a dataframe into a dictionary of dataframes based on the correlation between 'smoker_yes' and 'charges'.
+    #     Args:
+    #         df(pd.DataFrame): DataFrame to split into tasks.
 
-        Returns:
-            tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
-        """
-        task_dict = dict()
+    #     Returns:
+    #         tasks_dict(Dict[str, pd.DataFrame]): A dictionary mapping task IDs to dataframes.
+    #     """
+    #     task_dict = dict()
 
-        no_smoker = min(df['smoker_yes'])
-        smoker = max(df['smoker_yes'])
+    #     no_smoker = min(df['smoker_yes'])
+    #     smoker = max(df['smoker_yes'])
 
-        if self.n_tasks == 2:
-            mean_charges = df[(df['smoker_yes'] == smoker)]['charges'].mean()
+    #     if self.n_tasks == 2:
+    #         mean_charges = df[(df['smoker_yes'] == smoker)]['charges'].mean()
 
-            task_dict['0'] = df[(df['smoker_yes'] == no_smoker) & (df['charges'] <= mean_charges)]
-            task_dict['0'] = pd.concat([task_dict['0'],
-                                        df[(df['smoker_yes'] == smoker) & (df['charges'] > mean_charges)]])
+    #         task_dict['0'] = df[(df['smoker_yes'] == no_smoker) & (df['charges'] <= mean_charges)]
+    #         task_dict['0'] = pd.concat([task_dict['0'],
+    #                                     df[(df['smoker_yes'] == smoker) & (df['charges'] > mean_charges)]])
 
-            task_dict['1'] = df[(df['smoker_yes'] == no_smoker) & (df['charges'] > mean_charges)]
-            task_dict['1'] = pd.concat([task_dict['1'],
-                                        df[(df['smoker_yes'] == smoker) & (df['charges'] <= mean_charges)]])
-        else:
-            raise ValueError("Correlation-based split is only supported for 2 tasks.")
+    #         task_dict['1'] = df[(df['smoker_yes'] == no_smoker) & (df['charges'] > mean_charges)]
+    #         task_dict['1'] = pd.concat([task_dict['1'],
+    #                                     df[(df['smoker_yes'] == smoker) & (df['charges'] <= mean_charges)]])
+    #     else:
+    #         raise ValueError("Correlation-based split is only supported for 2 tasks.")
 
-        return task_dict
+    #     return task_dict
 
 
     def _iid_divide(self, df):
@@ -452,14 +462,14 @@ class FederatedMedicalCostDataset:
 
     def get_task_dataset(self, task_id, mode="train"):
         """
-        Returns an instance of the `MedicalCostDataset` class for a specific task and data split type.
+        Returns an instance of the `SmartGridDataset` class for a specific task and data split type.
 
         Args:
             task_id (int or str): The task number.
             mode (str, optional): The type of data split, either 'train' or 'test'. Default is 'train'.
 
         Returns:
-            MedicalCostDataset: An instance of the `MedicalCostDataset` class representing the specified task and data split.
+            SmartGridDataset: An instance of the `SmartGridDataset` class representing the specified task and data split.
         """
         if mode not in ['train', 'test']:
             raise ValueError(f"Invalid mode '{mode}'. Supported values are 'train' or 'test'.")
@@ -473,7 +483,7 @@ class FederatedMedicalCostDataset:
 
         if self.scale_target:
             task_data = self._scale_target(task_data)
-        return MedicalCostDataset(task_data, name=task_name)
+        return SmartGridDataset(task_data, name=task_name)
     
     def _scale_target(self, df):
         """
@@ -492,9 +502,9 @@ class FederatedMedicalCostDataset:
         return df
 
 
-class MedicalCostDataset(Dataset):
+class SmartGridDataset(Dataset):
     """
-    PyTorch Dataset class for the MedicalCost dataset.
+    PyTorch Dataset class for the SmartGrid dataset.
 
     Args:
          dataframe (pd.DataFrame): The input DataFrame containing features and targets.
@@ -512,13 +522,15 @@ class MedicalCostDataset(Dataset):
          __getitem__(idx): Returns a tuple representing the idx-th sample in the dataset.
     """
 
-    def __init__(self, dataframe, name="medical_cost"):
+    def __init__(self, dataframe, name="smart_grid"):
 
-        self.column_names = list(dataframe.columns.drop("charges"))
+        self.column_names = list(dataframe.columns.drop("stabf"))
         self.column_name_to_id = {name: i for i, name in enumerate(self.column_names)}
 
-        self.features = dataframe.drop(["charges"], axis=1).values
-        self.targets = dataframe["charges"].values
+        # self.features = dataframe.drop(["stab"], axis=1).values
+        self.features = dataframe.drop(["stabf"], axis=1).values
+        status_map = {"stable": 1, "unstable": 0}
+        self.targets = dataframe["stabf"].map(status_map).values
 
         self.name = name
 
@@ -546,6 +558,6 @@ class MedicalCostDataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = FederatedMedicalCostDataset(cache_dir="../../../scripts/data/medical_cost", download=True,
+    dataset = FederatedSmartGridDataset(cache_dir="../../../scripts/data/smart_grid", download=True,
                                           force_generation=True, test_frac=0.1)
     print("Data loaded successfully.")

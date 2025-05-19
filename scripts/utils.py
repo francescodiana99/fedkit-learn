@@ -14,6 +14,7 @@ import random
 from fedklearn.datasets.income.income import FederatedIncomeDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
+from fedklearn.datasets.smart_grid.smart_grid import FederatedSmartGridDataset
 from fedklearn.metrics import *
 
 from fedklearn.models.linear import LinearLayer, TwoLinearLayers
@@ -231,7 +232,21 @@ def load_dataset(fl_setup, rng):
             n_tasks=n_tasks,
             scale_target=scale_target
         )
-
+    elif task_name == "smart_grid":
+        with open(data_path, "r") as f:
+            metadata_dict = json.load(f)
+        split_criterion = metadata_dict["split_criterion"]
+        cache_dir = metadata_dict['cache_dir']
+        n_tasks = metadata_dict["n_tasks"]
+        return FederatedSmartGridDataset(
+            cache_dir=cache_dir,
+            download=False,
+            force_generation=False,
+            rng=rng,
+            split_criterion=split_criterion,
+            n_tasks=n_tasks,
+            scale_target=scale_target
+        )
     # elif task_name == "linear_medical_cost":
     #     with open(data_path, "r") as f:
     #         metadata_dict = json.load(f)
@@ -338,6 +353,7 @@ def get_trainers_config(task_name):
         "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
         "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
         "medical_cost": (nn.MSELoss(), mean_absolute_error, True),
+        "smart_grid": (nn.MSELoss(), mean_absolute_error, True),
         "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, True),
         "income": (nn.MSELoss(), mean_absolute_error, True),
         "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),

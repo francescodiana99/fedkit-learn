@@ -678,7 +678,7 @@ class FederatedIncomeDataset:
 
 
     def _load_task_mapping(self):
-        with (open(self.metadata_path, "r") as f):
+        with open(self.metadata_path, "r") as f:
             metadata = json.load(f)
             self.task_id_to_name = metadata["task_mapping"]
 

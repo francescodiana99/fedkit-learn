@@ -16,7 +16,7 @@ else
     device=$2
 fi
 
-batch_size=32
+batch_size=256
 n_local_steps=1
 optimizer="sgd"
 n_tasks=51
@@ -38,7 +38,7 @@ results_path="./results/seeds/$seed/privacy/$epsilon/$delta/$clip/income/full/$n
 
 # Define base command
 cmd="python run_gb_aia.py \
---num_rounds 100 \
+--num_rounds 10 \
 --device $device \
 --seed $seed \
 --sensitive_attribute SEX \

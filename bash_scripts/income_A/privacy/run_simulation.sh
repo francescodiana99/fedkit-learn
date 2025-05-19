@@ -7,7 +7,7 @@ original_dir=$(pwd)
 cd ../../../scripts || exit
 
 if [ -z "$1" ]; then
-    batch_size=32
+    batch_size=256
 else
     batch_size=$1
 fi
@@ -94,7 +94,7 @@ cmd="python run_simulation.py \
 --dp_epsilon $epsilon \
 --dp_delta $delta \
 --clip_norm $clip \
---num_active_rounds $num_active_rounds \
+--num_active_rounds 10 \
 $add_args
 "
 

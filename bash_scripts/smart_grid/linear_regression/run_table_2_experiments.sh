@@ -1,5 +1,3 @@
-#!bin/bash
-
 scripts_dir=$(pwd)
 
 if [ -z $1 ]; then
@@ -9,14 +7,13 @@ else
 fi
 
 if [ -z $2 ]; then
-    seed=0
+    seed=42
 else
     seed=$2
 fi
 
-echo "Running Table 3 experiments for Income-A dataset"
-echo "Running simulation for Income-A"
-sh run_simulation.sh 32 1 5e-7 100 $seed $device "--force_generation --download"
+echo "Running simulation for Smart Grid Dataset"
+sh run_simulation.sh 32 1 5e-3 300 $seed  $device "--force_generation --download"
 echo "Simulation complete. Running passive Gradient Based AIA"
 cd $scripts_dir
 
@@ -25,7 +22,7 @@ echo "Successfully completed passive Gradient Based AIA"
 cd $scripts_dir
 
 echo "Running malicious server reconstruction attack"
-sh run_active_reconstruction.sh 50 $seed $device 
+sh run_active_reconstruction.sh 299 50 $seed $device  
 echo "Active reconstruction is complete"
 cd $scripts_dir
 
@@ -40,13 +37,19 @@ echo "Gradient based active AIA is complete"
 cd $scripts_dir
 
 echo "Running Optimal Local Model search"
-sh run_local_optimal_model_search.sh 200 50 $seed $device 
+sh run_local_optimal_model_search.sh 300 50 $seed $device 
 echo "Optimal Local Model search is complete"
 cd $scripts_dir
 
-echo "Running Model Based Attack"
-sh run_aia_mb.sh  $device $seed  99
+echo "Running Passive Model Based Attack"
+sh run_linear_reconstruction.sh  42 10000000 $device
+cd $scripts_dir
+
+echo "Running Active Model Based Attack"
+sh run_aia_mb.sh  $device $seed 299 
 echo "Model Based Attack is complete"
 cd $scripts_dir
 
 echo "Simulation completed"
+
+

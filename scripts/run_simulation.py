@@ -85,6 +85,7 @@ from datetime import datetime
 import numpy as np
 
 from tqdm import tqdm
+import json
 
 import torch.nn as nn
 import torch.optim as optim
@@ -95,6 +96,7 @@ from torch.utils.tensorboard import SummaryWriter
 from fedklearn.datasets.income.income import FederatedIncomeDataset
 from fedklearn.datasets.adult.adult import FederatedAdultDataset
 from fedklearn.datasets.medical_cost.medical_cost import FederatedMedicalCostDataset
+from fedklearn.datasets.smart_grid.smart_grid import FederatedSmartGridDataset
 from fedklearn.datasets.purchase.purchase import FederatedPurchaseDataset, FederatedPurchaseBinaryClassificationDataset
 from fedklearn.datasets.toy.toy import FederatedToyDataset
 from fedklearn.models.linear import LinearLayer
@@ -122,7 +124,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         "--task_name",
         type=str,
-        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost',
+        choices=['adult', 'toy_regression', 'toy_classification', 'purchase', 'purchase_binary', 'medical_cost', 'smart_grid',
                  'income', 'binary_income' ],
         help="Task name. Possible are: 'adult', 'toy_regression', 'toy_classification', 'purchase', 'medical_cost',"
              " 'income', 'binary_income', 'linear_income', 'linear_medical_cost'.",
@@ -351,6 +353,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         '--download',
         action='store_true',
+        default=True,
         help='Force data downloading'
     )
 
@@ -517,7 +520,7 @@ def initialize_dataset(args, rng):
         FederatedDataset: Initialized federated dataset.
     """
     if args.task_name in ['toy_classification', 'toy_classification', 'purchase', 'income', 'binary_income', 
-                          'linar_income', 'medical_cost', 'linear_medical_cost'] and args.n_tasks is None:
+                          'linar_income', 'medical_cost','smart_grid',  'linear_medical_cost'] and args.n_tasks is None:
         raise ValueError(
             f"The number of tasks should be specified for {args.task_name} dataset."
         )
@@ -613,6 +616,19 @@ def initialize_dataset(args, rng):
         )
     elif args.task_name =="medical_cost":
         return FederatedMedicalCostDataset(
+            cache_dir=args.data_dir,
+            download=args.download,
+            force_generation=args.force_generation,
+            n_tasks=args.n_tasks,
+            rng=rng,
+            split_criterion=args.split_criterion,
+            test_frac=args.test_frac,
+            scaler=args.scaler_name,
+            scale_target=args.scale_target,
+            use_linear=use_linear
+        )
+    elif args.task_name =="smart_grid":
+        return FederatedSmartGridDataset(
             cache_dir=args.data_dir,
             download=args.download,
             force_generation=args.force_generation,
