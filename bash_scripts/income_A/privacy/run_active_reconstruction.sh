@@ -11,7 +11,7 @@ else
 fi
 
 if [ -z "$2" ]; then
-    seed="42"
+    seed="0"
 else
     seed=$2
 fi
@@ -24,7 +24,7 @@ fi
 
 attacked_round=99
 
-batch_size=32
+batch_size=256
 n_local_steps=1
 optimizer="sgd"
 n_tasks=51
@@ -46,7 +46,7 @@ cmd="python run_active_simulation.py \
 --device $device \
 --log_freq 5 \
 --save_freq 1 \
---num_rounds 50 \
+--num_rounds 10 \
 --seed $seed \
 --attacked_round $attacked_round \
 --optimize_hyperparams \

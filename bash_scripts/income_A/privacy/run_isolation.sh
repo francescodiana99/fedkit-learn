@@ -6,7 +6,7 @@ cd ../../../scripts
 original_dir=$(pwd)
 
 if [ -z "$1" ]; then
-    seed=42
+    seed=0
 else
     seed=$1
 fi
@@ -19,11 +19,11 @@ fi
 
 # Hyperparameter options
 attacked_round=99
-num_rounds=50
+num_rounds=10
 n_tasks=51
 n_task_samples=39133
 local_epochs=1
-batch_size=32
+batch_size=256
 
 # privacy parameters (needed only for the paths)
 delta=1e-5

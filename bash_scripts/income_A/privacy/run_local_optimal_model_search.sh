@@ -5,7 +5,7 @@ cd ../../../scripts
 original_dir=$(pwd)
 
 if [ -z "$1" ]; then
-    n_rounds=100
+    n_rounds=10
 else
     n_rounds=$1
 fi
@@ -33,7 +33,7 @@ optimizer="adam"
 n_task_samples=39133
 state='full'
 n_local_steps=1
-batch_size=32
+batch_size=256
 
 
 task_id=5 # client id to optimize, reduces the computation time. To optimize all clients, remove this 

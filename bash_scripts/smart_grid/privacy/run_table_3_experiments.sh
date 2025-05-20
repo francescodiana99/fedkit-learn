@@ -9,14 +9,15 @@ else
 fi
 
 if [ -z $2 ]; then
-    seed=0
+    seed=42
 else
     seed=$2
 fi
 
-echo "Running Table 3 experiments for Income-A dataset"
-echo "Running simulation for Income-A"
-sh run_simulation.sh 32 1 5e-7 100 $seed $device "--force_generation --download"
+echo "Running Table 3 experiments for seed $seed on device $device"
+
+echo "Running simulation for Smart Grid dataset"
+sh run_simulation.sh 32 1 2e-6 100 $seed $device "--force_generation --download"
 echo "Simulation complete. Running passive Gradient Based AIA"
 cd $scripts_dir
 
@@ -25,7 +26,7 @@ echo "Successfully completed passive Gradient Based AIA"
 cd $scripts_dir
 
 echo "Running malicious server reconstruction attack"
-sh run_active_reconstruction.sh 50 $seed $device 
+sh run_active_reconstruction.sh 99 50 $seed $device  
 echo "Active reconstruction is complete"
 cd $scripts_dir
 
@@ -45,8 +46,9 @@ echo "Optimal Local Model search is complete"
 cd $scripts_dir
 
 echo "Running Model Based Attack"
-sh run_aia_mb.sh  $device $seed  99
+sh run_aia_mb.sh  $device $seed 99 
 echo "Model Based Attack is complete"
 cd $scripts_dir
 
 echo "Simulation completed"
+

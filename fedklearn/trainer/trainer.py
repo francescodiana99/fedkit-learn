@@ -97,6 +97,7 @@ class Trainer:
 
         self.n_modules = self.__get_num_modules()
         self.model_dim = int(self.get_param_tensor().shape[0])
+        
 
     def __get_num_modules(self):
         """
@@ -160,6 +161,8 @@ class Trainer:
         self.model.train()
 
         x, y = batch
+        print(x)
+        print(y)
         x = x.to(self.device).type(torch.float32)
         y = y.to(self.device)
 
@@ -175,6 +178,7 @@ class Trainer:
         loss = self.criterion(y_pred, y)
 
         loss.backward()
+        
 
     def compute_loss(self, batch):
         """
@@ -219,6 +223,7 @@ class Trainer:
 
 
             loss = self.criterion(y_pred, y)
+            
 
         return loss
 
@@ -275,7 +280,7 @@ class Trainer:
         self.optimizer.step()
         if self.lr_scheduler:
             self.lr_scheduler.step()
-
+        
         return loss.item(), metric
 
     def fit_epoch(self, loader):
@@ -315,6 +320,8 @@ class Trainer:
         n_samples = 0
 
         for x, y in loader:
+            # print("x shape: ", x.shape)
+            # print(y)
             x = x.to(self.device).type(torch.float32)
             y = y.to(self.device)
 
@@ -341,6 +348,7 @@ class Trainer:
 
             global_loss += loss.item() * y.size(0)
             global_metric += self.metric(y_pred, y) * y.size(0)
+            
 
         return global_loss / n_samples, global_metric / n_samples
 
@@ -372,7 +380,7 @@ class Trainer:
         8. Updates global_loss and global_metric.
         9. Computes average loss and average metric over all batches.
         """
-
+        # print("5555")
         self.model.eval()
 
         global_loss = 0.
@@ -702,7 +710,7 @@ class DPTrainer(Trainer):
 
     def __init__(self, model, criterion, metric, device, optimizer, max_physical_batch_size, clip_norm, delta, train_loader,
                 optimizer_init_dict, model_name=None, epsilon=None, noise_multiplier=None, epochs=None, lr_scheduler=None,
-                cast_float=False, rng=None):
+                cast_float=False, rng=None, dynamic_privacy=False):
         super().__init__(model, criterion, metric, device, optimizer, model_name, lr_scheduler, cast_float)
 
         self.max_physical_batch_size = max_physical_batch_size
@@ -883,6 +891,12 @@ class DPTrainer(Trainer):
                 loss = self.criterion(y_pred, y)
 
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(privacy_model.parameters(), max_norm=1.0) # clip gradients
+                # print("Gradient norm: ", torch.nn.utils.clip_grad_norm_(privacy_model.parameters(), max_norm=1.0))
+                # # print("Gradient norm: ", torch.norm(privacy_model.parameters(), p=2))
+                # for name, param in privacy_model.named_parameters():
+                #     if param.grad is not None:
+                #         print(f"{name} grad norm: {param.grad.norm(2).item():.4f}")
 
                 privacy_optimizer.step()
 

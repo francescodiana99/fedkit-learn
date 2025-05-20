@@ -779,7 +779,7 @@ class FederatedAdultDataset:
                 json.dump(metadata, f)
 
     def _load_task_mapping(self):
-        with (open(self._metadata_path, "r") as f):
+        with open(self._metadata_path, "r") as f:
             metadata = json.load(f)
             self.task_id_to_name = metadata[self.split_criterion]
 

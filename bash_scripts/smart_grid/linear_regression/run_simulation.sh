@@ -45,45 +45,45 @@ else
     add_args=$7
 fi
 
-state="full"
 optimizer="sgd"
-split_criterion="state"
-n_task_samples=39133
-n_tasks=51
-data_dir="./data/seeds/$seed/income"
+n_tasks=2
+model_config_path="../fedklearn/configs/smart_grid/models/linear_config.json"
+split_criterion="random"
+momentum=0.0
+weight_decay=0.0
+data_dir="./data/seeds/$seed/smart_grid"
 
-chkpts_dir="./chkpts/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
-logs_dir="./logs/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
-metadata_dir="./metadata/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
-model_config_path="../fedklearn/configs/income/full/models/linear_config.json"
+chkpts_dir="./chkpts/seeds/$seed/linear/smart_grid/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+logs_dir="./logs/seeds/$seed/linear/smart_grid/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+metadata_dir="./metadata/seeds/$seed/linear/smart_grid/$n_tasks/$batch_size/$n_local_steps/$optimizer"
+
 
 cmd="python run_simulation.py \
---task_name income \
+--task_name smart_grid \
+--test_frac 0.1 \
 --scaler standard \
 --optimizer $optimizer \
---momentum 0.0 \
---weight_decay 0.0 \
+--learning_rate $lr \
+--momentum $momentum \
+--weight_decay $weight_decay \
 --batch_size $batch_size \
---local_steps $n_local_steps \
---by_epoch \
---device $device \
---data_dir $data_dir \
---log_freq 10 \
---save_freq 1 \
---num_rounds $num_rounds \
+--device $device  \
+--log_freq 5 \
+--save_freq 1 --num_rounds $num_rounds \
 --seed $seed \
 --model_config_path $model_config_path \
 --split_criterion $split_criterion \
 --n_tasks $n_tasks \
---state $state \
+--by_epoch \
+--data_dir $data_dir \
 --chkpts_dir $chkpts_dir \
 --logs_dir $logs_dir \
 --metadata_dir $metadata_dir \
---learning_rate $lr \
 --scale_target \
-$add_args"
+$add_args "
 
-echo $cmd
+
+echo "Running command: $cmd"
 eval $cmd
 
-cd $original_dir
+cd $original_dir || exit
