@@ -353,7 +353,7 @@ def get_trainers_config(task_name):
         "purchase": (nn.CrossEntropyLoss(), multiclass_accuracy, False),
         "purchase_binary": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
         "medical_cost": (nn.MSELoss(), mean_absolute_error, True),
-        "smart_grid": (nn.MSELoss(), mean_absolute_error, True),
+        "smart_grid": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),
         "linear_medical_cost": (nn.MSELoss(), mean_absolute_error, True),
         "income": (nn.MSELoss(), mean_absolute_error, True),
         "binary_income": (nn.BCEWithLogitsLoss(), binary_accuracy_with_sigmoid, True),

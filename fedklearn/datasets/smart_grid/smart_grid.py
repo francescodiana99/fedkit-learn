@@ -125,8 +125,8 @@ class FederatedSmartGridDataset:
         >>> client_test_dataset = federated_data.get_task_dataset(task_id=0, mode="test")
     """
 
-    def __init__(self, cache_dir="./", download=True, rng=None, force_generation=True, n_tasks=4, split_criterion="random",
-                 test_frac=None, scaler="standard", scale_target=True, use_linear=False):
+    def __init__(self, cache_dir="./", download=False, rng=None, force_generation=True, n_tasks=4, split_criterion="random",
+                 test_frac=None, scaler="standard", scale_target=False, use_linear=False):
         self.cache_dir = cache_dir
         self.download = download
         self.force_generation = force_generation
@@ -200,6 +200,8 @@ class FederatedSmartGridDataset:
 
         df_path = os.path.join(self.raw_data_dir, FILE_NAME)
         df = pd.read_csv(df_path, sep=r'\s*,\s*', engine='python', na_values="?")
+        # has_nan = df.isna().any().any()  # 或 df.isnull().values.any()
+        # print(f"数据中是否存在 NaN: {has_nan}")
 
         df.to_csv(os.path.join(self.raw_data_dir, "smart_grid.csv"), index=False)
 
@@ -230,15 +232,19 @@ class FederatedSmartGridDataset:
             stabf_column = df["stabf"]
             mapping = {"stable": 1, "unstable": 0}
             stabf_column = stabf_column.map(mapping)
-            features_numerical = features_numerical.drop("stab", axis=1)
-            features_numerical = features_numerical.drop("stabf", axis=1)
-            numerical_columns.remove("stab", "stabf")
+            # features_numerical = features_numerical.drop("stab", axis=1)
+            # features_numerical = features_numerical.drop("stabf", axis=1)
+            # numerical_columns.remove("stab", "stabf")
             
             features_numerical = features_numerical + 1
             features_numerical = pd.concat([features_numerical, stabf_column], axis=1)
             numerical_columns = features_numerical.columns
-            numerical_log = np.log(features_numerical)
-
+            # numerical_log = np.log(features_numerical)
+            features_numerical = features_numerical.replace(0, np.nan)  # 将零替换为 NaN
+            features_numerical = features_numerical.fillna(features_numerical.mean())  # 用均值填充 NaN
+            numerical_log = np.log(features_numerical + 1)  # 平移数据以避免零值
+            if (features_numerical <= 0).any().any():
+                raise ValueError("features_numerical contains invalid values for log transformation.")
             if mode == "train":
                 numerical_scaled = self.scaler.fit_transform(numerical_log)
             else:
@@ -266,7 +272,7 @@ class FederatedSmartGridDataset:
             stabf_column = stabf_column.reset_index(drop=True)
             features_numerical_scaled = features_numerical_scaled.reset_index(drop=True)
 
-            features_scaled = pd.concat([features_numerical_scaled, stabf_column], axis=1)
+            features_scaled = pd.concat([features_numerical_scaled.round(3), stabf_column], axis=1)
 
             return features_scaled
 
@@ -276,6 +282,7 @@ class FederatedSmartGridDataset:
         """Preprocesses the raw data and saves the intermediate data in the intermediate data folder."""
 
         df = pd.read_csv(os.path.join(self.raw_data_dir, "smart_grid.csv"))
+        # print(df.isnull().sum())
 
         # df = df.dropna(axis=0)
         # for col in df.select_dtypes(include=['object']).columns:
@@ -308,11 +315,14 @@ class FederatedSmartGridDataset:
         """
         train_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "train.csv"))
         test_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "test.csv"))
+        # mapping = {"stable": 1, "unstable": 0}
+        # train_df['stabf'] = train_df['stabf'].map(mapping)
+        # test_df['stabf'] = test_df['stabf'].map(mapping)
 
-        charges_col = pd.concat([train_df['stabf'], test_df['stabf']], axis=0)
+        # charges_col = pd.concat([train_df['stabf'], test_df['stabf']], axis=0)
 
-        self.mean_charges = charges_col.mean()
-        self.std_charges = charges_col.std()
+        # self.mean_charges = charges_col.mean()
+        # self.std_charges = charges_col.std()
 
         train_tasks_dict = self._split_data_into_tasks(train_df)
         test_tasks_dict = self._split_data_into_tasks(test_df)
@@ -445,8 +455,8 @@ class FederatedSmartGridDataset:
                               'n_tasks': self.n_tasks,
                               'cache_dir': os.path.abspath(self.cache_dir),
                               'task_mapping': self.task_id_to_name, 
-                              'mean': self.mean_charges,
-                              'std': self.std_charges
+                            #   'mean': self.mean_charges,
+                            #   'std': self.std_charges
                               }
             json.dump(metadata_dict, f)
 
@@ -496,9 +506,9 @@ class FederatedSmartGridDataset:
         with open(self.metadata_path, 'r') as f:
             metadata_dict = json.load(f)
         
-        self.mean_charges = metadata_dict["mean"]
-        self.std_charges = metadata_dict["std"]
-        df['charges'] = (df['charges'] - self.mean_charges) / self.std_charges
+        # self.mean_charges = metadata_dict["mean"]
+        # self.std_charges = metadata_dict["std"]
+        # df['stabf'] = (df['stabf'] - self.mean_charges) / self.std_charges
         return df
 
 
@@ -529,8 +539,8 @@ class SmartGridDataset(Dataset):
 
         # self.features = dataframe.drop(["stab"], axis=1).values
         self.features = dataframe.drop(["stabf"], axis=1).values
-        status_map = {"stable": 1, "unstable": 0}
-        self.targets = dataframe["stabf"].map(status_map).values
+        # status_map = {"stable": 1, "unstable": 0}
+        self.targets = dataframe["stabf"].values
 
         self.name = name
 

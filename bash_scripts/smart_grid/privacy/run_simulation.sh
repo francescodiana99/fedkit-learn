@@ -16,7 +16,7 @@ else
 fi
 
 if [ -z "$3" ]; then
-    lr=0.05
+    lr=0.0001
 else
     lr=$3
 fi
@@ -57,7 +57,7 @@ data_dir="./data/seeds/$seed/smart_grid"
 # privacy parameters
 delta=1e-6
 clip=5e5
-epsilon=1
+epsilon=10
 num_active_rounds=50
 
 chkpts_dir="./chkpts/seeds/$seed/privacy/$epsilon/$delta/$clip/smart_grid/$n_tasks/$batch_size/$n_local_steps/$optimizer"

@@ -106,7 +106,8 @@ from fedklearn.federated.simulator import FederatedAveraging
 
 from fedklearn.metrics import *
 
-from utils import *
+from fedklearn.utils import * 
+from scripts.utils import *
 
 
 def parse_args(args_list=None):
@@ -353,7 +354,7 @@ def parse_args(args_list=None):
     parser.add_argument(
         '--download',
         action='store_true',
-        default=True,
+        default=False,
         help='Force data downloading'
     )
 

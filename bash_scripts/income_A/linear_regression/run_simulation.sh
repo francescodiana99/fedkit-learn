@@ -50,7 +50,7 @@ optimizer="sgd"
 split_criterion="state"
 n_task_samples=39133
 n_tasks=51
-
+data_dir="./data/seeds/$seed/income"
 
 chkpts_dir="./chkpts/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"
 logs_dir="./logs/seeds/$seed/linear/income/$state/$n_tasks/$n_task_samples/$batch_size/$n_local_steps/$optimizer"

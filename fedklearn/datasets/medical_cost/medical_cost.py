@@ -166,6 +166,7 @@ class FederatedMedicalCostDataset:
 
         elif not self.download and self.force_generation:
             logging.info("Data found in the cache directory. Splitting data into tasks..")
+            self._preprocess()
             self._generate_tasks_mapping()
 
         elif  not self.download:
@@ -267,7 +268,7 @@ class FederatedMedicalCostDataset:
 
     def _preprocess(self):
         """Preprocesses the raw data and saves the intermediate data in the intermediate data folder."""
-
+        # print(os.getcwd())
         df = pd.read_csv(os.path.join(self.raw_data_dir, "medical_cost.csv"))
 
         df = df.dropna(axis=0)
@@ -299,7 +300,8 @@ class FederatedMedicalCostDataset:
         train_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "train.csv"))
         test_df = pd.read_csv(os.path.join(self.intermediate_data_dir, "test.csv"))
 
-        charges_col = pd.concat(train_df['charges'], test_df['charges'], axis=1)
+        # charges_col = pd.concat(train_df['charges'], test_df['charges'], axis=1)
+        charges_col = pd.concat([train_df['charges'], test_df['charges']], axis=0)
 
         self.mean_charges = charges_col.mean()
         self.std_charges = charges_col.std()
@@ -546,6 +548,6 @@ class MedicalCostDataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = FederatedMedicalCostDataset(cache_dir="../../../scripts/data/medical_cost", download=True,
+    dataset = FederatedMedicalCostDataset(cache_dir="../../../scripts/data/medical_cost", download=False,
                                           force_generation=True, test_frac=0.1)
     print("Data loaded successfully.")
