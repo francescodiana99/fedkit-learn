@@ -548,7 +548,7 @@ class ActiveAdamFederatedAveraging(FederatedAveraging):
         2. Compute an Adam update for each client copy.
         3. Update the client's parameters using the ones received from the server.
 
-        Step 5 in Algorithm 4 of the paper.
+        Step 5 in Algorithm 3 of the paper.
 
         Args:
             task_index(int): Index of the client in the clients list.
